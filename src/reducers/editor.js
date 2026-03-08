@@ -9,6 +9,14 @@ import exampleData from '../examples';
 import { defaultFiletype, getDiagramFiletypes } from "../kroki/metadata";
 
 const defaultDiagramType = 'plantuml';
+const legacyRenderUrl = 'https://kroki.io/';
+const defaultRenderUrl = 'https://kroki.io/';
+const normalizeRenderUrl = (renderUrl) => {
+    if (!renderUrl || renderUrl === '' || renderUrl === legacyRenderUrl || renderUrl === legacyRenderUrl.slice(0, -1)) {
+        return defaultRenderUrl;
+    }
+    return renderUrl;
+};
 const getValidFiletype = (diagramType, filetype) => {
     const filetypes = getDiagramFiletypes(diagramType);
     if (filetype && filetypes.includes(filetype)) {
@@ -26,7 +34,7 @@ export const initialState = {
     defaultDiagram: true,
     diagramTypes,
     language: null,
-    renderUrl: (window.config && window.config.krokiEngineUrl) || 'https://kroki.io/',
+    renderUrl: normalizeRenderUrl((window.config && window.config.krokiEngineUrl) || defaultRenderUrl),
     scopes: {
         'image': {
             isHover: false,
@@ -95,9 +103,7 @@ const setRenderWidth = (state, renderEditWidth, renderEditHeight) => {
  */
 export const updateDiagram = (state) => {
     let { diagramType, filetype, renderUrl, diagramText, baseUrl, diagramTypes } = state;
-    if (!renderUrl || renderUrl === '') {
-        renderUrl = initialState.renderUrl;
-    }
+    renderUrl = normalizeRenderUrl(renderUrl || initialState.renderUrl);
     if (!diagramType || diagramType === '') {
         diagramType = state.diagramType;
     }
@@ -150,7 +156,7 @@ export const updateHash = (state, hash) => {
         }
     }
     if (renderSite && protocol) {
-        renderUrl = protocol + protocolSeparator + renderSite;
+        renderUrl = normalizeRenderUrl(protocol + protocolSeparator + renderSite);
     }
     if (coded) {
         diagramText = decode(coded);
@@ -163,6 +169,7 @@ export const updateHash = (state, hash) => {
     if (renderUrl === null) {
         renderUrl = state.renderUrl
     }
+    renderUrl = normalizeRenderUrl(renderUrl);
     if (diagramText === null) {
         diagramText = state.diagramText
     }

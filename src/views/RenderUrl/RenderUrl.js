@@ -1,21 +1,19 @@
 import React from 'react';
-import { Input } from 'semantic-ui-react'
+import './RenderUrl.css'
 
 const RenderUrl = ({ renderUrl, renderUrlChanged }) => {
-    let changeHandler = null;
-    if (renderUrlChanged) {
-        changeHandler = (event) => renderUrlChanged(event.target.value);
-    }
+    const changeHandler = renderUrlChanged ? (event) => renderUrlChanged(event.target.value) : undefined;
 
-    return <Input
-        fluid
-        value={renderUrl}
-        onChange={changeHandler}
-        icon='cogs'
-        iconPosition='left'
-        placeholder='Render URL engine...'
-        aria-label='Render URL engine'
-    />
+    return <label className='AppTextField RenderUrlField'>
+        <span className='AppTextFieldLabel'>Kroki engine</span>
+        <input
+            className='AppTextControl RenderUrlInput code'
+            value={renderUrl}
+            onChange={changeHandler}
+            placeholder='https://kroki.io/'
+            aria-label='Render URL engine'
+        />
+    </label>
 }
 
 export default RenderUrl;

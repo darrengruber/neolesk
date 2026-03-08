@@ -1,82 +1,445 @@
-
 :root {
-    --niolesk-bg: #f4efe4;
-    --niolesk-panel: rgba(255, 251, 243, 0.88);
-    --niolesk-panel-strong: #fff8ec;
-    --niolesk-ink: #1e252b;
-    --niolesk-muted: #5b6772;
-    --niolesk-accent: #b55233;
-    --niolesk-accent-dark: #83381f;
-    --niolesk-border: rgba(58, 45, 27, 0.14);
-    --niolesk-shadow: 0 24px 70px rgba(77, 48, 26, 0.14);
+    --niolesk-bg: #eff4fb;
+    --niolesk-bg-soft: #f8fbff;
+    --niolesk-panel: #ffffff;
+    --niolesk-panel-muted: #f5f8fd;
+    --niolesk-panel-border: #d8e2ef;
+    --niolesk-border: #d2dcea;
+    --niolesk-border-strong: #b9c7da;
+    --niolesk-text: #162235;
+    --niolesk-muted: #62748d;
+    --niolesk-accent: #2563eb;
+    --niolesk-accent-soft: rgba(37, 99, 235, 0.1);
+    --niolesk-shadow: 0 16px 36px rgba(61, 89, 132, 0.08);
+}
+
+html,
+body,
+#root {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    background: linear-gradient(180deg, #f8fbff 0%, #edf3fb 100%);
+    color: var(--niolesk-text);
+    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+body.workspace-resizing {
+    cursor: col-resize;
+    user-select: none;
+}
+
+a {
+    color: inherit;
 }
 
 .App {
-    max-width: 1380px;
-    margin: 0 auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
     min-height: 100vh;
-    padding: 24px 20px 40px;
-    color: var(--niolesk-ink);
+    overflow: hidden;
+    color: var(--niolesk-text);
 }
 
 .code {
-    font-family: 'IBM Plex Mono', 'Fira Code', Menlo, Monaco, Consolas, 'Courier New', monospace !important;
+    font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace !important;
 }
 
-.diagramParams {
-    margin-bottom: 1rem;
+.AppToolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 50px;
+    min-height: 50px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--niolesk-panel-border);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
 }
 
-#root {
-    overflow: hidden;
+.AppToolbarBrand,
+.AppToolbarControls,
+.AppToolbarActions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
 }
 
-.App .ui.basic.segment {
-    background: var(--niolesk-panel);
-    border: 1px solid var(--niolesk-border);
-    border-radius: 24px;
-    box-shadow: var(--niolesk-shadow);
-    backdrop-filter: blur(18px);
+.AppToolbarBrand {
+    flex: 0 0 auto;
 }
 
-.zenMode .MainPanel {
-    position: fixed;
-    left: 0px;
-    top: 0px;
-    bottom: 0px;
-    right: 0px;
+.AppToolbarControls {
+    flex: 1 1 auto;
 }
 
-.zenMode .NonZen {
+.AppToolbarActions {
+    flex: 0 0 auto;
+}
+
+.AppToolbarLogo {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: #edf3fb;
+    border: 1px solid var(--niolesk-panel-border);
+    color: var(--niolesk-text);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.AppToolbarButton {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    padding: 0 11px;
+    border: 1px solid var(--niolesk-panel-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--niolesk-text);
+    font: inherit;
+    font-size: 0.83rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.AppToolbarButton:hover {
+    background: #f5f8fd;
+    border-color: var(--niolesk-border-strong);
+}
+
+.MainPanel {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-bottom: 34px;
+}
+
+.WorkspaceMobileTabs {
     display: none;
 }
 
-.controlZone {
+.compactHidden {
+    display: none !important;
+}
+
+.Workspace {
     display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-content: center;
-    gap: 12px;
+    gap: 0;
+    height: 100%;
+    min-height: 0;
 }
 
-.diagramTypeZone {
-    flex-grow: 0;
-    flex-basis: auto;
-    min-width: 14rem;
+.WorkspaceModeHorizontal {
+    flex-direction: column;
 }
 
-.outputFormatZone {
-    flex-grow: 0;
-    min-width: 8rem;
-}
-
-.buttonsZone {
-    flex-grow: 1;
-    flex-basis: auto;
+.WorkspacePanel {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: var(--niolesk-panel);
+}
+
+.WorkspacePanelEditor {
+    flex: 0 0 var(--editor-panel-width, 44%);
+    min-width: 280px;
+    border-right: 1px solid var(--niolesk-panel-border);
+}
+
+.WorkspaceModeHorizontal .WorkspacePanelEditor {
+    flex: 0 0 48%;
+    min-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid var(--niolesk-panel-border);
+}
+
+.WorkspacePanelPreview {
+    flex: 1 1 auto;
+    min-width: 320px;
+    background: #f7fbff;
+}
+
+.WorkspaceModePreview .WorkspacePanelPreview,
+.WorkspacePanelPreview.previewOnly {
+    min-width: 0;
+    flex: 1 1 100%;
+}
+
+.WorkspacePanelBar {
+    display: flex;
+    align-items: center;
     justify-content: flex-end;
-    flex-wrap: wrap;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--niolesk-panel-border);
+    background: var(--niolesk-panel-muted);
+}
+
+.WorkspacePanelBarSpacer {
+    flex: 1 1 auto;
+}
+
+.EditorWrapButton {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--niolesk-panel-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--niolesk-muted);
+    font: inherit;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.EditorWrapButton.active {
+    border-color: rgba(37, 99, 235, 0.18);
+    background: rgba(37, 99, 235, 0.08);
+    color: #2563eb;
+}
+
+.EditorWrapButtonCompact {
+    flex: 0 0 auto;
+    min-width: 68px;
+}
+
+.WorkspacePanelBody {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.WorkspaceDivider {
+    position: relative;
+    flex: 0 0 8px;
+    width: 8px;
+    padding: 0;
+    border: 0;
+    background: #eef4fb;
+    cursor: col-resize;
+}
+
+.WorkspaceDivider::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    transform: translateX(-50%);
+    background: var(--niolesk-panel-border);
+}
+
+.WorkspaceDivider:hover::before {
+    background: rgba(37, 99, 235, 0.5);
+}
+
+.SplitPresetGroup {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px;
+    border: 1px solid var(--niolesk-panel-border);
+    border-radius: 10px;
+    background: #eef3f9;
+}
+
+.SplitPresetButton {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--niolesk-muted);
+    cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease;
+}
+
+.SplitPresetButton.active {
+    border-color: rgba(37, 99, 235, 0.2);
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.SplitPresetIcon {
+    display: flex;
+    width: 22px;
+    height: 14px;
+    gap: 2px;
+    border-radius: 4px;
+}
+
+.SplitPresetIconPane {
+    display: block;
+    height: 100%;
+    border: 1px solid #94a3b8;
+    border-radius: 3px;
+    background: transparent;
+    box-sizing: border-box;
+}
+
+.SplitPresetButton.active .SplitPresetIconPane {
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.16);
+}
+
+.SplitPresetIconVertical .SplitPresetIconPaneNarrow {
+    width: 40%;
+}
+
+.SplitPresetIconVertical .SplitPresetIconPaneWide {
+    width: 60%;
+}
+
+.SplitPresetIconHorizontal {
+    flex-direction: column;
+}
+
+.SplitPresetIconHorizontal .SplitPresetIconPaneTop,
+.SplitPresetIconHorizontal .SplitPresetIconPaneBottom {
+    width: 100%;
+    height: 50%;
+}
+
+.SplitPresetIconPreview .SplitPresetIconPaneFull {
+    width: 100%;
+}
+
+.LinksDrawer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 12;
+    border-top: 1px solid var(--niolesk-panel-border);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: var(--niolesk-shadow);
+    transform: translateY(calc(100% - 34px));
+    transition: transform 180ms ease;
+}
+
+.LinksDrawer.open {
+    transform: translateY(0);
+}
+
+.LinksDrawerHandle {
+    width: 100%;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 12px;
+    border: 0;
+    background: transparent;
+    color: var(--niolesk-text);
+    cursor: pointer;
+    text-align: left;
+}
+
+.LinksDrawerHandleText strong {
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.LinksDrawerHandleState {
+    color: var(--niolesk-muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.LinksDrawerBody {
+    max-height: min(42vh, 360px);
+    overflow: auto;
+    padding: 10px 12px 12px;
+}
+
+.LinksDrawerControls {
+    margin-bottom: 10px;
+}
+
+.AppSelectField,
+.AppTextField {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.AppSelectFieldLabel,
+.AppTextFieldLabel {
+    flex: 0 0 auto;
+    color: var(--niolesk-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.AppSelectControl,
+.AppTextControl {
+    appearance: none;
+    height: 32px;
+    min-width: 0;
+    border: 1px solid var(--niolesk-panel-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--niolesk-text);
+    font: inherit;
+    font-size: 0.84rem;
+    padding: 0 10px;
+}
+
+.AppSelectControl {
+    padding-right: 2rem;
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--niolesk-muted) 50%),
+        linear-gradient(135deg, var(--niolesk-muted) 50%, transparent 50%);
+    background-position:
+        calc(100% - 16px) calc(50% - 2px),
+        calc(100% - 11px) calc(50% - 2px);
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+}
+
+.AppTextControl::placeholder {
+    color: #95a4b9;
+}
+
+.AppSelectControl:focus,
+.AppTextControl:focus,
+.AppToolbarButton:focus,
+.EditorWrapButton:focus,
+.SplitPresetButton:focus,
+.LinksDrawerHandle:focus {
+    outline: none;
+    border-color: rgba(37, 99, 235, 0.45);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
 .analyticsPanel {
@@ -84,91 +447,154 @@
     height: 1px;
 }
 
-.MainPanel .ui.grid {
-    margin-top: 0;
-}
-
-.MainPanel .ui.grid > .row > .column {
-    padding-top: 0.75rem;
-    padding-bottom: 0.75rem;
-}
-
-.App .ui.input input,
-.App .ui.selection.dropdown,
-.App .ui.button,
-.App .ui.card,
-.App .ui.modal,
-.App .ui.segment,
-.App .ui.form textarea {
-    border-radius: 18px !important;
-}
-
-.App .ui.selection.dropdown,
-.App .ui.input > input {
-    border: 1px solid var(--niolesk-border) !important;
-    background: rgba(255, 255, 255, 0.88) !important;
-}
-
-.App .ui.button {
-    background: var(--niolesk-panel-strong);
-    color: var(--niolesk-ink);
-    border: 1px solid var(--niolesk-border);
-    box-shadow: none;
-}
-
-.App .ui.button.primary,
-.App .ui.button.blue {
-    background: var(--niolesk-accent);
-    color: #fff;
-}
-
-.App .ui.button.primary:hover,
-.App .ui.button.blue:hover {
-    background: var(--niolesk-accent-dark);
-    color: #fff;
-}
-
 @media (max-width: 980px) {
-    .App {
-        padding: 18px 14px 24px;
+    .AppToolbar {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        padding: 8px 10px;
     }
 
-    .controlZone {
-        flex-wrap: wrap;
+    .AppToolbarBrand,
+    .AppToolbarControls,
+    .AppToolbarActions {
+        width: auto;
     }
 
-    .diagramTypeZone,
-    .outputFormatZone,
-    .buttonsZone {
-        min-width: 100%;
+    .AppToolbarControls {
+        flex: initial;
+        min-width: 0;
     }
 
-    .buttonsZone {
-        justify-content: flex-start;
-        gap: 0.65rem;
+    .AppToolbarActions {
+        justify-content: flex-end;
     }
 
-    .MainPanel .ui.grid > .row {
-        padding-top: 0;
-        padding-bottom: 0;
+    .WorkspaceMobileTabs {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        height: 40px;
+        padding: 0 10px;
+        border-bottom: 1px solid var(--niolesk-panel-border);
+        background: rgba(255, 255, 255, 0.86);
+    }
+
+    .WorkspaceMobileTabGroup {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .WorkspaceMobileTab {
+        appearance: none;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid var(--niolesk-panel-border);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--niolesk-muted);
+        font: inherit;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    .WorkspaceMobileTab.active {
+        border-color: rgba(37, 99, 235, 0.24);
+        background: var(--niolesk-accent-soft);
+        color: var(--niolesk-accent);
+    }
+
+    .Workspace {
+        position: relative;
+    }
+
+    .compactHidden {
+        display: none;
+    }
+
+    .WorkspacePanelEditor,
+    .WorkspacePanelPreview {
+        flex: 1 1 auto;
+        min-width: 0;
+        border-right: 0;
+        border-bottom: 0;
+    }
+
+    .WorkspaceDivider {
+        display: none;
     }
 }
 
 @media (max-width: 640px) {
-    .App {
-        padding: 14px 10px 20px;
+    .AppToolbar {
+        grid-template-columns: auto 1fr;
+        row-gap: 6px;
+        padding: 6px 8px;
     }
 
-    .App .ui.basic.segment {
-        border-radius: 20px;
+    .AppToolbarBrand {
+        grid-column: 1;
     }
 
-    .diagramParams {
-        margin-bottom: 0.5rem;
+    .AppToolbarControls {
+        grid-column: 2;
     }
 
-    .buttonsZone {
-        display: flex;
-        width: 100%;
+    .AppToolbarActions {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+        gap: 6px;
+    }
+
+    .AppToolbarLogo {
+        height: 26px;
+        padding: 0 8px;
+        font-size: 0.74rem;
+    }
+
+    .AppToolbarButton {
+        height: 28px;
+        padding: 0 9px;
+        font-size: 0.78rem;
+        flex: 0 0 auto;
+    }
+
+    .AppSelectField {
+        gap: 6px;
+    }
+
+    .AppSelectFieldLabel {
+        font-size: 0.66rem;
+        letter-spacing: 0.04em;
+    }
+
+    .AppSelectControl {
+        height: 28px;
+        padding-left: 8px;
+        padding-right: 1.7rem;
+        font-size: 0.8rem;
+        background-position:
+            calc(100% - 14px) calc(50% - 2px),
+            calc(100% - 10px) calc(50% - 2px);
+    }
+
+    .WorkspaceMobileTabs {
+        height: 36px;
+        padding: 0 8px;
+        gap: 8px;
+    }
+
+    .WorkspaceMobileTabGroup {
+        gap: 5px;
+    }
+
+    .WorkspaceMobileTab,
+    .EditorWrapButtonCompact {
+        height: 26px;
+        min-width: 0;
+        padding: 0 9px;
+        font-size: 0.74rem;
     }
 }

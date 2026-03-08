@@ -3,7 +3,6 @@ import classnames from 'classnames'
 import PropTypes from 'prop-types';
 
 import './CopyField.css'
-import { Button, TextArea } from 'semantic-ui-react';
 
 const CopyField = ({ text, onCopy, onCopyHover, isCopyHover, isCopied, scope, isMultiline }) => {
     if (!onCopy) {
@@ -14,26 +13,22 @@ const CopyField = ({ text, onCopy, onCopyHover, isCopyHover, isCopied, scope, is
     }
 
     return <div className={classnames('CopyField', { 'copy-hover': isCopyHover, 'copied': isCopied })}>
-        <TextArea
-            fluid="fluid"
+        <textarea
             className={classnames('CopyFieldPre', 'code', { 'multiline': isMultiline })}
-            multiline={isMultiline ? 'multiline' : undefined}
-            type='text'
             value={text}
-            focus={isCopyHover ? 'focus' : undefined}
             rows={isMultiline ? 4 : 1}
             readOnly
+            aria-label={`${scope} output`}
         />
-        <Button
+        <button
+            type='button'
             className='CopyButton'
-            color={isCopied ? 'green' : 'blue'}
-            labelPosition={'right'}
-            icon={isCopied ? 'check' : 'copy'}
-            content={isCopied ? 'Copied' : 'Copy'}
             onMouseEnter={() => onCopyHover(scope, true)}
             onMouseLeave={() => onCopyHover(scope, false)}
             onClick={() => onCopy(scope, text)}
-        />
+        >
+            {isCopied ? 'Copied' : 'Copy'}
+        </button>
     </div>
 }
 

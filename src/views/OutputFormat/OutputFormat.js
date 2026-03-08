@@ -1,25 +1,18 @@
 import React from 'react';
-import { Dropdown } from 'semantic-ui-react';
 import PropTypes from 'prop-types';
 import './OutputFormat.css';
 
 const OutputFormat = ({ filetype, filetypes, onFiletypeChanged }) => {
-    const changeHandler = onFiletypeChanged ? (event, data) => onFiletypeChanged(data.value) : undefined;
-
-    return <Dropdown
-        id='select-output-format'
-        className='OutputFormat OutputFormatSelect'
-        placeholder='Format'
-        aria-label='Output format'
-        options={filetypes.map((value) => ({
-            key: value,
-            value,
-            text: value.toUpperCase(),
-        }))}
-        value={filetype}
-        onChange={changeHandler}
-        selection
-    />;
+    return <div className='OutputFormatGroup' aria-label='Supported output types'>
+        {filetypes.map((value) => <button
+            key={value}
+            type='button'
+            className={`OutputFormatButton${value === filetype ? ' active' : ''}`}
+            onClick={() => onFiletypeChanged && onFiletypeChanged(value)}
+        >
+            {value.toUpperCase()}
+        </button>)}
+    </div>;
 };
 
 OutputFormat.propTypes = {

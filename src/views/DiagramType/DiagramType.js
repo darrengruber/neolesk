@@ -1,5 +1,4 @@
 import React from 'react';
-import { Dropdown } from 'semantic-ui-react'
 import PropTypes from 'prop-types';
 import './DiagramType.css'
 
@@ -7,22 +6,20 @@ const DiagramType = ({ diagramTypes, diagramType, onDiagramTypeChanged }) => {
     if (!diagramTypes) {
         diagramTypes = {}
     }
-    let changeHandler = null;
-    if (onDiagramTypeChanged) {
-        changeHandler = (event, data) => onDiagramTypeChanged(data.value);
-    }
+    const changeHandler = onDiagramTypeChanged ? (event) => onDiagramTypeChanged(event.target.value) : undefined;
 
-    return <Dropdown
-        id='select-diagram'
-        className='DiagramType DiagramTypeSelect'
-        placeholder='Select a diagram type...'
-        aria-label='Diagram'
-        options={Object.keys(diagramTypes).map((diagramType) => ({ key: diagramType, value: diagramType, text: diagramTypes[diagramType].name }))}
-        value={diagramType}
-        onChange={changeHandler}
-        selection={true}
-        search={true}
-    />
+    return <label className='AppSelectField DiagramTypeField'>
+        <span className='AppSelectFieldLabel'>Diagram type</span>
+        <select
+            id='select-diagram'
+            className='AppSelectControl DiagramTypeSelect'
+            aria-label='Diagram'
+            value={diagramType}
+            onChange={changeHandler}
+        >
+            {Object.keys(diagramTypes).map((item) => <option key={item} value={item}>{diagramTypes[item].name}</option>)}
+        </select>
+    </label>
 }
 
 DiagramType.propTypes = {

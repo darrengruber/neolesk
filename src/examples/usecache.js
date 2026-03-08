@@ -2,6 +2,7 @@ import CryptoJS from 'crypto-js';
 
 const md5 = (s) => CryptoJS.MD5(s).toString();
 const cache = window.cache ? window.cache : [];
+const defaultRenderUrl = 'https://kroki.io/';
 
 export const getExampleUrl = (exampleItem) => {
     const ext = 'svg'
@@ -12,5 +13,5 @@ export const getExampleUrl = (exampleItem) => {
     if (cache.indexOf(filename) !== -1) {
         return `./cache/${filename}`
     }
-    return `https://kroki.io/${radical}`;
+    return `${defaultRenderUrl}${radical}`;
 }

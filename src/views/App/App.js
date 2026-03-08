@@ -1,18 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types'
 import '../fomantic-ui-css/semantic.min.css'
-import { Form, Segment } from 'semantic-ui-react';
-
-import Title from '../Title';
-import SubTitle from '../SubTitle';
-import Columns from '../Columns';
 import Editor from '../Editor';
 import Render from '../Render';
 import CopyZone from '../CopyZone';
 import DiagramType from '../DiagramType';
-import OutputFormat from '../OutputFormat';
 import RenderUrl from '../RenderUrl';
-import ShrinkableButton from '../ShrinkableButton';
 import WindowExampleCards from '../WindowExampleCards';
 import WindowExampleDetail from '../WindowExampleDetail';
 import WindowImportUrl from '../WindowImportUrl';
@@ -20,7 +13,20 @@ import WindowImportUrl from '../WindowImportUrl';
 import './App.css'
 import classNames from 'classnames';
 
-const App = ({ onExamples, onImportUrl, onSetZenMode, zenMode, onKey, onResize, analytics }) => {
+const defaultEditorWidth = 44;
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const layoutModes = ['vertical', 'horizontal', 'preview'];
+
+const App = ({ onExamples, onImportUrl, zenMode, onKey, onResize, analytics }) => {
+    const [linksOpen, setLinksOpen] = useState(false);
+    const [editorWidth, setEditorWidth] = useState(defaultEditorWidth);
+    const [isDragging, setIsDragging] = useState(false);
+    const [isCompact, setIsCompact] = useState(false);
+    const [activeMobileTab, setActiveMobileTab] = useState('source');
+    const [layoutMode, setLayoutMode] = useState('vertical');
+    const [wrapEnabled, setWrapEnabled] = useState(true);
+    const workspaceRef = useRef(null);
+
     if (!onExamples) {
         onExamples = () => { };
     }
@@ -37,6 +43,7 @@ const App = ({ onExamples, onImportUrl, onSetZenMode, zenMode, onKey, onResize, 
     useEffect(() => {
         const handleResize = () => {
             const { offsetWidth: width, offsetHeight: height } = document.body;
+            setIsCompact(width < 980);
             if (onResize) {
                 onResize(width, height)
             }
@@ -56,7 +63,7 @@ const App = ({ onExamples, onImportUrl, onSetZenMode, zenMode, onKey, onResize, 
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('keydown', handleKeydown);
         }
-    });
+    }, [onKey, onResize]);
 
 
     useEffect(() => {
@@ -84,60 +91,185 @@ const App = ({ onExamples, onImportUrl, onSetZenMode, zenMode, onKey, onResize, 
             }
         }
         return () => { }
-    })
+    }, [analyticsJs, hasAnalyticsJs])
+
+    useEffect(() => {
+        if (!isDragging) {
+            return () => { };
+        }
+
+        const handleMouseMove = (event) => {
+            if (!workspaceRef.current) {
+                return;
+            }
+
+            const rect = workspaceRef.current.getBoundingClientRect();
+            const nextWidth = clamp(((event.clientX - rect.left) / rect.width) * 100, 30, 68);
+            setEditorWidth(nextWidth);
+        };
+
+        const handleMouseUp = () => setIsDragging(false);
+
+        document.body.classList.add('workspace-resizing');
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+
+        return () => {
+            document.body.classList.remove('workspace-resizing');
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging]);
+
+    useEffect(() => {
+        if (zenMode) {
+            setLinksOpen(false);
+        }
+    }, [zenMode]);
+
+    useEffect(() => {
+        if (!isCompact) {
+            setActiveMobileTab('source');
+        }
+    }, [isCompact]);
+
+    useEffect(() => {
+        if (layoutMode !== 'vertical' && isDragging) {
+            setIsDragging(false);
+        }
+    }, [isDragging, layoutMode]);
+
+    const showChrome = !zenMode;
+    const showEditorPane = !isCompact ? layoutMode !== 'preview' : activeMobileTab === 'source';
+    const showPreviewPane = !isCompact ? true : activeMobileTab === 'preview';
+    const mobileTabBar = isCompact ? <div className='WorkspaceMobileTabs'>
+        <div className='WorkspaceMobileTabGroup'>
+            <button
+                type='button'
+                className={classNames('WorkspaceMobileTab', { active: activeMobileTab === 'source' })}
+                onClick={() => setActiveMobileTab('source')}
+            >
+                Code
+            </button>
+            <button
+                type='button'
+                className={classNames('WorkspaceMobileTab', { active: activeMobileTab === 'preview' })}
+                onClick={() => setActiveMobileTab('preview')}
+            >
+                Preview
+            </button>
+        </div>
+        <button
+            type='button'
+            className={classNames('EditorWrapButton', 'EditorWrapButtonCompact', { active: wrapEnabled })}
+            onClick={() => setWrapEnabled((value) => !value)}
+        >
+            Wrap
+        </button>
+    </div> : null;
 
     return <div className={classNames({ zenMode, App: true })}>
-        <div className='NonZen'>
-            <Title />
-
-            <Segment basic>
-                <Form className='diagramParams'>
-                    <Form.Field>
-                        <SubTitle />
-                    </Form.Field>
-                    <Form.Field>
-                        <div className='controlZone'>
-                            <div className='diagramTypeZone'>
-                                <DiagramType />
-                            </div>
-                            <div className='outputFormatZone'>
-                                <OutputFormat />
-                            </div>
-                            <div className='buttonsZone'>
-                                <ShrinkableButton floated='right' onClick={() => onSetZenMode()} icon='external alternate' text='Zen Mode' textAlt='Zen' />
-                                <ShrinkableButton floated='right' onClick={() => onImportUrl()} icon='write' text='Import diagram URL' textAlt='URL' />
-                                <ShrinkableButton floated='right' onClick={() => onExamples()} icon='list alternate outline' text='Examples' textAlt='Ex.' />
-                            </div>
-                        </div>
-                    </Form.Field>
-                    <Form.Field>
-                        <RenderUrl />
-                    </Form.Field>
-                </Form>
-            </Segment>
-        </div>
+        {
+            showChrome ? <header className='AppToolbar'>
+                <div className='AppToolbarBrand'>
+                    <span className='AppToolbarLogo'>Niolesk</span>
+                </div>
+                <div className='AppToolbarControls'>
+                    <DiagramType />
+                </div>
+                <div className='AppToolbarActions'>
+                    {
+                        !isCompact ? <div className='SplitPresetGroup' aria-label='Preview layout modes'>
+                            {layoutModes.map((mode) => <button
+                                key={mode}
+                                type='button'
+                                aria-label={`Switch to ${mode} layout`}
+                                className={classNames('SplitPresetButton', { active: layoutMode === mode })}
+                                onClick={() => setLayoutMode(mode)}
+                            >
+                                <span className={classNames('SplitPresetIcon', `SplitPresetIcon${mode[0].toUpperCase()}${mode.slice(1)}`)}>
+                                    {mode === 'vertical' ? <>
+                                        <span className='SplitPresetIconPane SplitPresetIconPaneNarrow' />
+                                        <span className='SplitPresetIconPane SplitPresetIconPaneWide' />
+                                    </> : null}
+                                    {mode === 'horizontal' ? <>
+                                        <span className='SplitPresetIconPane SplitPresetIconPaneTop' />
+                                        <span className='SplitPresetIconPane SplitPresetIconPaneBottom' />
+                                    </> : null}
+                                    {mode === 'preview' ? <span className='SplitPresetIconPane SplitPresetIconPaneFull' /> : null}
+                                </span>
+                            </button>)}
+                        </div> : null
+                    }
+                    <button type='button' className='AppToolbarButton' onClick={() => onExamples()}>Examples</button>
+                    <button type='button' className='AppToolbarButton' onClick={() => onImportUrl()}>Import</button>
+                </div>
+            </header> : null
+        }
         <div className='MainPanel'>
-            <Columns>
-                <Editor />
-                <Render />
-            </Columns>
+            {showChrome ? mobileTabBar : null}
+            <div className={classNames('Workspace', `WorkspaceMode${layoutMode[0].toUpperCase()}${layoutMode.slice(1)}`)} ref={workspaceRef} style={{ '--editor-panel-width': `${editorWidth}%` }}>
+                <section className={classNames('WorkspacePanel WorkspacePanelEditor', { compactHidden: !showEditorPane })}>
+                    {
+                        !isCompact ? <div className='WorkspacePanelBar'>
+                            <div className='WorkspacePanelBarSpacer' />
+                            <button
+                                type='button'
+                                className={classNames('EditorWrapButton', { active: wrapEnabled })}
+                                onClick={() => setWrapEnabled((value) => !value)}
+                            >
+                                Wrap
+                            </button>
+                        </div> : null
+                    }
+                    <div className='WorkspacePanelBody'>
+                        <Editor wrapEnabled={wrapEnabled} />
+                    </div>
+                </section>
+                {
+                    !isCompact && layoutMode === 'vertical' && showEditorPane ? <button
+                        type='button'
+                        aria-label='Resize panels'
+                        className='WorkspaceDivider'
+                        onMouseDown={() => setIsDragging(window.innerWidth > 980)}
+                        onDoubleClick={() => setEditorWidth(defaultEditorWidth)}
+                    /> : null
+                }
+                <section className={classNames('WorkspacePanel WorkspacePanelPreview', { compactHidden: !showPreviewPane, previewOnly: !isCompact && layoutMode === 'preview' })}>
+                    <div className='WorkspacePanelBody'>
+                        <Render />
+                    </div>
+                </section>
+            </div>
             {
-                hasAnalyticsHtml ? analyticsHtml.map((item) => <div className='analyticsPanel' dangerouslySetInnerHTML={{ __html: item.content }} />) : null
+                hasAnalyticsHtml ? analyticsHtml.map((item, index) => <div key={`analytics-${index}`} className='analyticsPanel' dangerouslySetInnerHTML={{ __html: item.content }} />) : null
             }
         </div>
-        <div className='NonZen'>
-            <CopyZone />
-            <WindowExampleCards />
-            <WindowExampleDetail />
-            <WindowImportUrl />
-        </div>
+        {
+            showChrome ? <section className={classNames('LinksDrawer', { open: linksOpen })}>
+                <button type='button' className='LinksDrawerHandle' onClick={() => setLinksOpen((open) => !open)}>
+                    <span className='LinksDrawerHandleText'>
+                        <strong>Generated Links</strong>
+                    </span>
+                    <span className='LinksDrawerHandleState'>{linksOpen ? 'Close' : 'Open'}</span>
+                </button>
+                <div className='LinksDrawerBody'>
+                    <div className='LinksDrawerControls'>
+                        <RenderUrl />
+                    </div>
+                    <CopyZone />
+                </div>
+            </section> : null
+        }
+        <WindowExampleCards />
+        <WindowExampleDetail />
+        <WindowImportUrl />
     </div>
 }
 
 App.propTypes = {
     onExamples: PropTypes.func.isRequired,
     onImportUrl: PropTypes.func.isRequired,
-    onSetZenMode: PropTypes.func.isRequired,
     onKey: PropTypes.func.isRequired,
     onResize: PropTypes.func.isRequired,
 };
