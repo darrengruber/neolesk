@@ -1,5 +1,4 @@
 const runtimeAssetUrls = ['/config.js'];
-const optionalRuntimeAssetUrls = ['/cache.js'];
 
 const loadScript = (src: string): Promise<void> => new Promise((resolve, reject) => {
     const existingScript = document.querySelector(`script[data-runtime-asset="${src}"]`);
@@ -20,14 +19,6 @@ const loadScript = (src: string): Promise<void> => new Promise((resolve, reject)
 export const loadRuntimeAssets = async (): Promise<void> => {
     for (const url of runtimeAssetUrls) {
         await loadScript(url);
-    }
-
-    for (const url of optionalRuntimeAssetUrls) {
-        try {
-            await loadScript(url);
-        } catch {
-            // Example caches are optional in local/dev builds.
-        }
     }
 };
 

@@ -9,7 +9,6 @@
         "@testing-library/react": "^12.1.2",
         "@testing-library/user-event": "^13.5.0",
         "@monaco-editor/react": "^4.7.0",
-        "crypto-js": "^4.1.1",
         "monaco-editor": "^0.52.2",
         "pako": "^2.0.4",
         "react": "^17.0.2",
@@ -17,35 +16,14 @@
         "react-zoom-pan-pinch": "^3.0.7"
     },
     "scripts": {
-        "create-example-cache": "node -r esm create-example-cache.js",
         "start": "vite",
         "build": "vite build",
         "preview": "vite preview",
         "typecheck": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
-        "predeploy": "yarn build",
+        "predeploy": "npm run build",
         "deploy": "gh-pages -d dist"
-    },
-    "engines": {
-        "npm": "please-use-yarn",
-        "yarn": ">= 1.20.0"
-    },
-    "eslintConfig": {
-        "extends": [
-            "react-app",
-            "react-app/jest"
-        ],
-        "overrides": [
-            {
-                "files": [
-                    "**/*.stories.*"
-                ],
-                "rules": {
-                    "import/no-anonymous-default-export": "off"
-                }
-            }
-        ]
     },
     "browserslist": {
         "production": [
@@ -63,12 +41,10 @@
         "@types/react": "^17.0.89",
         "@types/react-dom": "^17.0.26",
         "@vitejs/plugin-react": "^5.0.0",
-        "esm": "^3.2.25",
         "gh-pages": "^3.2.3",
         "jsdom": "^26.0.0",
         "typescript": "^5.8.2",
         "vite": "^6.2.0",
         "vitest": "^3.0.8"
-    },
-    "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+    }
 }
