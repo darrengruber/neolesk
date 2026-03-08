@@ -130,6 +130,7 @@ const PreviewPane = ({
 }: PreviewPaneProps): JSX.Element => {
     const panelRef = useRef<HTMLDivElement | null>(null);
     const toolbarRef = useRef<HTMLDivElement | null>(null);
+    const errorTimeoutRef = useRef<number | null>(null);
     const transformApiRef = useRef<{
         zoomIn: () => void;
         zoomOut: () => void;
@@ -138,7 +139,15 @@ const PreviewPane = ({
     } | null>(null);
     const [viewportSize, setViewportSize] = useState({ width: 960, height: 640 });
     const [imageBounds, setImageBounds] = useState<{ width: number; height: number } | null>(null);
+    const [imageLoaded, setImageLoaded] = useState(!imageFiletypes.has(filetype));
     const isImageFiletype = imageFiletypes.has(filetype);
+
+    const clearPendingError = () => {
+        if (errorTimeoutRef.current !== null) {
+            window.clearTimeout(errorTimeoutRef.current);
+            errorTimeoutRef.current = null;
+        }
+    };
 
     const fitDiagramToViewport = () => {
         if (!transformApiRef.current || !imageBounds) {
@@ -180,8 +189,14 @@ const PreviewPane = ({
     }, []);
 
     useEffect(() => {
+        return () => clearPendingError();
+    }, []);
+
+    useEffect(() => {
+        clearPendingError();
         setImageBounds(null);
-    }, [diagramUrl]);
+        setImageLoaded(!isImageFiletype);
+    }, [diagramUrl, isImageFiletype]);
 
     useEffect(() => {
         if (isImageFiletype && imageBounds) {
@@ -237,24 +252,40 @@ const PreviewPane = ({
                                 {diagramError ? (
                                     <iframe className="RenderImageError" title="Error" src={diagramUrl} />
                                 ) : (
-                                    <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: '100%', height: '100%' }}>
-                                        <div className="RenderCanvas" style={{ width: `${viewportSize.width}px`, minHeight: `${viewportSize.height}px` }}>
-                                            <img
-                                                alt="Diagram"
-                                                className="RenderImage"
-                                                src={diagramUrl}
-                                                onError={() => onDiagramError(diagramUrl)}
-                                                onLoad={(event) => {
-                                                    const target = event.currentTarget;
-                                                    setImageBounds({
-                                                        width: target.naturalWidth || target.clientWidth || viewportSize.width,
-                                                        height: target.naturalHeight || target.clientHeight || viewportSize.height,
-                                                    });
-                                                }}
-                                                style={{ maxWidth: `${viewportSize.width}px`, maxHeight: `${viewportSize.height}px` }}
-                                            />
-                                        </div>
-                                    </TransformComponent>
+                                    <>
+                                        <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: '100%', height: '100%' }}>
+                                            <div className="RenderCanvas" style={{ width: `${viewportSize.width}px`, minHeight: `${viewportSize.height}px` }}>
+                                                <img
+                                                    alt="Diagram"
+                                                    className="RenderImage"
+                                                    src={diagramUrl}
+                                                    onError={() => {
+                                                        clearPendingError();
+                                                        setImageLoaded(false);
+                                                        errorTimeoutRef.current = window.setTimeout(() => {
+                                                            onDiagramError(diagramUrl);
+                                                        }, 400);
+                                                    }}
+                                                    onLoad={(event) => {
+                                                        clearPendingError();
+                                                        setImageLoaded(true);
+                                                        const target = event.currentTarget;
+                                                        setImageBounds({
+                                                            width: target.naturalWidth || target.clientWidth || viewportSize.width,
+                                                            height: target.naturalHeight || target.clientHeight || viewportSize.height,
+                                                        });
+                                                    }}
+                                                    style={{ maxWidth: `${viewportSize.width}px`, maxHeight: `${viewportSize.height}px` }}
+                                                />
+                                            </div>
+                                        </TransformComponent>
+                                        {!imageLoaded ? (
+                                            <div className="RenderLoading">
+                                                <span className="RenderLoadingDot" />
+                                                Rendering
+                                            </div>
+                                        ) : null}
+                                    </>
                                 )}
                             </div>
                         );
@@ -534,11 +565,34 @@ function App(): JSX.Element {
                             ))}
                         </div>
                     ) : null}
-                    <button type="button" className="AppToolbarButton" onClick={() => { setExamplesMode('grid'); setExamplesSearch(''); }}>
-                        Examples
+                    <button
+                        type="button"
+                        className="AppToolbarButton AppToolbarButtonIconOnlyMobile"
+                        onClick={() => { setExamplesMode('grid'); setExamplesSearch(''); }}
+                        aria-label="Examples"
+                        title="Examples"
+                    >
+                        <span className="AppToolbarButtonIcon" aria-hidden="true">
+                            <svg viewBox="0 0 20 20" focusable="false">
+                                <path d="M4 4.5h5l1.1 1.5H16a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 16 16H4A1.5 1.5 0 0 1 2.5 14.5V6A1.5 1.5 0 0 1 4 4.5Z" />
+                            </svg>
+                        </span>
+                        <span className="AppToolbarButtonLabel">Examples</span>
                     </button>
-                    <button type="button" className="AppToolbarButton" onClick={() => setImportUrlOpen(true)}>
-                        Import
+                    <button
+                        type="button"
+                        className="AppToolbarButton AppToolbarButtonIconOnlyMobile"
+                        onClick={() => setImportUrlOpen(true)}
+                        aria-label="Import"
+                        title="Import"
+                    >
+                        <span className="AppToolbarButtonIcon" aria-hidden="true">
+                            <svg viewBox="0 0 20 20" focusable="false">
+                                <path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3.4l1.2 1.5h6.4A1.5 1.5 0 0 1 17 7v7.5A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-9Z" />
+                                <path d="M10 8.1a.65.65 0 0 1 .65.65v2.1h2.1a.65.65 0 1 1 0 1.3h-2.1v2.1a.65.65 0 1 1-1.3 0v-2.1h-2.1a.65.65 0 1 1 0-1.3h2.1v-2.1A.65.65 0 0 1 10 8.1Z" />
+                            </svg>
+                        </span>
+                        <span className="AppToolbarButtonLabel">Import</span>
                     </button>
                 </div>
             </header>

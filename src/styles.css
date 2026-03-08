@@ -122,6 +122,26 @@ textarea {
     transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 
+.AppToolbarButtonIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+}
+
+.AppToolbarButtonIcon svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
+.AppToolbarButtonLabel {
+    display: inline-flex;
+    align-items: center;
+}
+
 .AppToolbarButton:hover,
 .ModalButton:hover {
     background: #f5f8fd;
@@ -417,6 +437,44 @@ textarea {
     background:
         radial-gradient(circle at top, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0) 58%),
         linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(203, 213, 225, 0.26));
+}
+
+.RenderLoading {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--niolesk-muted);
+    font-size: 0.74rem;
+    font-weight: 700;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.RenderLoadingDot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--niolesk-accent);
+    animation: RenderLoadingPulse 1s ease-in-out infinite;
+}
+
+@keyframes RenderLoadingPulse {
+    0%,
+    100% {
+        transform: scale(0.8);
+        opacity: 0.45;
+    }
+
+    50% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 .RenderCanvas {
@@ -884,14 +942,13 @@ textarea {
 
 @media (max-width: 640px) {
     .AppToolbar {
-        grid-template-columns: auto 1fr;
-        row-gap: 6px;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         padding: 6px 8px;
     }
 
     .AppToolbarActions {
-        grid-column: 1 / -1;
-        justify-content: flex-start;
+        grid-column: auto;
+        justify-content: flex-end;
         gap: 6px;
     }
 
@@ -903,8 +960,14 @@ textarea {
 
     .AppToolbarButton {
         height: 28px;
-        padding: 0 9px;
-        font-size: 0.78rem;
+        min-width: 28px;
+        padding: 0 7px;
+        gap: 0;
+        font-size: 0.76rem;
+    }
+
+    .AppToolbarButtonIconOnlyMobile .AppToolbarButtonLabel {
+        display: none;
     }
 
     .AppSelectField {
@@ -912,8 +975,11 @@ textarea {
     }
 
     .AppSelectFieldLabel {
-        font-size: 0.66rem;
-        letter-spacing: 0.04em;
+        display: none;
+    }
+
+    .DiagramTypeField {
+        min-width: 0;
     }
 
     .AppSelectControl {
