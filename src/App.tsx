@@ -130,7 +130,8 @@ const PreviewPane = ({
 }: PreviewPaneProps): JSX.Element => {
     const panelRef = useRef<HTMLDivElement | null>(null);
     const toolbarRef = useRef<HTMLDivElement | null>(null);
-    const errorTimeoutRef = useRef<number | null>(null);
+    const retryTimeoutRef = useRef<number | null>(null);
+    const onDiagramErrorRef = useRef(onDiagramError);
     const transformApiRef = useRef<{
         zoomIn: () => void;
         zoomOut: () => void;
@@ -138,24 +139,25 @@ const PreviewPane = ({
         resetTransform: () => void;
     } | null>(null);
     const [viewportSize, setViewportSize] = useState({ width: 960, height: 640 });
-    const [imageBounds, setImageBounds] = useState<{ width: number; height: number } | null>(null);
-    const [imageLoaded, setImageLoaded] = useState(!imageFiletypes.has(filetype));
     const isImageFiletype = imageFiletypes.has(filetype);
+    const [displayedDiagramUrl, setDisplayedDiagramUrl] = useState(diagramUrl);
+    const [displayedImageBounds, setDisplayedImageBounds] = useState<{ width: number; height: number } | null>(null);
+    const [imageLoaded, setImageLoaded] = useState(!isImageFiletype);
 
-    const clearPendingError = () => {
-        if (errorTimeoutRef.current !== null) {
-            window.clearTimeout(errorTimeoutRef.current);
-            errorTimeoutRef.current = null;
+    const clearPendingRetry = () => {
+        if (retryTimeoutRef.current !== null) {
+            window.clearTimeout(retryTimeoutRef.current);
+            retryTimeoutRef.current = null;
         }
     };
 
     const fitDiagramToViewport = () => {
-        if (!transformApiRef.current || !imageBounds) {
+        if (!transformApiRef.current || !displayedImageBounds) {
             return;
         }
 
-        const scaleX = viewportSize.width / imageBounds.width;
-        const scaleY = viewportSize.height / imageBounds.height;
+        const scaleX = viewportSize.width / displayedImageBounds.width;
+        const scaleY = viewportSize.height / displayedImageBounds.height;
         const fittedScale = Math.min(scaleX, scaleY, 1);
 
         transformApiRef.current.centerView(fittedScale, 80);
@@ -189,20 +191,76 @@ const PreviewPane = ({
     }, []);
 
     useEffect(() => {
-        return () => clearPendingError();
+        return () => clearPendingRetry();
     }, []);
 
     useEffect(() => {
-        clearPendingError();
-        setImageBounds(null);
-        setImageLoaded(!isImageFiletype);
-    }, [diagramUrl, isImageFiletype]);
+        onDiagramErrorRef.current = onDiagramError;
+    }, [onDiagramError]);
 
     useEffect(() => {
-        if (isImageFiletype && imageBounds) {
+        if (!isImageFiletype) {
+            setDisplayedDiagramUrl(diagramUrl);
+            setDisplayedImageBounds(null);
+            setImageLoaded(true);
+            return;
+        }
+
+        if (diagramUrl === displayedDiagramUrl) {
+            return;
+        }
+
+        clearPendingRetry();
+        setDisplayedImageBounds(null);
+
+        let cancelled = false;
+        let attempts = 0;
+
+        const loadImage = () => {
+            const preloader = new Image();
+            preloader.onload = () => {
+                if (cancelled) {
+                    return;
+                }
+
+                clearPendingRetry();
+                setDisplayedDiagramUrl(diagramUrl);
+                setDisplayedImageBounds({
+                    width: preloader.naturalWidth || viewportSize.width,
+                    height: preloader.naturalHeight || viewportSize.height,
+                });
+                setImageLoaded(true);
+            };
+            preloader.onerror = () => {
+                if (cancelled) {
+                    return;
+                }
+
+                if (attempts < 3) {
+                    attempts += 1;
+                    retryTimeoutRef.current = window.setTimeout(loadImage, attempts * 300);
+                    return;
+                }
+
+                onDiagramErrorRef.current(diagramUrl);
+            };
+            preloader.src = diagramUrl;
+        };
+
+        setImageLoaded(false);
+        loadImage();
+
+        return () => {
+            cancelled = true;
+            clearPendingRetry();
+        };
+    }, [diagramUrl, displayedDiagramUrl, isImageFiletype, viewportSize.height, viewportSize.width]);
+
+    useEffect(() => {
+        if (isImageFiletype && displayedImageBounds) {
             fitDiagramToViewport();
         }
-    }, [diagramUrl, imageBounds, isImageFiletype, viewportSize.height, viewportSize.width]);
+    }, [displayedDiagramUrl, displayedImageBounds, isImageFiletype, viewportSize.height, viewportSize.width]);
 
     return (
         <div className="Render" ref={panelRef}>
@@ -249,7 +307,7 @@ const PreviewPane = ({
                         transformApiRef.current = controls;
                         return (
                             <div className="RenderViewport" style={{ height: `${viewportSize.height}px` }}>
-                                {diagramError ? (
+                                {diagramError && displayedDiagramUrl === diagramUrl ? (
                                     <iframe className="RenderImageError" title="Error" src={diagramUrl} />
                                 ) : (
                                     <>
@@ -258,28 +316,12 @@ const PreviewPane = ({
                                                 <img
                                                     alt="Diagram"
                                                     className="RenderImage"
-                                                    src={diagramUrl}
-                                                    onError={() => {
-                                                        clearPendingError();
-                                                        setImageLoaded(false);
-                                                        errorTimeoutRef.current = window.setTimeout(() => {
-                                                            onDiagramError(diagramUrl);
-                                                        }, 400);
-                                                    }}
-                                                    onLoad={(event) => {
-                                                        clearPendingError();
-                                                        setImageLoaded(true);
-                                                        const target = event.currentTarget;
-                                                        setImageBounds({
-                                                            width: target.naturalWidth || target.clientWidth || viewportSize.width,
-                                                            height: target.naturalHeight || target.clientHeight || viewportSize.height,
-                                                        });
-                                                    }}
+                                                    src={displayedDiagramUrl}
                                                     style={{ maxWidth: `${viewportSize.width}px`, maxHeight: `${viewportSize.height}px` }}
                                                 />
                                             </div>
                                         </TransformComponent>
-                                        {!imageLoaded ? (
+                                        {!imageLoaded || displayedDiagramUrl !== diagramUrl ? (
                                             <div className="RenderLoading">
                                                 <span className="RenderLoadingDot" />
                                                 Rendering
@@ -346,6 +388,7 @@ function App(): JSX.Element {
     const [filetype, setFiletype] = useState(initialDiagramState.filetype);
     const [renderUrl, setRenderUrl] = useState(initialDiagramState.renderUrl);
     const [editorValue, setEditorValue] = useState(initialDiagramState.diagramText);
+    const [previewText, setPreviewText] = useState(initialDiagramState.diagramText);
     const [layoutMode, setLayoutMode] = useState<LayoutMode>('vertical');
     const [wrapEnabled, setWrapEnabled] = useState(true);
     const [linksOpen, setLinksOpen] = useState(false);
@@ -379,10 +422,10 @@ function App(): JSX.Element {
     const previewState = useMemo(() => buildDiagramState({
         baseUrl,
         diagramType,
-        diagramText: debouncedEditorValue,
+        diagramText: previewText,
         filetype,
         renderUrl,
-    }), [baseUrl, debouncedEditorValue, diagramType, filetype, renderUrl]);
+    }), [baseUrl, diagramType, filetype, previewText, renderUrl]);
     const filteredExamples = useMemo(() => filterExamples(examples, examplesSearch), [examples, examplesSearch]);
     const selectedExample = examples[selectedExampleId] || examples[0];
     const supportedFiletypes = diagramTypes[diagramType]?.filetypes || [filetype];
@@ -396,6 +439,10 @@ function App(): JSX.Element {
     useEffect(() => {
         setDiagramError(false);
     }, [previewState.diagramUrl]);
+
+    useEffect(() => {
+        setPreviewText(debouncedEditorValue);
+    }, [debouncedEditorValue]);
 
     useEffect(() => {
         const nextHash = `#${previewState.diagramUrl}`;
@@ -415,6 +462,7 @@ function App(): JSX.Element {
             setFiletype(parsed.filetype);
             setRenderUrl(parsed.renderUrl);
             setEditorValue(parsed.diagramText);
+            setPreviewText(parsed.diagramText);
             setDiagramError(false);
         };
 
@@ -482,6 +530,7 @@ function App(): JSX.Element {
         setDiagramType(nextState.diagramType);
         setFiletype(nextState.filetype);
         setEditorValue(nextState.diagramText);
+        setPreviewText(nextState.diagramText);
     };
 
     const handleImportUrl = () => {
@@ -494,6 +543,7 @@ function App(): JSX.Element {
         setFiletype(parsed.filetype);
         setRenderUrl(parsed.renderUrl);
         setEditorValue(parsed.diagramText);
+        setPreviewText(parsed.diagramText);
         setImportUrlOpen(false);
         setImportUrl('');
     };
@@ -501,7 +551,9 @@ function App(): JSX.Element {
     const handleExampleImport = (example: ExampleRecord) => {
         setDiagramType(example.diagramType);
         setFiletype(getValidFiletype(example.diagramType, filetype));
-        setEditorValue(decode(example.example));
+        const exampleText = decode(example.example);
+        setEditorValue(exampleText);
+        setPreviewText(exampleText);
         setExamplesMode(null);
     };
 

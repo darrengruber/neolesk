@@ -35,7 +35,6 @@ yarn-error.log*
 .vscode/
 
 /storybook-static
-/public/cache.js
 /public/cache/*
 
 jest_html_reporters.html
