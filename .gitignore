@@ -40,3 +40,5 @@ yarn-error.log*
 jest_html_reporters.html
 
 dist/
+
+**/charts/*

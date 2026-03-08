@@ -1,5 +1,6 @@
 .git
 .github
+.gitignore
 node_modules
 dist
 coverage
@@ -9,3 +10,8 @@ yarn-debug.log*
 yarn-error.log*
 .vscode
 public/cache
+README.md
+LICENSE
+deploy
+docker-compose.yml
+skaffold.yaml

@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: niolesk
-  namespace: niolesk
+  namespace: kroki
   annotations:
     tailscale.com/hostname: niolesk
 spec:

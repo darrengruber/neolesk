@@ -2,17 +2,23 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 
-COPY . .
+COPY index.html tsconfig.json vite.config.mjs ./
+COPY public ./public
+COPY scripts ./scripts
+COPY src ./src
 RUN npm run build
 
 # Runtime stage
-FROM nginx:alpine
+FROM caddy:latest
 
-COPY docker-res/update-config.sh /docker-entrypoint.d/update-config.sh
-COPY --from=builder /app/dist /usr/share/nginx/html
+ARG NIOLESK_KROKI_ENGINE=https://kroki.io/
 
-RUN chmod +x /docker-entrypoint.d/update-config.sh \
-    && chmod 666 /usr/share/nginx/html/config.js
+ENV XDG_CONFIG_HOME=/tmp \
+    XDG_DATA_HOME=/tmp
+
+COPY docker-res/Caddyfile /etc/caddy/Caddyfile
+COPY --from=builder /app/dist /usr/share/caddy
+RUN printf "window.config = {\n    krokiEngineUrl: '%s',\n};\n" "$NIOLESK_KROKI_ENGINE" > /usr/share/caddy/config.js
