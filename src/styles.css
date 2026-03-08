@@ -500,10 +500,14 @@ textarea {
     background: #fff;
 }
 
-.react-transform-wrapper,
-.react-transform-component {
+.react-transform-wrapper {
     width: 100% !important;
     height: 100% !important;
+}
+
+.react-transform-component {
+    width: auto !important;
+    height: auto !important;
 }
 
 .OutputFormatGroup {

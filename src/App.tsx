@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import MonacoEditor from '@monaco-editor/react';
 import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
 import exampleData from './examples';
-import { getExampleUrl, getRemoteExampleUrl } from './examples/usecache';
+import { getCachedDiagramUrl, getExampleUrl } from './examples/usecache';
 import { decode } from './kroki/coder';
 import {
     buildDiagramState,
@@ -27,6 +27,8 @@ import OutputFormatGroup from './components/OutputFormatGroup';
 const imageFiletypes = new Set(['svg', 'png', 'jpeg', 'jpg', 'gif', 'webp']);
 const layoutModes: LayoutMode[] = ['vertical', 'horizontal', 'preview'];
 const copyScopes: CopyScope[] = ['image', 'edit', 'markdown', 'markdownsource'];
+const renderCanvasPadding = 18;
+const minimumPreviewScale = 0.05;
 
 const useDebouncedValue = <T,>(value: T, delay: number): T => {
     const [debouncedValue, setDebouncedValue] = useState(value);
@@ -91,22 +93,11 @@ const copyText = async (value: string): Promise<void> => {
 
 const ExampleImage = ({ example, alt }: { example: ExampleDefinition; alt: string }): JSX.Element => {
     const primaryUrl = useMemo(() => getExampleUrl(example), [example]);
-    const remoteUrl = useMemo(() => getRemoteExampleUrl(example), [example]);
-    const [src, setSrc] = useState(primaryUrl);
-
-    useEffect(() => {
-        setSrc(primaryUrl);
-    }, [primaryUrl]);
 
     return (
         <img
             alt={alt}
-            src={src}
-            onError={() => {
-                if (src !== remoteUrl) {
-                    setSrc(remoteUrl);
-                }
-            }}
+            src={primaryUrl}
         />
     );
 };
@@ -132,6 +123,7 @@ const getCopyText = (scope: CopyScope, previewState: DiagramState, currentText: 
 
 interface PreviewPaneProps {
     diagramUrl: string;
+    previewUrl: string;
     diagramEditUrl: string;
     diagramError: boolean;
     filetype: string;
@@ -142,6 +134,7 @@ interface PreviewPaneProps {
 
 const PreviewPane = ({
     diagramUrl,
+    previewUrl,
     diagramEditUrl,
     diagramError,
     filetype,
@@ -161,7 +154,7 @@ const PreviewPane = ({
     } | null>(null);
     const [viewportSize, setViewportSize] = useState({ width: 960, height: 640 });
     const isImageFiletype = imageFiletypes.has(filetype);
-    const [displayedDiagramUrl, setDisplayedDiagramUrl] = useState(diagramUrl);
+    const [displayedDiagramUrl, setDisplayedDiagramUrl] = useState(previewUrl);
     const [displayedImageBounds, setDisplayedImageBounds] = useState<{ width: number; height: number } | null>(null);
     const [imageLoaded, setImageLoaded] = useState(!isImageFiletype);
 
@@ -177,9 +170,11 @@ const PreviewPane = ({
             return;
         }
 
-        const scaleX = viewportSize.width / displayedImageBounds.width;
-        const scaleY = viewportSize.height / displayedImageBounds.height;
-        const fittedScale = Math.min(scaleX, scaleY, 1);
+        const contentWidth = displayedImageBounds.width + (renderCanvasPadding * 2);
+        const contentHeight = displayedImageBounds.height + (renderCanvasPadding * 2);
+        const scaleX = viewportSize.width / contentWidth;
+        const scaleY = viewportSize.height / contentHeight;
+        const fittedScale = Math.max(minimumPreviewScale, Math.min(scaleX, scaleY, 48));
 
         transformApiRef.current.centerView(fittedScale, 80);
     };
@@ -221,13 +216,13 @@ const PreviewPane = ({
 
     useEffect(() => {
         if (!isImageFiletype) {
-            setDisplayedDiagramUrl(diagramUrl);
+            setDisplayedDiagramUrl(previewUrl);
             setDisplayedImageBounds(null);
             setImageLoaded(true);
             return;
         }
 
-        if (diagramUrl === displayedDiagramUrl) {
+        if (previewUrl === displayedDiagramUrl && displayedImageBounds) {
             return;
         }
 
@@ -245,7 +240,7 @@ const PreviewPane = ({
                 }
 
                 clearPendingRetry();
-                setDisplayedDiagramUrl(diagramUrl);
+                setDisplayedDiagramUrl(previewUrl);
                 setDisplayedImageBounds({
                     width: preloader.naturalWidth || viewportSize.width,
                     height: preloader.naturalHeight || viewportSize.height,
@@ -263,9 +258,9 @@ const PreviewPane = ({
                     return;
                 }
 
-                onDiagramErrorRef.current(diagramUrl);
+                onDiagramErrorRef.current(previewUrl);
             };
-            preloader.src = diagramUrl;
+            preloader.src = previewUrl;
         };
 
         setImageLoaded(false);
@@ -275,7 +270,7 @@ const PreviewPane = ({
             cancelled = true;
             clearPendingRetry();
         };
-    }, [diagramUrl, displayedDiagramUrl, isImageFiletype, viewportSize.height, viewportSize.width]);
+    }, [displayedDiagramUrl, isImageFiletype, previewUrl, viewportSize.height, viewportSize.width]);
 
     useEffect(() => {
         if (isImageFiletype && displayedImageBounds) {
@@ -315,7 +310,7 @@ const PreviewPane = ({
             </div>
             {isImageFiletype ? (
                 <TransformWrapper
-                    minScale={0.25}
+                    minScale={minimumPreviewScale}
                     maxScale={48}
                     centerOnInit
                     centerZoomedOut
@@ -328,21 +323,31 @@ const PreviewPane = ({
                         transformApiRef.current = controls;
                         return (
                             <div className="RenderViewport" style={{ height: `${viewportSize.height}px` }}>
-                                {diagramError && displayedDiagramUrl === diagramUrl ? (
-                                    <iframe className="RenderImageError" title="Error" src={diagramUrl} />
+                                {diagramError && displayedDiagramUrl === previewUrl ? (
+                                    <iframe className="RenderImageError" title="Error" src={previewUrl} />
                                 ) : (
                                     <>
-                                        <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: '100%', height: '100%' }}>
-                                            <div className="RenderCanvas" style={{ width: `${viewportSize.width}px`, minHeight: `${viewportSize.height}px` }}>
+                                        <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
+                                            <div
+                                                className="RenderCanvas"
+                                                style={{
+                                                    width: `${(displayedImageBounds?.width || viewportSize.width) + (renderCanvasPadding * 2)}px`,
+                                                    height: `${(displayedImageBounds?.height || viewportSize.height) + (renderCanvasPadding * 2)}px`,
+                                                    padding: `${renderCanvasPadding}px`,
+                                                }}
+                                            >
                                                 <img
                                                     alt="Diagram"
                                                     className="RenderImage"
                                                     src={displayedDiagramUrl}
-                                                    style={{ maxWidth: `${viewportSize.width}px`, maxHeight: `${viewportSize.height}px` }}
+                                                    style={{
+                                                        width: displayedImageBounds ? `${displayedImageBounds.width}px` : 'auto',
+                                                        height: displayedImageBounds ? `${displayedImageBounds.height}px` : 'auto',
+                                                    }}
                                                 />
                                             </div>
                                         </TransformComponent>
-                                        {!imageLoaded || displayedDiagramUrl !== diagramUrl ? (
+                                        {!imageLoaded || displayedDiagramUrl !== previewUrl ? (
                                             <div className="RenderLoading">
                                                 <span className="RenderLoadingDot" />
                                                 Rendering
@@ -453,6 +458,10 @@ function App(): JSX.Element {
     const filteredExamples = useMemo(() => filterExamples(examples, examplesSearch), [examples, examplesSearch]);
     const selectedExample = examples[selectedExampleId] || examples[0];
     const supportedFiletypes = diagramTypes[diagramType]?.filetypes || [filetype];
+    const previewAssetUrl = useMemo(
+        () => getCachedDiagramUrl(previewState.diagramType, previewState.filetype, previewState.diagramText, previewState.renderUrl) || previewState.diagramUrl,
+        [previewState.diagramText, previewState.diagramType, previewState.diagramUrl, previewState.filetype, previewState.renderUrl],
+    );
 
     useEffect(() => {
         if (!isCompact) {
@@ -770,12 +779,13 @@ function App(): JSX.Element {
                         <div className="WorkspacePanelBody">
                             <PreviewPane
                                 diagramUrl={previewState.diagramUrl}
+                                previewUrl={previewAssetUrl}
                                 diagramEditUrl={previewState.diagramEditUrl}
                                 diagramError={diagramError}
                                 filetype={filetype}
                                 filetypes={supportedFiletypes}
                                 onDiagramError={(url) => {
-                                    if (url === previewState.diagramUrl) {
+                                    if (url === previewAssetUrl) {
                                         setDiagramError(true);
                                     }
                                 }}

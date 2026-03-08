@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 # Build stage
 FROM node:20-alpine AS builder
 WORKDIR /app
@@ -9,7 +11,8 @@ COPY index.html tsconfig.json vite.config.mjs ./
 COPY public ./public
 COPY scripts ./scripts
 COPY src ./src
-RUN npm run build
+RUN --mount=type=cache,id=niolesk-example-cache,target=/app/public/cache \
+    npm run build
 
 # Runtime stage
 FROM caddy:latest

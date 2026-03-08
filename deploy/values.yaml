@@ -67,3 +67,4 @@ service:
     ports:
       http:
         port: 80
+        targetPort: 8080

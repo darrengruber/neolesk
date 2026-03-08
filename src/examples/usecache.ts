@@ -1,22 +1,32 @@
 import type { ExampleDefinition } from '../types';
-import exampleCache from '../generated/exampleCache';
+import examples from '../examples';
+import { encode } from '../kroki/coder';
+import { getExampleCacheFilename, getExampleCacheFilenameForRadical, getExampleRadical } from './cacheKey';
 
 const defaultRenderUrl = 'https://kroki.io/';
-const outputFormat = 'svg';
-
-const getExampleRadical = (exampleItem: ExampleDefinition): string =>
-    [exampleItem.diagramType, outputFormat, exampleItem.example].join('/');
-
-export const getRemoteExampleUrl = (exampleItem: ExampleDefinition): string =>
-    `${defaultRenderUrl}${getExampleRadical(exampleItem)}`;
+const cachedExampleRadicals = new Set(examples.map((example) => getExampleRadical(example)));
 
 export const getExampleUrl = (exampleItem: ExampleDefinition): string => {
-    const radical = getExampleRadical(exampleItem);
-    const cachedFilename = exampleCache[radical];
+    const cachedFilename = getExampleCacheFilename(exampleItem);
+    return `./cache/${cachedFilename}`;
+};
 
-    if (cachedFilename) {
-        return `./cache/${cachedFilename}`;
+export const getCachedDiagramUrl = (
+    diagramType: string,
+    filetype: string,
+    diagramText: string,
+    renderUrl: string,
+): string | null => {
+    if (filetype !== 'svg' || renderUrl !== defaultRenderUrl) {
+        return null;
     }
 
-    return getRemoteExampleUrl(exampleItem);
+    const encodedDiagram = encode(diagramText);
+    const radical = [diagramType, filetype, encodedDiagram].join('/');
+
+    if (!cachedExampleRadicals.has(radical)) {
+        return null;
+    }
+
+    return `./cache/${getExampleCacheFilenameForRadical(radical)}`;
 };
