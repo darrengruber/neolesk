@@ -196,16 +196,21 @@ textarea {
 .WorkspacePanelBar {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: space-between;
     height: 38px;
     min-height: 38px;
-    padding: 0 10px;
+    box-sizing: border-box;
+    padding: 5px 8px;
     border-bottom: 1px solid var(--niolesk-panel-border);
     background: var(--niolesk-panel-muted);
 }
 
-.WorkspacePanelBarSpacer {
-    flex: 1 1 auto;
+.WorkspacePanelTitle {
+    color: var(--niolesk-muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .WorkspacePanelBody {
@@ -317,14 +322,15 @@ textarea {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 28px;
-    padding: 0 10px;
+    height: 26px;
+    padding: 0 9px;
     border: 1px solid var(--niolesk-panel-border);
-    border-radius: 8px;
+    border-radius: 7px;
     background: #fff;
     color: var(--niolesk-muted);
-    font-size: 0.76rem;
-    font-weight: 700;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
     cursor: pointer;
 }
 
@@ -360,7 +366,9 @@ textarea {
     display: flex;
     align-items: center;
     gap: 6px;
+    height: 38px;
     min-height: 38px;
+    box-sizing: border-box;
     padding: 5px 8px;
     border-bottom: 1px solid rgba(15, 23, 42, 0.08);
     background: rgba(255, 255, 255, 0.72);

@@ -572,7 +572,7 @@ function App(): JSX.Element {
                     <section className={`WorkspacePanel WorkspacePanelEditor${showEditorPane ? '' : ' compactHidden'}`}>
                         {!isCompact ? (
                             <div className="WorkspacePanelBar">
-                                <div className="WorkspacePanelBarSpacer" />
+                                <span className="WorkspacePanelTitle">Code</span>
                                 <button
                                     type="button"
                                     className={`EditorWrapButton${wrapEnabled ? ' active' : ''}`}
