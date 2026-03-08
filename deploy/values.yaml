@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/app-template-4.6.0/charts/other/app-template/values.schema.json
+---
+controllers:
+  main:
+    strategy: Recreate
+    pod:
+      securityContext:
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+    containers:
+      main:
+        image:
+          repository: darren/niolesk
+          tag: latest
+          pullPolicy: IfNotPresent
+        ports:
+          - name: http
+            containerPort: 80
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        env:
+          NIOLESK_KROKI_ENGINE:
+            value: "https://kroki.io/"
+        probes:
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /
+                port: 80
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 3
+              failureThreshold: 10
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /
+                port: 80
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /
+                port: 80
+              periodSeconds: 5
+              timeoutSeconds: 3
+              failureThreshold: 3
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 80

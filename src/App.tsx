@@ -2,11 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import MonacoEditor from '@monaco-editor/react';
 import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
 import exampleData from './examples';
-import { getExampleUrl } from './examples/usecache';
+import { getExampleUrl, getRemoteExampleUrl } from './examples/usecache';
 import { decode } from './kroki/coder';
 import {
     buildDiagramState,
-    changeDiagramType,
     createInitialDiagramState,
     defaultRenderUrl,
     diagramTypes,
@@ -88,6 +87,28 @@ const copyText = async (value: string): Promise<void> => {
     textarea.select();
     document.execCommand('copy');
     document.body.removeChild(textarea);
+};
+
+const ExampleImage = ({ example, alt }: { example: ExampleDefinition; alt: string }): JSX.Element => {
+    const primaryUrl = useMemo(() => getExampleUrl(example), [example]);
+    const remoteUrl = useMemo(() => getRemoteExampleUrl(example), [example]);
+    const [src, setSrc] = useState(primaryUrl);
+
+    useEffect(() => {
+        setSrc(primaryUrl);
+    }, [primaryUrl]);
+
+    return (
+        <img
+            alt={alt}
+            src={src}
+            onError={() => {
+                if (src !== remoteUrl) {
+                    setSrc(remoteUrl);
+                }
+            }}
+        />
+    );
 };
 
 const getCopyText = (scope: CopyScope, previewState: DiagramState, currentText: string): string => {
@@ -389,6 +410,9 @@ function App(): JSX.Element {
     const [renderUrl, setRenderUrl] = useState(initialDiagramState.renderUrl);
     const [editorValue, setEditorValue] = useState(initialDiagramState.diagramText);
     const [previewText, setPreviewText] = useState(initialDiagramState.diagramText);
+    const [draftsByDiagramType, setDraftsByDiagramType] = useState<Record<string, string>>({
+        [initialDiagramState.diagramType]: initialDiagramState.diagramText,
+    });
     const [layoutMode, setLayoutMode] = useState<LayoutMode>('vertical');
     const [wrapEnabled, setWrapEnabled] = useState(true);
     const [linksOpen, setLinksOpen] = useState(false);
@@ -441,8 +465,10 @@ function App(): JSX.Element {
     }, [previewState.diagramUrl]);
 
     useEffect(() => {
-        setPreviewText(debouncedEditorValue);
-    }, [debouncedEditorValue]);
+        if (debouncedEditorValue === editorValue) {
+            setPreviewText(debouncedEditorValue);
+        }
+    }, [debouncedEditorValue, editorValue]);
 
     useEffect(() => {
         const nextHash = `#${previewState.diagramUrl}`;
@@ -463,6 +489,7 @@ function App(): JSX.Element {
             setRenderUrl(parsed.renderUrl);
             setEditorValue(parsed.diagramText);
             setPreviewText(parsed.diagramText);
+            updateDiagramDraft(parsed.diagramType, parsed.diagramText);
             setDiagramError(false);
         };
 
@@ -525,12 +552,21 @@ function App(): JSX.Element {
     const showEditorPane = !isCompact ? layoutMode !== 'preview' : mobileTab === 'code';
     const showPreviewPane = !isCompact ? true : mobileTab === 'preview';
 
+    const updateDiagramDraft = (nextDiagramType: string, nextText: string) => {
+        setDraftsByDiagramType((current) => (
+            current[nextDiagramType] === nextText
+                ? current
+                : { ...current, [nextDiagramType]: nextText }
+        ));
+    };
+
     const handleDiagramTypeChange = (nextDiagramType: string) => {
-        const nextState = changeDiagramType(currentState, nextDiagramType);
-        setDiagramType(nextState.diagramType);
-        setFiletype(nextState.filetype);
-        setEditorValue(nextState.diagramText);
-        setPreviewText(nextState.diagramText);
+        const nextText = draftsByDiagramType[nextDiagramType] || decode(diagramTypes[nextDiagramType].example);
+        setDiagramType(nextDiagramType);
+        setFiletype(getValidFiletype(nextDiagramType, currentState.filetype));
+        setEditorValue(nextText);
+        setPreviewText(nextText);
+        updateDiagramDraft(nextDiagramType, nextText);
     };
 
     const handleImportUrl = () => {
@@ -544,6 +580,7 @@ function App(): JSX.Element {
         setRenderUrl(parsed.renderUrl);
         setEditorValue(parsed.diagramText);
         setPreviewText(parsed.diagramText);
+        updateDiagramDraft(parsed.diagramType, parsed.diagramText);
         setImportUrlOpen(false);
         setImportUrl('');
     };
@@ -554,6 +591,7 @@ function App(): JSX.Element {
         const exampleText = decode(example.example);
         setEditorValue(exampleText);
         setPreviewText(exampleText);
+        updateDiagramDraft(example.diagramType, exampleText);
         setExamplesMode(null);
     };
 
@@ -694,7 +732,11 @@ function App(): JSX.Element {
                                     className="MonacoEditor"
                                     language={currentState.language || 'plaintext'}
                                     value={editorValue}
-                                    onChange={(value) => setEditorValue(value || '')}
+                                    onChange={(value) => {
+                                        const nextValue = value || '';
+                                        setEditorValue(nextValue);
+                                        updateDiagramDraft(diagramType, nextValue);
+                                    }}
                                     height="100%"
                                     options={{
                                         theme: 'vs',
@@ -808,7 +850,7 @@ function App(): JSX.Element {
                     {filteredExamples.map((example) => (
                         <article key={example.id} className="ExampleCard">
                             <div className="ExampleCardPreview">
-                                <img alt={example.title} src={example.url} />
+                                <ExampleImage alt={example.title} example={example} />
                             </div>
                             <div className="ExampleCardBody">
                                 <h3>{example.title}</h3>
@@ -874,7 +916,7 @@ function App(): JSX.Element {
                         ) : null}
                     </div>
                     <div className="ExampleDetailPreview">
-                        <img alt={selectedExample.title} src={selectedExample.url} />
+                        <ExampleImage alt={selectedExample.title} example={selectedExample} />
                     </div>
                     <pre className="ExampleDetailCode code">{decode(selectedExample.example)}</pre>
                 </div>

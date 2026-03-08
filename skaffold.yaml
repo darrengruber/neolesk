@@ -1,0 +1,20 @@
+apiVersion: skaffold/v4beta13
+kind: Config
+metadata:
+  name: niolesk
+
+build:
+  artifacts:
+    - image: darren/niolesk
+      context: .
+      docker:
+        dockerfile: Dockerfile
+  local:
+    push: true
+
+manifests:
+  kustomize:
+    paths:
+      - deploy
+    buildArgs:
+      - --enable-helm
