@@ -1,16 +1,12 @@
 import React from 'react';
-
-import GitInfo from 'react-git-info/macro';
-
 import './SubTitle.css'
 
-const gitInfo = GitInfo();
-const version = `${process.env.REACT_APP_VERSION}-${gitInfo.commit.hash.substr(0, 8)}`;
+const version = `${__APP_VERSION__}-${__GIT_HASH__}`;
 
 const SubTitle = () => {
     return <div className='SubTitle' basic="true">
-        <div>Edit <b>diagrams</b> from <b>textual</b> descriptions! : A <a href='https://kroki.io'>kroki</a> interface.</div>
-        <div className='SubTitleSmall'>Github project page: <a href='https://github.com/webgiss/niolesk/'>https://github.com/webgiss/niolesk/</a> - Version {version}</div>
+        <div>Edit <b>diagrams</b> from <b>textual</b> descriptions with <a href='https://kroki.io'>Kroki</a>.</div>
+        <div className='SubTitleSmall'>Project: <a href='https://github.com/webgiss/niolesk/'>github.com/webgiss/niolesk</a> · Build {version}</div>
     </div>
 }
 

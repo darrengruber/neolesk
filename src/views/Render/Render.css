@@ -2,6 +2,7 @@
     background-color: none;
     text-align: center;
     overflow: hidden;
+    width: 100%;
 }
 
 .zenMode .Render {
@@ -13,6 +14,14 @@
     width: auto;
     height: auto;
     position: relative;
+    max-width: 100%;
+}
+
+.RenderDocument {
+    border: 0;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: inset 0 0 0 1px rgba(58, 45, 27, 0.08);
 }
 
 .zenMode .RenderDiagramZone {
@@ -39,4 +48,11 @@ div.react-transform-wrapper {
 
 .RenderImageError {
     
+}
+
+@media (max-width: 640px) {
+    .RenderEditMessage {
+        margin-top: 0.75rem;
+        line-height: 1.4;
+    }
 }

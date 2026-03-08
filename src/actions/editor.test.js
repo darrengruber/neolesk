@@ -1,12 +1,14 @@
-import { COPY_BUTTON_HOVERED, COPY_TEXT, DIAGRAM_CHANGED, DIAGRAM_CHANGED_UPDATE, DIAGRAM_HAS_ERROR, DIAGRAM_TYPE_CHANGED, IMPORT_URL, KEY_PRESSED, OPEN_IMPORT_URL, RENDERURL_CHANGED, TEXT_COPIED, UPDATE_IMPORT_URL, WINDOW_RESIZED, ZEN_MODE_CHANGED } from '../constants/editor';
-import { changeZenMode, copyButtonHovered, copyText, diagramChanged, diagramHasError, diagramTypeChanged, importUrl, keyPressed, onWindowResized, openImportUrl, renderUrlChanged, updateUrl } from './editor'
-import delay from './utils/delay';
+import { vi } from 'vitest';
+import { COPY_BUTTON_HOVERED, COPY_TEXT, DIAGRAM_CHANGED, DIAGRAM_CHANGED_UPDATE, DIAGRAM_HAS_ERROR, DIAGRAM_TYPE_CHANGED, FILETYPE_CHANGED, IMPORT_URL, KEY_PRESSED, OPEN_IMPORT_URL, RENDERURL_CHANGED, TEXT_COPIED, UPDATE_IMPORT_URL, WINDOW_RESIZED, ZEN_MODE_CHANGED } from '../constants/editor';
+import { changeZenMode, copyButtonHovered, copyText, diagramChanged, diagramHasError, diagramTypeChanged, filetypeChanged, importUrl, keyPressed, onWindowResized, openImportUrl, renderUrlChanged, updateUrl } from './editor'
 
 import { resetCopy, hasCopy, getCopy, mockCopy } from './__jest__/copy'
 import { executeThunkAction, getDispatchActions, resetDispatchActions } from './__jest__/thunk'
 import { getCurrentTime } from './__jest__/time'
 
-jest.mock('copy-to-clipboard', () => (element) => { mockCopy(element); });
+vi.mock('copy-to-clipboard', () => ({
+    default: (element) => { mockCopy(element); }
+}));
 
 describe('copyText', () => {
     it('should dispatch COPY_TEXT', async () => {
@@ -53,6 +55,14 @@ describe('renderUrlChanged', () => {
 })
 
 describe('diagramChanged', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     it('should dispatch the correct actions with just one change', async () => {
         resetDispatchActions();
         let dispatch_state = getDispatchActions();
@@ -60,11 +70,13 @@ describe('diagramChanged', () => {
         const startTest = getCurrentTime();
 
         const diagramChangedPromise = executeThunkAction(() => diagramChanged('text 01'))
+        await vi.advanceTimersByTimeAsync(0);
 
         dispatch_state = getDispatchActions();
         expect(dispatch_state.length).toBe(1)
         expect(dispatch_state[0]).toStrictEqual({ type: DIAGRAM_CHANGED, diagramText: 'text 01' })
 
+        await vi.advanceTimersByTimeAsync(750);
         await diagramChangedPromise;
 
         const endTest = getCurrentTime();
@@ -84,48 +96,54 @@ describe('diagramChanged', () => {
 
         const startTest01 = getCurrentTime();
         const diagramChangedPromise01 = executeThunkAction(() => diagramChanged('text 01'))
+        await vi.advanceTimersByTimeAsync(0);
 
         dispatch_state = getDispatchActions();
         expect(dispatch_state.length).toBe(1)
         expect(dispatch_state[0]).toStrictEqual({ type: DIAGRAM_CHANGED, diagramText: 'text 01' })
 
-        await delay(100);
+        await vi.advanceTimersByTimeAsync(100);
 
         const startTest02 = getCurrentTime();
         const diagramChangedPromise02 = executeThunkAction(() => diagramChanged('text 02'))
+        await vi.advanceTimersByTimeAsync(0);
 
         dispatch_state = getDispatchActions();
         expect(dispatch_state.length).toBe(2)
         expect(dispatch_state[1]).toStrictEqual({ type: DIAGRAM_CHANGED, diagramText: 'text 02' })
 
-        await delay(300);
+        await vi.advanceTimersByTimeAsync(300);
 
         const startTest03 = getCurrentTime();
         const diagramChangedPromise03 = executeThunkAction(() => diagramChanged('text 03'))
+        await vi.advanceTimersByTimeAsync(0);
 
         dispatch_state = getDispatchActions();
         expect(dispatch_state.length).toBe(3)
         expect(dispatch_state[2]).toStrictEqual({ type: DIAGRAM_CHANGED, diagramText: 'text 03' })
 
-        await delay(800);
+        await vi.advanceTimersByTimeAsync(800);
 
         const startTest04 = getCurrentTime();
         const diagramChangedPromise04 = executeThunkAction(() => diagramChanged('text 04'))
+        await vi.advanceTimersByTimeAsync(0);
 
         dispatch_state = getDispatchActions();
         expect(dispatch_state.length).toBe(5)
         expect(dispatch_state[3]).toStrictEqual({ type: DIAGRAM_CHANGED_UPDATE })
         expect(dispatch_state[4]).toStrictEqual({ type: DIAGRAM_CHANGED, diagramText: 'text 04' })
 
-        await delay(100);
+        await vi.advanceTimersByTimeAsync(100);
 
         const startTest05 = getCurrentTime();
         const diagramChangedPromise05 = executeThunkAction(() => diagramChanged('text 05'))
+        await vi.advanceTimersByTimeAsync(0);
 
         dispatch_state = getDispatchActions();
         expect(dispatch_state.length).toBe(6)
         expect(dispatch_state[5]).toStrictEqual({ type: DIAGRAM_CHANGED, diagramText: 'text 05' })
 
+        await vi.advanceTimersByTimeAsync(750);
         await Promise.all([
             diagramChangedPromise01,
             diagramChangedPromise02,
@@ -158,6 +176,13 @@ describe('diagramTypeChanged', () => {
     it(`should dispatch the correct action`, () => {
         const result = diagramTypeChanged('grutUML');
         expect(result).toStrictEqual({ type: DIAGRAM_TYPE_CHANGED, diagramType: 'grutUML' })
+    })
+})
+
+describe('filetypeChanged', () => {
+    it(`should dispatch the correct action`, () => {
+        const result = filetypeChanged('pdf');
+        expect(result).toStrictEqual({ type: FILETYPE_CHANGED, filetype: 'pdf' })
     })
 })
 

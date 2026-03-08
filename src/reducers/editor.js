@@ -1,20 +1,28 @@
-import { COPY_BUTTON_HOVERED, DIAGRAM_CHANGED, DIAGRAM_CHANGED_UPDATE, DIAGRAM_TYPE_CHANGED, RENDERURL_CHANGED, TEXT_COPIED, IMPORT_URL, CLOSE_IMPORT_URL, OPEN_IMPORT_URL, UPDATE_IMPORT_URL, DIAGRAM_HAS_ERROR, ZEN_MODE_CHANGED, KEY_PRESSED, WINDOW_RESIZED, RENDER_EDIT_SIZE_CHANGED } from "../constants/editor";
+import { COPY_BUTTON_HOVERED, DIAGRAM_CHANGED, DIAGRAM_CHANGED_UPDATE, DIAGRAM_TYPE_CHANGED, FILETYPE_CHANGED, RENDERURL_CHANGED, TEXT_COPIED, IMPORT_URL, CLOSE_IMPORT_URL, OPEN_IMPORT_URL, UPDATE_IMPORT_URL, DIAGRAM_HAS_ERROR, ZEN_MODE_CHANGED, KEY_PRESSED, WINDOW_RESIZED, RENDER_EDIT_SIZE_CHANGED } from "../constants/editor";
 import { createReducer } from "./utils/createReducer";
 import { encode, decode } from "../kroki/coder";
 import diagramTypes from "../kroki/krokiInfo";
 import { IMPORT_EXAMPLE } from "../constants/example";
 import { createKrokiUrl } from "../kroki/utils";
 import { LOCATION_CHANGE } from "connected-react-router";
-import exampleData from '../examples/data';
+import exampleData from '../examples';
+import { defaultFiletype, getDiagramFiletypes } from "../kroki/metadata";
 
 const defaultDiagramType = 'plantuml';
+const getValidFiletype = (diagramType, filetype) => {
+    const filetypes = getDiagramFiletypes(diagramType);
+    if (filetype && filetypes.includes(filetype)) {
+        return filetype;
+    }
+    return filetypes[0] || defaultFiletype;
+};
 
 export const initialState = {
     baseUrl: window.location.origin + window.location.pathname,
     hash: null,
     diagramType: defaultDiagramType,
     diagramText: decode(diagramTypes[defaultDiagramType].example),
-    filetype: 'svg',
+    filetype: getValidFiletype(defaultDiagramType, defaultFiletype),
     defaultDiagram: true,
     diagramTypes,
     language: null,
@@ -52,7 +60,10 @@ export const initialState = {
 
 const setWindowWidthHeight = (state, width, height) => {
     const { zenMode } = state
-    const editorHeight = zenMode ? (width<768 ? height/2-14 : height) : 700
+    const isCompact = width < 980
+    const editorHeight = zenMode
+        ? (width < 768 ? Math.max(220, height / 2 - 14) : height)
+        : (isCompact ? Math.max(260, Math.floor(height * 0.38)) : 700)
     const renderHeight = editorHeight - state.renderEditHeight
     let redrawIndex = state.redrawIndex
     if (renderHeight !== state.renderHeight) {
@@ -87,21 +98,19 @@ export const updateDiagram = (state) => {
     if (!renderUrl || renderUrl === '') {
         renderUrl = initialState.renderUrl;
     }
-    if (!filetype || filetype === '') {
-        filetype = initialState.filetype;
-    }
     if (!diagramType || diagramType === '') {
         diagramType = state.diagramType;
     }
     if (!diagramType || diagramType === '') {
         diagramType = initialState.diagramType;
     }
+    filetype = getValidFiletype(diagramType, filetype);
     const language = diagramTypes[diagramType]?.language;
     const codedDiagramTextText = encode(diagramText);
     const defaultDiagram = exampleData.filter(({ diagramType: type, example }) => (diagramType === type) && (example === codedDiagramTextText)).length > 0;
     const diagramUrl = createKrokiUrl(renderUrl, diagramType, filetype, codedDiagramTextText);
-    if (state.diagramUrl !== diagramUrl) {
-        state = { ...state, diagramUrl, diagramEditUrl: `${baseUrl}#${diagramUrl}`, diagramError: false, defaultDiagram, language }
+    if (state.diagramUrl !== diagramUrl || state.filetype !== filetype || state.language !== language) {
+        state = { ...state, filetype, diagramUrl, diagramEditUrl: `${baseUrl}#${diagramUrl}`, diagramError: false, defaultDiagram, language }
     }
     return state;
 }
@@ -148,9 +157,6 @@ export const updateHash = (state, hash) => {
     } else {
         diagramText = state.diagramText;
     }
-    if (filetype === null) {
-        filetype = state.filetype
-    }
     if (diagramType === null) {
         diagramType = state.diagramType
     }
@@ -160,6 +166,7 @@ export const updateHash = (state, hash) => {
     if (diagramText === null) {
         diagramText = state.diagramText
     }
+    filetype = getValidFiletype(diagramType, filetype || state.filetype);
     if (state.hash !== hash || state.filetype !== filetype || state.renderUrl !== renderUrl || state.diagramText !== diagramText) {
         state = { ...state, hash, filetype, diagramType, renderUrl, diagramText };
         state = updateDiagram(state);
@@ -168,10 +175,11 @@ export const updateHash = (state, hash) => {
 }
 
 const updateDiagramTypeAndTextIfDefault = (state, diagramType) => {
+    const filetype = getValidFiletype(diagramType, state.filetype);
     if ((state.diagramText === '') || (state.defaultDiagram)) {
-        state = { ...state, diagramType, diagramText: decode(state.diagramTypes[diagramType].example), defaultDiagram: true, redrawIndex: state.redrawIndex + 1 };
+        state = { ...state, diagramType, filetype, diagramText: decode(state.diagramTypes[diagramType].example), defaultDiagram: true, redrawIndex: state.redrawIndex + 1 };
     } else {
-        state = { ...state, diagramType, redrawIndex: state.redrawIndex + 1 };
+        state = { ...state, diagramType, filetype, redrawIndex: state.redrawIndex + 1 };
     }
     state = updateDiagram(state);
     return state;
@@ -227,6 +235,13 @@ export default createReducer({
         const { diagramType } = action;
         if (diagramType !== state.diagramType) {
             state = updateDiagramTypeAndTextIfDefault(state, diagramType);
+        }
+        return state;
+    },
+    [FILETYPE_CHANGED]: (state, action) => {
+        const filetype = getValidFiletype(state.diagramType, action.filetype);
+        if (filetype !== state.filetype) {
+            state = updateDiagram({ ...state, filetype });
         }
         return state;
     },

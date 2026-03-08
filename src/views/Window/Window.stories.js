@@ -4,7 +4,7 @@ import { getComponenent } from '../storybook/stories';
 import ExampleCards from '../ExampleCards/ExampleCards'
 import ExampleDetail from '../ExampleDetail/ExampleDetail'
 import { Button } from 'semantic-ui-react';
-import exampleData from '../../examples/data';
+import exampleData from '../../examples';
 import { createKrokiUrl } from '../../kroki/utils';
 
 export default {

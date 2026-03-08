@@ -12,6 +12,5 @@ export const getExampleUrl = (exampleItem) => {
     if (cache.indexOf(filename) !== -1) {
         return `./cache/${filename}`
     }
-    return null;
+    return `https://kroki.io/${radical}`;
 }
-

@@ -8,7 +8,7 @@ const CopyZone = () => {
     <Divider/>
         <Form>
             <Form.Field>
-                <label>Image url</label>
+                <label>Render url</label>
                 <CopyField scope='image' />
             </Form.Field>
             <Form.Field>
@@ -16,11 +16,11 @@ const CopyZone = () => {
                 <CopyField scope='edit' />
             </Form.Field>
             <Form.Field>
-                <label>Markdown content</label>
+                <label>Markdown snippet</label>
                 <CopyField scope='markdown' />
             </Form.Field>
             <Form.Field>
-                <label>Markdown content with source as comment</label>
+                <label>Markdown snippet with source comment</label>
                 <CopyField scope='markdownsource' />
             </Form.Field>
         </Form>

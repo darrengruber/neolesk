@@ -1,6 +1,6 @@
-import { CLOSE_IMPORT_URL, COPY_BUTTON_HOVERED, DIAGRAM_CHANGED, DIAGRAM_CHANGED_UPDATE, DIAGRAM_HAS_ERROR, DIAGRAM_TYPE_CHANGED, IMPORT_URL, KEY_PRESSED, OPEN_IMPORT_URL, RENDERURL_CHANGED, RENDER_EDIT_SIZE_CHANGED, TEXT_COPIED, UPDATE_IMPORT_URL, WINDOW_RESIZED, ZEN_MODE_CHANGED } from '../constants/editor';
+import { CLOSE_IMPORT_URL, COPY_BUTTON_HOVERED, DIAGRAM_CHANGED, DIAGRAM_CHANGED_UPDATE, DIAGRAM_HAS_ERROR, DIAGRAM_TYPE_CHANGED, FILETYPE_CHANGED, IMPORT_URL, KEY_PRESSED, OPEN_IMPORT_URL, RENDERURL_CHANGED, RENDER_EDIT_SIZE_CHANGED, TEXT_COPIED, UPDATE_IMPORT_URL, WINDOW_RESIZED, ZEN_MODE_CHANGED } from '../constants/editor';
 import editorReducer, { initialState, updateDiagram } from './editor'
-import exampleData from '../examples/data';
+import exampleData from '../examples';
 import { decode } from '../kroki/coder';
 import { IMPORT_EXAMPLE } from '../constants/example';
 
@@ -357,6 +357,18 @@ describe('DIAGRAM_TYPE_CHANGED', () => {
         expect(state.diagramText).toBe(diagramText)
         expect(state.language).toBe('json')
     })
+
+    it('should fall back to a supported output format', () => {
+        let state = { ...standardState, filetype: 'pdf' };
+
+        expect(state.filetype).toBe('pdf')
+        expect(state.diagramType).toBe('plantuml')
+
+        state = editorReducer(state, { type: DIAGRAM_TYPE_CHANGED, diagramType: 'bpmn' })
+
+        expect(state.diagramType).toBe('bpmn')
+        expect(state.filetype).toBe('svg')
+    })
 })
 
 describe('IMPORT_EXAMPLE', () => {
@@ -522,6 +534,38 @@ describe('IMPORT_URL', () => {
         expect(state.diagramType).toBe('vegalite')
         expect(state.diagramText).toBe(diagramText)
         expect(state.language).toBe('json')
+    })
+
+    it('should preserve a supported output format from the URL', () => {
+        let state = standardState;
+
+        state = editorReducer(state, { type: IMPORT_URL, url: 'https://kroki.example.com/graphviz/pdf/eNpLyUwvSizIUHBXqPZIzcnJ17ULzy_KSanlAgB1EAjQ' })
+
+        expect(state.diagramType).toBe('graphviz')
+        expect(state.filetype).toBe('pdf')
+    })
+})
+
+describe('FILETYPE_CHANGED', () => {
+    it('should update filetype when supported', () => {
+        let state = standardState;
+
+        expect(state.filetype).toBe('svg')
+
+        state = editorReducer(state, { type: FILETYPE_CHANGED, filetype: 'pdf' })
+
+        expect(state.filetype).toBe('pdf')
+        expect(state.diagramUrl).toContain('/pdf/')
+    })
+
+    it('should ignore unsupported filetypes', () => {
+        let state = editorReducer(standardState, { type: DIAGRAM_TYPE_CHANGED, diagramType: 'bpmn' })
+
+        expect(state.filetype).toBe('svg')
+
+        state = editorReducer(state, { type: FILETYPE_CHANGED, filetype: 'pdf' })
+
+        expect(state.filetype).toBe('svg')
     })
 })
 

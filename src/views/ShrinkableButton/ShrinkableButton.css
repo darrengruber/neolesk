@@ -3,6 +3,10 @@
 }
 
 @media screen and (max-width: 700px) {
+    .ShrinkableButton {
+        min-width: 0;
+    }
+
     .ShrinkableText {
         display: none;
     }
@@ -13,8 +17,9 @@
 
 @media screen and (max-width: 600px) {
     .ShrinkableButton {
-        width: 4em;
-        white-space: pre;
+        width: auto;
+        flex: 1 1 30%;
+        white-space: nowrap;
         overflow: hidden;
     }
 
@@ -29,12 +34,9 @@
 
 @media screen and (max-width: 420px) {
     .ShrinkableButton {
-        width: 2em;
+        flex: 1 1 calc(50% - 0.5rem);
     }
     .ShrinkableButton i.icon {
         font-size: 0.75em;
-        position: relative;
-        left: -4px;
-        top: -2px;
     }
 }

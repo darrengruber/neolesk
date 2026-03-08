@@ -39,3 +39,5 @@ yarn-error.log*
 /public/cache/*
 
 jest_html_reporters.html
+
+dist/

@@ -1,7 +1,7 @@
 import React from 'react';
 import ExampleCards from './ExampleCards';
 import { getComponenent } from '../storybook/stories';
-import exampleData from '../../examples/data';
+import exampleData from '../../examples';
 import { createKrokiUrl } from '../../kroki/utils';
 
 export default {

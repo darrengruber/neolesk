@@ -10,6 +10,7 @@ const Render = () => {
     const diagramUrl= useSelector((state) => state.editor.diagramUrl)
     const diagramEditUrl= useSelector((state) => state.editor.diagramEditUrl)
     const diagramError = useSelector((state) => state.editor.diagramError)
+    const filetype = useSelector((state) => state.editor.filetype)
     const onDiagramError = (url) => dispatch(diagramHasError(url))
 
     const height = useSelector((state) => state.editor.renderHeight);
@@ -21,7 +22,7 @@ const Render = () => {
         prevRedrawIndexRef.current = redrawIndex
     }, [redrawIndex])
 
-    return <Internal {...{ diagramUrl, diagramEditUrl, diagramError, onDiagramError , height, width, onEditSizeChanged, shouldRedraw }} />
+    return <Internal {...{ diagramUrl, diagramEditUrl, diagramError, filetype, onDiagramError , height, width, onEditSizeChanged, shouldRedraw }} />
 }
 
 export default Render;

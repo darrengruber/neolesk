@@ -1,4 +1,4 @@
-import { COPY_TEXT, TEXT_COPIED, COPY_BUTTON_HOVERED, RENDERURL_CHANGED, DIAGRAM_CHANGED, DIAGRAM_TYPE_CHANGED, DIAGRAM_CHANGED_UPDATE, IMPORT_URL, CLOSE_IMPORT_URL, OPEN_IMPORT_URL, UPDATE_IMPORT_URL, DIAGRAM_HAS_ERROR, ZEN_MODE_CHANGED, WINDOW_RESIZED, KEY_PRESSED, RENDER_EDIT_SIZE_CHANGED } from "../constants/editor";
+import { COPY_TEXT, TEXT_COPIED, COPY_BUTTON_HOVERED, RENDERURL_CHANGED, DIAGRAM_CHANGED, DIAGRAM_TYPE_CHANGED, FILETYPE_CHANGED, DIAGRAM_CHANGED_UPDATE, IMPORT_URL, CLOSE_IMPORT_URL, OPEN_IMPORT_URL, UPDATE_IMPORT_URL, DIAGRAM_HAS_ERROR, ZEN_MODE_CHANGED, WINDOW_RESIZED, KEY_PRESSED, RENDER_EDIT_SIZE_CHANGED } from "../constants/editor";
 import delay from "./utils/delay";
 import copy from 'copy-to-clipboard';
 
@@ -58,6 +58,8 @@ export const diagramChanged = (diagramText) => async (dispatch, getState) => {
  * @returns 
  */
 export const diagramTypeChanged = (diagramType) => ({ type: DIAGRAM_TYPE_CHANGED, diagramType });
+
+export const filetypeChanged = (filetype) => ({ type: FILETYPE_CHANGED, filetype });
 
 /**
  * Called when a new diagram URL has been imported

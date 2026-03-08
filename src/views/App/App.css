@@ -1,14 +1,26 @@
 
+:root {
+    --niolesk-bg: #f4efe4;
+    --niolesk-panel: rgba(255, 251, 243, 0.88);
+    --niolesk-panel-strong: #fff8ec;
+    --niolesk-ink: #1e252b;
+    --niolesk-muted: #5b6772;
+    --niolesk-accent: #b55233;
+    --niolesk-accent-dark: #83381f;
+    --niolesk-border: rgba(58, 45, 27, 0.14);
+    --niolesk-shadow: 0 24px 70px rgba(77, 48, 26, 0.14);
+}
+
 .App {
-    max-width: 1200px;
-    margin-top: 10px;
-    margin-bottom: 0px;
-    margin-left: auto;
-    margin-right: auto;
+    max-width: 1380px;
+    margin: 0 auto;
+    min-height: 100vh;
+    padding: 24px 20px 40px;
+    color: var(--niolesk-ink);
 }
 
 .code {
-    font-family: source-code-pro, Menlo, Monaco, 'Fira Code', Consolas, 'Courier New', monospace !important;
+    font-family: 'IBM Plex Mono', 'Fira Code', Menlo, Monaco, Consolas, 'Courier New', monospace !important;
 }
 
 .diagramParams {
@@ -17,6 +29,14 @@
 
 #root {
     overflow: hidden;
+}
+
+.App .ui.basic.segment {
+    background: var(--niolesk-panel);
+    border: 1px solid var(--niolesk-border);
+    border-radius: 24px;
+    box-shadow: var(--niolesk-shadow);
+    backdrop-filter: blur(18px);
 }
 
 .zenMode .MainPanel {
@@ -36,12 +56,18 @@
     flex-direction: row;
     flex-wrap: nowrap;
     align-content: center;
+    gap: 12px;
 }
 
 .diagramTypeZone {
     flex-grow: 0;
     flex-basis: auto;
-    min-width: max-content;
+    min-width: 14rem;
+}
+
+.outputFormatZone {
+    flex-grow: 0;
+    min-width: 8rem;
 }
 
 .buttonsZone {
@@ -56,4 +82,93 @@
 .analyticsPanel {
     line-height: 1px;
     height: 1px;
+}
+
+.MainPanel .ui.grid {
+    margin-top: 0;
+}
+
+.MainPanel .ui.grid > .row > .column {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+}
+
+.App .ui.input input,
+.App .ui.selection.dropdown,
+.App .ui.button,
+.App .ui.card,
+.App .ui.modal,
+.App .ui.segment,
+.App .ui.form textarea {
+    border-radius: 18px !important;
+}
+
+.App .ui.selection.dropdown,
+.App .ui.input > input {
+    border: 1px solid var(--niolesk-border) !important;
+    background: rgba(255, 255, 255, 0.88) !important;
+}
+
+.App .ui.button {
+    background: var(--niolesk-panel-strong);
+    color: var(--niolesk-ink);
+    border: 1px solid var(--niolesk-border);
+    box-shadow: none;
+}
+
+.App .ui.button.primary,
+.App .ui.button.blue {
+    background: var(--niolesk-accent);
+    color: #fff;
+}
+
+.App .ui.button.primary:hover,
+.App .ui.button.blue:hover {
+    background: var(--niolesk-accent-dark);
+    color: #fff;
+}
+
+@media (max-width: 980px) {
+    .App {
+        padding: 18px 14px 24px;
+    }
+
+    .controlZone {
+        flex-wrap: wrap;
+    }
+
+    .diagramTypeZone,
+    .outputFormatZone,
+    .buttonsZone {
+        min-width: 100%;
+    }
+
+    .buttonsZone {
+        justify-content: flex-start;
+        gap: 0.65rem;
+    }
+
+    .MainPanel .ui.grid > .row {
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+}
+
+@media (max-width: 640px) {
+    .App {
+        padding: 14px 10px 20px;
+    }
+
+    .App .ui.basic.segment {
+        border-radius: 20px;
+    }
+
+    .diagramParams {
+        margin-bottom: 0.5rem;
+    }
+
+    .buttonsZone {
+        display: flex;
+        width: 100%;
+    }
 }

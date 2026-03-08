@@ -3,7 +3,7 @@ import { getComponenent } from '../storybook/stories'
 import { getReduxMockDecorator } from '../storybook/store';
 import diagramTypes from "../../kroki/krokiInfo";
 import { decode } from "../../kroki/coder";
-import exampleData from "../../examples/data";
+import exampleData from "../../examples";
 
 export default {
     title: 'Pages/App',

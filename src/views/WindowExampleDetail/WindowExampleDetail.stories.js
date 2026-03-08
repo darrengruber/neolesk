@@ -2,7 +2,7 @@ import React from 'react';
 import WindowExampleDetail from './index';
 import { getComponenent } from '../storybook/stories';
 import { getReduxMockDecorator } from '../storybook/store';
-import exampleData from "../../examples/data";
+import exampleData from "../../examples";
 
 export default {
     title: 'Components/WindowExampleDetail',

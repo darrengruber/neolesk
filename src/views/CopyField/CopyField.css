@@ -4,17 +4,35 @@
 
 .CopyButton {
     position: absolute !important;
-    top: 4px;
-    right: 11px;
+    top: 8px;
+    right: 12px;
 }
 
 .CopyFieldPre {
     border-width: 2px !important;
     white-space: pre;
-    overflow-x: scroll;
-    background-color: #f8f8f8 !important;
+    overflow-x: auto;
+    padding-right: 7.5rem !important;
+    background-color: rgba(255, 255, 255, 0.78) !important;
 }
 
 .CopyField.copy-hover .CopyFieldPre {
     border: 2px solid #209cee;
+}
+
+@media (max-width: 640px) {
+    .CopyField {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+    }
+
+    .CopyButton {
+        position: static !important;
+        width: 100%;
+    }
+
+    .CopyFieldPre {
+        padding-right: 1rem !important;
+    }
 }

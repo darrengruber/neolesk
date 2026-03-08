@@ -1,8 +1,7 @@
 import React from 'react';
-import MonacoEditor from '@uiw/react-monacoeditor';
+import MonacoEditor from '@monaco-editor/react';
 import PropTypes from 'prop-types';
 import './Editor.css'
-import 'monaco-editor/esm/vs/language/json/json.worker'
 
 class Editor extends React.Component {
     get shouldUpdate() {
@@ -14,8 +13,8 @@ class Editor extends React.Component {
     }
 
     shouldComponentUpdate(nextProps) {
-        if (this._editor && this._editor.editor) {
-            const editorText = this._editor.editor.getValue();
+        if (this._editor) {
+            const editorText = this._editor.getValue();
             const nextPropsText = nextProps.text;
 
             if (nextPropsText === editorText) {
@@ -40,11 +39,12 @@ class Editor extends React.Component {
         return <div className='Editor'>
             <MonacoEditor
                 className='MonacoEditor'
-                ref={(ref) => this._editor = ref}
+                onMount={(editor) => {
+                    this._editor = editor;
+                }}
                 language={language || "plaintext"}
-                
-                onChange={(text) => onTextChanged(text)}
-                value={shouldUpdate ? text : null}
+                onChange={(value) => onTextChanged(value || '')}
+                value={shouldUpdate ? text : undefined}
                 options={{
                     theme: 'vs',
                     automaticLayout: true,

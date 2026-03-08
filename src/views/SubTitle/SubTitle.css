@@ -1,9 +1,23 @@
 .SubTitle {
     width: 100%;
-    font-size: 1.45rem !important;
-    text-align: right;
+    font-size: clamp(1rem, 2.4vw, 1.35rem) !important;
+    text-align: center;
+    color: #33424d;
 }
 
 .SubTitleSmall {
-    font-size: 0.68rem;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: #6d7881;
+}
+
+@media (max-width: 640px) {
+    .SubTitle {
+        text-align: left;
+    }
+
+    .SubTitleSmall {
+        font-size: 0.72rem;
+        line-height: 1.5;
+    }
 }

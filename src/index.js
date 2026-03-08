@@ -5,6 +5,7 @@ import reducers from './reducers';
 import exportToWindow from './providers/exportToWindow';
 import diagramChange from './providers/diagramChange';
 import debug from './providers/debug';
+import { loadRuntimeAssets } from './init/runtimeAssets';
 import './debug'
 
 const providers = [
@@ -12,6 +13,11 @@ const providers = [
     diagramChange,
     debug,
 ];
-initReactRedux(providers, '/', document.getElementById('root'), Router, reducers)
-
-reportWebVitals();
+loadRuntimeAssets()
+    .catch((error) => {
+        console.error(error);
+    })
+    .finally(() => {
+        initReactRedux(providers, '/', document.getElementById('root'), Router, reducers)
+        reportWebVitals();
+    });

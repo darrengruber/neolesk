@@ -1,4 +1,4 @@
-import data from './src/examples/data'
+import data from './src/examples'
 import { createHash } from 'crypto'
 import axios from 'axios'
 import util from 'util'

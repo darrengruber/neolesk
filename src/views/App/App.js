@@ -10,6 +10,7 @@ import Editor from '../Editor';
 import Render from '../Render';
 import CopyZone from '../CopyZone';
 import DiagramType from '../DiagramType';
+import OutputFormat from '../OutputFormat';
 import RenderUrl from '../RenderUrl';
 import ShrinkableButton from '../ShrinkableButton';
 import WindowExampleCards from '../WindowExampleCards';
@@ -98,6 +99,9 @@ const App = ({ onExamples, onImportUrl, onSetZenMode, zenMode, onKey, onResize, 
                         <div className='controlZone'>
                             <div className='diagramTypeZone'>
                                 <DiagramType />
+                            </div>
+                            <div className='outputFormatZone'>
+                                <OutputFormat />
                             </div>
                             <div className='buttonsZone'>
                                 <ShrinkableButton floated='right' onClick={() => onSetZenMode()} icon='external alternate' text='Zen Mode' textAlt='Zen' />
