@@ -1,6 +1,6 @@
 import exampleData from '../examples';
 import { getDiagramFiletypes, getDiagramMetadata } from './metadata';
-import type { DiagramTypeMap, ExampleDefinition } from '../types';
+import type { DiagramTypeMap } from '../types';
 
 const krokiInfo = exampleData
     .filter((example) => example.default)

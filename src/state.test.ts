@@ -8,7 +8,7 @@ import {
     normalizeRenderUrl,
     parseDiagramUrl,
 } from './state';
-import { encode } from '../kroki/coder';
+import { encode } from './kroki/coder';
 
 describe('normalizeRenderUrl', () => {
     it('maps legacy kroki hosts to the configured default', () => {

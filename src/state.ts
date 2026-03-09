@@ -1,15 +1,17 @@
-import examples from '../examples';
-import { decode, encode } from '../kroki/coder';
-import krokiInfo from '../kroki/krokiInfo';
-import { defaultFiletype, getDiagramFiletypes } from '../kroki/metadata';
-import { createKrokiUrl } from '../kroki/utils';
-import type { DiagramState, DiagramStateInput, DiagramTypeMap, ParsedDiagramUrl } from '../types';
+import examples from './examples';
+import { decode, encode } from './kroki/coder';
+import krokiInfo from './kroki/krokiInfo';
+import { defaultFiletype, getDiagramFiletypes } from './kroki/metadata';
+import type { DiagramState, DiagramStateInput, DiagramTypeMap, ParsedDiagramUrl } from './types';
 
 export const defaultDiagramType = 'plantuml';
-export const legacyRenderUrl = 'https://kroki.io/';
+const legacyRenderUrl = 'https://kroki.io/';
 export const defaultRenderUrl = 'https://kroki.io/';
 
 export const diagramTypes = krokiInfo as DiagramTypeMap;
+
+const createKrokiUrl = (renderUrl: string, diagramType: string, filetype: string, encodedText: string): string =>
+    [renderUrl.replace(/\/*$/, ''), diagramType, filetype, encodedText].join('/');
 
 export const normalizeRenderUrl = (renderUrl?: string | null): string => {
     if (!renderUrl || renderUrl === '' || renderUrl === legacyRenderUrl || renderUrl === legacyRenderUrl.slice(0, -1)) {
@@ -29,7 +31,7 @@ export const getValidFiletype = (diagramType: string, filetype?: string | null):
     return filetypes[0] || defaultFiletype;
 };
 
-export const isDefaultDiagram = (diagramType: string, diagramText: string): boolean => {
+const isDefaultDiagram = (diagramType: string, diagramText: string): boolean => {
     const encodedDiagram = encode(diagramText);
     return examples.some((example) => example.diagramType === diagramType && example.example === encodedDiagram);
 };
@@ -123,26 +125,3 @@ export const parseDiagramUrl = (input: string): ParsedDiagramUrl | null => {
     };
 };
 
-export const changeFiletype = (state: DiagramState, nextFiletype: string): DiagramState => buildDiagramState({
-    baseUrl: state.baseUrl,
-    diagramType: state.diagramType,
-    diagramText: state.diagramText,
-    filetype: nextFiletype,
-    renderUrl: state.renderUrl,
-});
-
-export const changeRenderUrl = (state: DiagramState, nextRenderUrl: string): DiagramState => buildDiagramState({
-    baseUrl: state.baseUrl,
-    diagramType: state.diagramType,
-    diagramText: state.diagramText,
-    filetype: state.filetype,
-    renderUrl: nextRenderUrl,
-});
-
-export const changeDiagramText = (state: DiagramState, nextDiagramText: string): DiagramState => buildDiagramState({
-    baseUrl: state.baseUrl,
-    diagramType: state.diagramType,
-    diagramText: nextDiagramText,
-    filetype: state.filetype,
-    renderUrl: state.renderUrl,
-});

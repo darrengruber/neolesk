@@ -1,7 +1,7 @@
 import { encode } from '../kroki/coder';
 import type { ExampleDefinition } from '../types';
 
-export interface ExampleSourceDefinition extends Omit<ExampleDefinition, 'example'> {
+interface ExampleSourceDefinition extends Omit<ExampleDefinition, 'example'> {
     source: string;
 }
 

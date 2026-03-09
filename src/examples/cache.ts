@@ -1,9 +1,8 @@
 import type { ExampleDefinition } from '../types';
 import examples from '../examples';
 import { encode } from '../kroki/coder';
+import { defaultRenderUrl } from '../state';
 import { getExampleCacheFilename, getExampleCacheFilenameForRadical, getExampleRadical } from './cacheKey';
-
-const defaultRenderUrl = 'https://kroki.io/';
 const cachedExampleRadicals = new Set(examples.map((example) => getExampleRadical(example)));
 
 export const getExampleUrl = (exampleItem: ExampleDefinition): string => {

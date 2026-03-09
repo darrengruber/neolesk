@@ -1,4 +1,4 @@
-import baseData from './catalog/index';
+import baseData from './catalog';
 import diagramMetadata from '../kroki/metadata';
 import type { ExampleDefinition } from '../types';
 const mergedData: ExampleDefinition[] = baseData.map((item) => {

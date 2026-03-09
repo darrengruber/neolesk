@@ -1,8 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MonacoEditor from '@monaco-editor/react';
-import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
-import exampleData from './examples';
-import { getCachedDiagramUrl, getExampleUrl } from './examples/usecache';
+import { getCachedDiagramUrl } from './examples/cache';
 import { decode } from './kroki/coder';
 import {
     buildDiagramState,
@@ -12,393 +10,44 @@ import {
     getValidFiletype,
     normalizeRenderUrl,
     parseDiagramUrl,
-} from './app/state';
+} from './state';
 import type {
     CopyScope,
-    DiagramState,
-    ExampleDefinition,
     ExampleRecord,
     LayoutMode,
     MobileTab,
 } from './types';
 import './styles.css';
-import OutputFormatGroup from './components/OutputFormatGroup';
+import PreviewPane from './components/PreviewPane';
+import Modal from './components/Modal';
+import ExampleImage from './components/ExampleImage';
+import { useDebouncedValue } from './hooks/useDebouncedValue';
+import { useWindowWidth } from './hooks/useWindowWidth';
+import { buildExamples, filterExamples } from './utils/examples';
+import { getCopyText } from './utils/share';
+import { copyText } from './utils/clipboard';
 
-const imageFiletypes = new Set(['svg', 'png', 'jpeg', 'jpg', 'gif', 'webp']);
 const layoutModes: LayoutMode[] = ['vertical', 'horizontal', 'preview'];
 const copyScopes: CopyScope[] = ['image', 'edit', 'markdown', 'markdownsource'];
-const renderCanvasPadding = 18;
-const minimumPreviewScale = 0.05;
 
-const useDebouncedValue = <T,>(value: T, delay: number): T => {
-    const [debouncedValue, setDebouncedValue] = useState(value);
-
-    useEffect(() => {
-        const timeoutId = window.setTimeout(() => {
-            setDebouncedValue(value);
-        }, delay);
-
-        return () => window.clearTimeout(timeoutId);
-    }, [delay, value]);
-
-    return debouncedValue;
+const monacoOptions = {
+    theme: 'vs' as const,
+    automaticLayout: true,
+    folding: true,
+    minimap: { enabled: false },
+    fontSize: 14,
+    lineHeight: 22,
+    padding: { top: 18, bottom: 18 },
+    scrollBeyondLastLine: false,
+    smoothScrolling: true,
+    wrappingIndent: 'indent' as const,
 };
 
-const useWindowWidth = (): number => {
-    const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
-
-    useEffect(() => {
-        const handleResize = () => setWindowWidth(window.innerWidth);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    return windowWidth;
-};
-
-const buildExamples = (): ExampleRecord[] =>
-    exampleData.map((example, id) => ({
-        id,
-        ...example,
-        searchField: `${example.title} ${example.description} ${(example.keywords || []).join(' ')}`.toLowerCase(),
-        url: getExampleUrl(example),
-    }));
-
-const filterExamples = (examples: ExampleRecord[], search: string): ExampleRecord[] => {
-    const parts = search
-        .split(' ')
-        .map((part) => part.trim().toLowerCase())
-        .filter(Boolean);
-
-    if (parts.length === 0) {
-        return examples;
-    }
-
-    return examples.filter((example) => parts.every((part) => example.searchField.includes(part)));
-};
-
-const copyText = async (value: string): Promise<void> => {
-    if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(value);
-        return;
-    }
-
-    const textarea = document.createElement('textarea');
-    textarea.value = value;
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textarea);
-};
-
-const ExampleImage = ({ example, alt }: { example: ExampleDefinition; alt: string }): JSX.Element => {
-    const primaryUrl = useMemo(() => getExampleUrl(example), [example]);
-
-    return (
-        <img
-            alt={alt}
-            src={primaryUrl}
-        />
-    );
-};
-
-const getCopyText = (scope: CopyScope, previewState: DiagramState, currentText: string): string => {
-    const markdownBody = imageFiletypes.has(previewState.filetype)
-        ? `![Diagram](${previewState.diagramUrl})`
-        : `[Diagram ${previewState.filetype.toUpperCase()}](${previewState.diagramUrl})`;
-
-    switch (scope) {
-        case 'image':
-            return previewState.diagramUrl;
-        case 'edit':
-            return previewState.diagramEditUrl;
-        case 'markdown':
-            return `${markdownBody}\n\n[Edit this diagram](${previewState.diagramEditUrl})\n`;
-        case 'markdownsource':
-            return `${markdownBody}\n\n<!--\n${currentText.split('-->').join('\\-\\-\\>')}\n-->\n\n[Edit this diagram](${previewState.diagramEditUrl})\n`;
-        default:
-            return '';
-    }
-};
-
-interface PreviewPaneProps {
-    diagramUrl: string;
-    previewUrl: string;
-    diagramEditUrl: string;
-    diagramError: boolean;
-    filetype: string;
-    onDiagramError: (url: string) => void;
-    onFiletypeChange: (filetype: string) => void;
-    filetypes: string[];
-}
-
-const PreviewPane = ({
-    diagramUrl,
-    previewUrl,
-    diagramEditUrl,
-    diagramError,
-    filetype,
-    onDiagramError,
-    onFiletypeChange,
-    filetypes,
-}: PreviewPaneProps): JSX.Element => {
-    const panelRef = useRef<HTMLDivElement | null>(null);
-    const toolbarRef = useRef<HTMLDivElement | null>(null);
-    const retryTimeoutRef = useRef<number | null>(null);
-    const onDiagramErrorRef = useRef(onDiagramError);
-    const transformApiRef = useRef<{
-        zoomIn: () => void;
-        zoomOut: () => void;
-        centerView: (scale?: number, animationTime?: number) => void;
-        resetTransform: () => void;
-    } | null>(null);
-    const [viewportSize, setViewportSize] = useState({ width: 960, height: 640 });
-    const isImageFiletype = imageFiletypes.has(filetype);
-    const [displayedDiagramUrl, setDisplayedDiagramUrl] = useState(previewUrl);
-    const [displayedImageBounds, setDisplayedImageBounds] = useState<{ width: number; height: number } | null>(null);
-    const [imageLoaded, setImageLoaded] = useState(!isImageFiletype);
-
-    const clearPendingRetry = () => {
-        if (retryTimeoutRef.current !== null) {
-            window.clearTimeout(retryTimeoutRef.current);
-            retryTimeoutRef.current = null;
-        }
-    };
-
-    const fitDiagramToViewport = () => {
-        if (!transformApiRef.current || !displayedImageBounds) {
-            return;
-        }
-
-        const contentWidth = displayedImageBounds.width + (renderCanvasPadding * 2);
-        const contentHeight = displayedImageBounds.height + (renderCanvasPadding * 2);
-        const scaleX = viewportSize.width / contentWidth;
-        const scaleY = viewportSize.height / contentHeight;
-        const fittedScale = Math.max(minimumPreviewScale, Math.min(scaleX, scaleY, 48));
-
-        transformApiRef.current.centerView(fittedScale, 80);
-    };
-
-    useEffect(() => {
-        const panelElement = panelRef.current;
-        if (!panelElement) {
-            return;
-        }
-
-        const updateSize = () => {
-            const toolbarHeight = toolbarRef.current?.offsetHeight || 0;
-            const nextWidth = Math.max(320, Math.floor(panelElement.clientWidth));
-            const nextHeight = Math.max(240, Math.floor(panelElement.clientHeight - toolbarHeight));
-            setViewportSize((current) => (
-                current.width === nextWidth && current.height === nextHeight
-                    ? current
-                    : { width: nextWidth, height: nextHeight }
-            ));
-        };
-
-        updateSize();
-        const resizeObserver = new ResizeObserver(updateSize);
-        resizeObserver.observe(panelElement);
-        if (toolbarRef.current) {
-            resizeObserver.observe(toolbarRef.current);
-        }
-
-        return () => resizeObserver.disconnect();
-    }, []);
-
-    useEffect(() => {
-        return () => clearPendingRetry();
-    }, []);
-
-    useEffect(() => {
-        onDiagramErrorRef.current = onDiagramError;
-    }, [onDiagramError]);
-
-    useEffect(() => {
-        if (!isImageFiletype) {
-            setDisplayedDiagramUrl(previewUrl);
-            setDisplayedImageBounds(null);
-            setImageLoaded(true);
-            return;
-        }
-
-        if (previewUrl === displayedDiagramUrl && displayedImageBounds) {
-            return;
-        }
-
-        clearPendingRetry();
-        setDisplayedImageBounds(null);
-
-        let cancelled = false;
-        let attempts = 0;
-
-        const loadImage = () => {
-            const preloader = new Image();
-            preloader.onload = () => {
-                if (cancelled) {
-                    return;
-                }
-
-                clearPendingRetry();
-                setDisplayedDiagramUrl(previewUrl);
-                setDisplayedImageBounds({
-                    width: preloader.naturalWidth || viewportSize.width,
-                    height: preloader.naturalHeight || viewportSize.height,
-                });
-                setImageLoaded(true);
-            };
-            preloader.onerror = () => {
-                if (cancelled) {
-                    return;
-                }
-
-                if (attempts < 3) {
-                    attempts += 1;
-                    retryTimeoutRef.current = window.setTimeout(loadImage, attempts * 300);
-                    return;
-                }
-
-                onDiagramErrorRef.current(previewUrl);
-            };
-            preloader.src = previewUrl;
-        };
-
-        setImageLoaded(false);
-        loadImage();
-
-        return () => {
-            cancelled = true;
-            clearPendingRetry();
-        };
-    }, [displayedDiagramUrl, isImageFiletype, previewUrl, viewportSize.height, viewportSize.width]);
-
-    useEffect(() => {
-        if (isImageFiletype && displayedImageBounds) {
-            fitDiagramToViewport();
-        }
-    }, [displayedDiagramUrl, displayedImageBounds, isImageFiletype, viewportSize.height, viewportSize.width]);
-
-    return (
-        <div className="Render" ref={panelRef}>
-            <div className="RenderToolbar" ref={toolbarRef}>
-                <div className="RenderToolbarBadge">
-                    <OutputFormatGroup
-                        filetype={filetype}
-                        filetypes={filetypes}
-                        onChange={onFiletypeChange}
-                    />
-                </div>
-                {isImageFiletype ? (
-                    <>
-                        <button type="button" className="RenderToolbarButton" onClick={() => transformApiRef.current?.zoomOut()}>
-                            -
-                        </button>
-                        <button type="button" className="RenderToolbarButton" onClick={() => transformApiRef.current?.zoomIn()}>
-                            +
-                        </button>
-                        <button type="button" className="RenderToolbarButton RenderToolbarButtonWide" onClick={() => fitDiagramToViewport()}>
-                            Fit
-                        </button>
-                    </>
-                ) : null}
-                <a className="RenderToolbarLink" href={diagramUrl} target="_blank" rel="noreferrer">
-                    Open
-                </a>
-                <a className="RenderToolbarLink RenderToolbarLinkAccent" href={diagramEditUrl} target="_blank" rel="noreferrer">
-                    Edit
-                </a>
-            </div>
-            {isImageFiletype ? (
-                <TransformWrapper
-                    minScale={minimumPreviewScale}
-                    maxScale={48}
-                    centerOnInit
-                    centerZoomedOut
-                    wheel={{ step: 0.12 }}
-                    pinch={{ step: 4 }}
-                    panning={{ velocityDisabled: true }}
-                    doubleClick={{ disabled: true }}
-                >
-                    {(controls) => {
-                        transformApiRef.current = controls;
-                        return (
-                            <div className="RenderViewport" style={{ height: `${viewportSize.height}px` }}>
-                                {diagramError && displayedDiagramUrl === previewUrl ? (
-                                    <iframe className="RenderImageError" title="Error" src={previewUrl} />
-                                ) : (
-                                    <>
-                                        <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
-                                            <div
-                                                className="RenderCanvas"
-                                                style={{
-                                                    width: `${(displayedImageBounds?.width || viewportSize.width) + (renderCanvasPadding * 2)}px`,
-                                                    height: `${(displayedImageBounds?.height || viewportSize.height) + (renderCanvasPadding * 2)}px`,
-                                                    padding: `${renderCanvasPadding}px`,
-                                                }}
-                                            >
-                                                <img
-                                                    alt="Diagram"
-                                                    className="RenderImage"
-                                                    src={displayedDiagramUrl}
-                                                    style={{
-                                                        width: displayedImageBounds ? `${displayedImageBounds.width}px` : 'auto',
-                                                        height: displayedImageBounds ? `${displayedImageBounds.height}px` : 'auto',
-                                                    }}
-                                                />
-                                            </div>
-                                        </TransformComponent>
-                                        {!imageLoaded || displayedDiagramUrl !== previewUrl ? (
-                                            <div className="RenderLoading">
-                                                <span className="RenderLoadingDot" />
-                                                Rendering
-                                            </div>
-                                        ) : null}
-                                    </>
-                                )}
-                            </div>
-                        );
-                    }}
-                </TransformWrapper>
-            ) : (
-                <div className="RenderViewport" style={{ height: `${viewportSize.height}px` }}>
-                    <iframe className="RenderDocument" title={`Diagram ${filetype}`} src={diagramUrl} />
-                </div>
-            )}
-        </div>
-    );
-};
-
-interface ModalProps {
-    open: boolean;
-    title: string;
-    onClose: () => void;
-    children: React.ReactNode;
-    actions?: React.ReactNode;
-    headerExtras?: React.ReactNode;
-}
-
-const Modal = ({ open, title, onClose, children, actions, headerExtras }: ModalProps): JSX.Element | null => {
-    if (!open) {
-        return null;
-    }
-
-    return (
-        <div className="ModalBackdrop" onClick={onClose}>
-            <div className="ModalSurface" onClick={(event) => event.stopPropagation()}>
-                <div className="ModalHeader">
-                    <h2>{title}</h2>
-                    <div className="ModalHeaderExtras">{headerExtras}</div>
-                </div>
-                <div className="ModalBody">{children}</div>
-                <div className="ModalFooter">
-                    {actions}
-                    <button type="button" className="ModalButton" onClick={onClose}>
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
+const initialCopiedScopes: Record<CopyScope, boolean> = {
+    image: false,
+    edit: false,
+    markdown: false,
+    markdownsource: false,
 };
 
 function App(): JSX.Element {
@@ -430,12 +79,7 @@ function App(): JSX.Element {
     const [examplesSearch, setExamplesSearch] = useState('');
     const [importUrlOpen, setImportUrlOpen] = useState(false);
     const [importUrl, setImportUrl] = useState('');
-    const [copiedScopes, setCopiedScopes] = useState<Record<CopyScope, boolean>>({
-        image: false,
-        edit: false,
-        markdown: false,
-        markdownsource: false,
-    });
+    const [copiedScopes, setCopiedScopes] = useState(initialCopiedScopes);
     const workspaceRef = useRef<HTMLDivElement | null>(null);
 
     const debouncedEditorValue = useDebouncedValue(editorValue, 500);
@@ -462,6 +106,11 @@ function App(): JSX.Element {
         () => getCachedDiagramUrl(previewState.diagramType, previewState.filetype, previewState.diagramText, previewState.renderUrl) || previewState.diagramUrl,
         [previewState.diagramText, previewState.diagramType, previewState.diagramUrl, previewState.filetype, previewState.renderUrl],
     );
+
+    const editorOptions = useMemo(() => ({
+        ...monacoOptions,
+        wordWrap: wrapEnabled ? 'on' as const : 'off' as const,
+    }), [wrapEnabled]);
 
     useEffect(() => {
         if (!isCompact) {
@@ -613,6 +262,22 @@ function App(): JSX.Element {
         }, 1000);
     };
 
+    const handleEditorChange = useCallback((value: string | undefined) => {
+        const nextValue = value || '';
+        setEditorValue(nextValue);
+        setDraftsByDiagramType((current) => (
+            current[diagramType] === nextValue
+                ? current
+                : { ...current, [diagramType]: nextValue }
+        ));
+    }, [diagramType]);
+
+    const handleDiagramError = useCallback((url: string) => {
+        if (url === previewAssetUrl) {
+            setDiagramError(true);
+        }
+    }, [previewAssetUrl]);
+
     return (
         <div className="App">
             <header className="AppToolbar">
@@ -741,25 +406,9 @@ function App(): JSX.Element {
                                     className="MonacoEditor"
                                     language={currentState.language || 'plaintext'}
                                     value={editorValue}
-                                    onChange={(value) => {
-                                        const nextValue = value || '';
-                                        setEditorValue(nextValue);
-                                        updateDiagramDraft(diagramType, nextValue);
-                                    }}
+                                    onChange={handleEditorChange}
                                     height="100%"
-                                    options={{
-                                        theme: 'vs',
-                                        automaticLayout: true,
-                                        folding: true,
-                                        minimap: { enabled: false },
-                                        fontSize: 14,
-                                        lineHeight: 22,
-                                        padding: { top: 18, bottom: 18 },
-                                        scrollBeyondLastLine: false,
-                                        smoothScrolling: true,
-                                        wordWrap: wrapEnabled ? 'on' : 'off',
-                                        wrappingIndent: 'indent',
-                                    }}
+                                    options={editorOptions}
                                 />
                             </div>
                         </div>
@@ -784,11 +433,7 @@ function App(): JSX.Element {
                                 diagramError={diagramError}
                                 filetype={filetype}
                                 filetypes={supportedFiletypes}
-                                onDiagramError={(url) => {
-                                    if (url === previewAssetUrl) {
-                                        setDiagramError(true);
-                                    }
-                                }}
+                                onDiagramError={handleDiagramError}
                                 onFiletypeChange={setFiletype}
                             />
                         </div>

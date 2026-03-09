@@ -15,6 +15,7 @@ const gitHash = (() => {
 })();
 
 export default defineConfig({
+    base: '/dac/',
     plugins: [react({ include: /\.(js|jsx|ts|tsx)$/ })],
     define: {
         __APP_VERSION__: JSON.stringify(pkg.version),

@@ -21,7 +21,7 @@ const resolveLocalModule = (specifier, importerDir) => {
         path.resolve(importerDir, specifier, 'index.js'),
     ];
 
-    const resolved = candidates.find((candidate) => fs.existsSync(candidate));
+    const resolved = candidates.find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
 
     if (!resolved) {
         throw new Error(`Unable to resolve "${specifier}" from "${importerDir}"`);

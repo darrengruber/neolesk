@@ -37,5 +37,3 @@ export const loadRuntimeAssets = async (): Promise<void> => {
         await loadScript(asset);
     }
 };
-
-export default loadRuntimeAssets;

@@ -28,10 +28,6 @@ export type LayoutMode = 'vertical' | 'horizontal' | 'preview';
 export type MobileTab = 'code' | 'preview';
 export type CopyScope = 'image' | 'edit' | 'markdown' | 'markdownsource';
 
-export interface RuntimeConfig {
-    krokiEngineUrl: string;
-}
-
 export interface DiagramStateInput {
     baseUrl: string;
     diagramType: string;

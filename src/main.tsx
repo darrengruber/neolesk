@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import App from './App';
-import { loadRuntimeAssets } from './init/runtimeAssets';
+import { loadRuntimeAssets } from './utils/runtimeAssets';
 
 const rootElement = document.getElementById('root');
 
