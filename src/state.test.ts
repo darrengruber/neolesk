@@ -1,6 +1,7 @@
 import {
     buildDiagramState,
     changeDiagramType,
+    createDiagramHash,
     createInitialDiagramState,
     defaultDiagramType,
     defaultRenderUrl,
@@ -28,26 +29,52 @@ describe('getValidFiletype', () => {
         expect(getValidFiletype('plantuml', 'png')).toBe('png');
     });
 
-    it('falls back to the first supported output format', () => {
-        expect(getValidFiletype('mermaid', 'pdf')).toBe('svg');
+    it('accepts all client-side export formats', () => {
+        expect(getValidFiletype('mermaid', 'pdf')).toBe('pdf');
+        expect(getValidFiletype('mermaid', 'jpeg')).toBe('jpeg');
+    });
+
+    it('falls back to svg for unknown formats', () => {
+        expect(getValidFiletype('plantuml', 'gif')).toBe('svg');
     });
 });
 
 describe('parseDiagramUrl', () => {
-    it('parses diagram urls and migrates the legacy host', () => {
+    it('parses legacy full Kroki URLs', () => {
         const encoded = encode('@startuml\nAlice -> Bob\n@enduml');
         const parsed = parseDiagramUrl(`#https://kroki.io/plantuml/png/${encoded}`);
 
         expect(parsed).toEqual({
             diagramType: 'plantuml',
             filetype: 'png',
-            renderUrl: defaultRenderUrl,
+            diagramText: '@startuml\nAlice -> Bob\n@enduml',
+        });
+    });
+
+    it('parses new compact hash format', () => {
+        const encoded = encode('@startuml\nAlice -> Bob\n@enduml');
+        const parsed = parseDiagramUrl(`#plantuml/svg/${encoded}`);
+
+        expect(parsed).toEqual({
+            diagramType: 'plantuml',
+            filetype: 'svg',
             diagramText: '@startuml\nAlice -> Bob\n@enduml',
         });
     });
 
     it('returns null for incomplete urls', () => {
         expect(parseDiagramUrl('#https://kroki.io/plantuml')).toBeNull();
+    });
+
+    it('returns null for incomplete new-format hashes', () => {
+        expect(parseDiagramUrl('#plantuml/svg')).toBeNull();
+    });
+});
+
+describe('createDiagramHash', () => {
+    it('creates a compact hash without server URL', () => {
+        const encoded = encode('test');
+        expect(createDiagramHash('plantuml', 'svg', encoded)).toBe(`plantuml/svg/${encoded}`);
     });
 });
 
@@ -57,7 +84,7 @@ describe('createInitialDiagramState', () => {
 
         expect(state.diagramType).toBe(defaultDiagramType);
         expect(state.renderUrl).toBe(defaultRenderUrl);
-        expect(state.diagramUrl).toContain('/plantuml/svg/');
+        expect(state.svgUrl).toContain('/plantuml/svg/');
     });
 });
 

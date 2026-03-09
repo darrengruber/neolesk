@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MonacoEditor from '@monaco-editor/react';
-import { getCachedDiagramUrl } from './examples/cache';
+import { getCachedSvgUrl } from './examples/cache';
 import { decode } from './kroki/coder';
 import {
     buildDiagramState,
@@ -73,7 +73,6 @@ function App(): JSX.Element {
     const [editorWidth, setEditorWidth] = useState(44);
     const [isDragging, setIsDragging] = useState(false);
     const [mobileTab, setMobileTab] = useState<MobileTab>('code');
-    const [diagramError, setDiagramError] = useState(false);
     const [examplesMode, setExamplesMode] = useState<'grid' | 'detail' | null>(null);
     const [selectedExampleId, setSelectedExampleId] = useState(0);
     const [examplesSearch, setExamplesSearch] = useState('');
@@ -101,10 +100,10 @@ function App(): JSX.Element {
     }), [baseUrl, diagramType, filetype, previewText, renderUrl]);
     const filteredExamples = useMemo(() => filterExamples(examples, examplesSearch), [examples, examplesSearch]);
     const selectedExample = examples[selectedExampleId] || examples[0];
-    const supportedFiletypes = diagramTypes[diagramType]?.filetypes || [filetype];
-    const previewAssetUrl = useMemo(
-        () => getCachedDiagramUrl(previewState.diagramType, previewState.filetype, previewState.diagramText, previewState.renderUrl) || previewState.diagramUrl,
-        [previewState.diagramText, previewState.diagramType, previewState.diagramUrl, previewState.filetype, previewState.renderUrl],
+    const supportedFiletypes = ['svg', 'png', 'jpeg', 'pdf'];
+    const previewSvgUrl = useMemo(
+        () => getCachedSvgUrl(previewState.diagramType, previewState.diagramText, previewState.renderUrl) || previewState.svgUrl,
+        [previewState.diagramText, previewState.diagramType, previewState.svgUrl, previewState.renderUrl],
     );
 
     const editorOptions = useMemo(() => ({
@@ -119,21 +118,17 @@ function App(): JSX.Element {
     }, [isCompact]);
 
     useEffect(() => {
-        setDiagramError(false);
-    }, [previewState.diagramUrl]);
-
-    useEffect(() => {
         if (debouncedEditorValue === editorValue) {
             setPreviewText(debouncedEditorValue);
         }
     }, [debouncedEditorValue, editorValue]);
 
     useEffect(() => {
-        const nextHash = `#${previewState.diagramUrl}`;
+        const nextHash = `#${previewState.diagramHash}`;
         if (window.location.hash !== nextHash) {
             window.history.replaceState(null, '', nextHash);
         }
-    }, [previewState.diagramUrl]);
+    }, [previewState.diagramHash]);
 
     useEffect(() => {
         const handleHashChange = () => {
@@ -144,11 +139,9 @@ function App(): JSX.Element {
 
             setDiagramType(parsed.diagramType);
             setFiletype(parsed.filetype);
-            setRenderUrl(parsed.renderUrl);
             setEditorValue(parsed.diagramText);
             setPreviewText(parsed.diagramText);
             updateDiagramDraft(parsed.diagramType, parsed.diagramText);
-            setDiagramError(false);
         };
 
         window.addEventListener('hashchange', handleHashChange);
@@ -235,7 +228,6 @@ function App(): JSX.Element {
 
         setDiagramType(parsed.diagramType);
         setFiletype(parsed.filetype);
-        setRenderUrl(parsed.renderUrl);
         setEditorValue(parsed.diagramText);
         setPreviewText(parsed.diagramText);
         updateDiagramDraft(parsed.diagramType, parsed.diagramText);
@@ -271,12 +263,6 @@ function App(): JSX.Element {
                 : { ...current, [diagramType]: nextValue }
         ));
     }, [diagramType]);
-
-    const handleDiagramError = useCallback((url: string) => {
-        if (url === previewAssetUrl) {
-            setDiagramError(true);
-        }
-    }, [previewAssetUrl]);
 
     return (
         <div className="App">
@@ -427,13 +413,11 @@ function App(): JSX.Element {
                     <section className={`WorkspacePanel WorkspacePanelPreview${showPreviewPane ? '' : ' compactHidden'}${!isCompact && layoutMode === 'preview' ? ' previewOnly' : ''}`}>
                         <div className="WorkspacePanelBody">
                             <PreviewPane
-                                diagramUrl={previewState.diagramUrl}
-                                previewUrl={previewAssetUrl}
-                                diagramEditUrl={previewState.diagramEditUrl}
-                                diagramError={diagramError}
+                                svgUrl={previewSvgUrl}
+                                editUrl={previewState.editUrl}
+                                diagramType={diagramType}
                                 filetype={filetype}
                                 filetypes={supportedFiletypes}
-                                onDiagramError={handleDiagramError}
                                 onFiletypeChange={setFiletype}
                             />
                         </div>
@@ -590,7 +574,7 @@ function App(): JSX.Element {
                 <div className="ImportForm">
                     <input
                         className="ModalInput code"
-                        placeholder={`${defaultRenderUrl}diagramType/svg/encoded`}
+                        placeholder="diagramType/svg/encoded"
                         value={importUrl}
                         onChange={(event) => setImportUrl(event.target.value)}
                     />

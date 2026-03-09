@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
 import OutputFormatGroup from './OutputFormatGroup';
-import { imageFiletypes } from '../utils/format';
+import { useSvgFetch } from '../hooks/useSvgFetch';
+import { downloadBlob, downloadSvg, exportBlob, exportPdf, printScale, svgToCanvas } from '../utils/svgExport';
 
 const renderCanvasPadding = 18;
 const minimumPreviewScale = 0.05;
@@ -14,51 +15,38 @@ interface TransformApi {
 }
 
 interface PreviewPaneProps {
-    diagramUrl: string;
-    previewUrl: string;
-    diagramEditUrl: string;
-    diagramError: boolean;
+    svgUrl: string;
+    editUrl: string;
+    diagramType: string;
     filetype: string;
-    onDiagramError: (url: string) => void;
     onFiletypeChange: (filetype: string) => void;
     filetypes: string[];
 }
 
 const PreviewPane = ({
-    diagramUrl,
-    previewUrl,
-    diagramEditUrl,
-    diagramError,
+    svgUrl,
+    editUrl,
+    diagramType,
     filetype,
-    onDiagramError,
     onFiletypeChange,
     filetypes,
 }: PreviewPaneProps): JSX.Element => {
     const panelRef = useRef<HTMLDivElement | null>(null);
     const toolbarRef = useRef<HTMLDivElement | null>(null);
-    const retryTimeoutRef = useRef<number | null>(null);
-    const onDiagramErrorRef = useRef(onDiagramError);
     const transformApiRef = useRef<TransformApi | null>(null);
     const [viewportSize, setViewportSize] = useState({ width: 960, height: 640 });
-    const isImageFiletype = imageFiletypes.has(filetype);
-    const [displayedDiagramUrl, setDisplayedDiagramUrl] = useState(previewUrl);
-    const [displayedImageBounds, setDisplayedImageBounds] = useState<{ width: number; height: number } | null>(null);
-    const [imageLoaded, setImageLoaded] = useState(!isImageFiletype);
+    const [downloading, setDownloading] = useState(false);
 
-    const clearPendingRetry = useCallback(() => {
-        if (retryTimeoutRef.current !== null) {
-            window.clearTimeout(retryTimeoutRef.current);
-            retryTimeoutRef.current = null;
-        }
-    }, []);
+    const svg = useSvgFetch(svgUrl);
+    const dimensions = svg.dimensions;
 
     const fitDiagramToViewport = useCallback(() => {
-        if (!transformApiRef.current || !displayedImageBounds) {
+        if (!transformApiRef.current || !dimensions) {
             return;
         }
 
-        const contentWidth = displayedImageBounds.width + (renderCanvasPadding * 2);
-        const contentHeight = displayedImageBounds.height + (renderCanvasPadding * 2);
+        const contentWidth = dimensions.width + (renderCanvasPadding * 2);
+        const contentHeight = dimensions.height + (renderCanvasPadding * 2);
         const scaleX = viewportSize.width / contentWidth;
         const scaleY = viewportSize.height / contentHeight;
         const scale = Math.max(minimumPreviewScale, Math.min(scaleX, scaleY, 48));
@@ -66,7 +54,7 @@ const PreviewPane = ({
         const positionY = (viewportSize.height - contentHeight * scale) / 2;
 
         transformApiRef.current.setTransform(positionX, positionY, scale, 0);
-    }, [displayedImageBounds, viewportSize.width, viewportSize.height]);
+    }, [dimensions, viewportSize.width, viewportSize.height]);
 
     useEffect(() => {
         const panelElement = panelRef.current;
@@ -95,76 +83,44 @@ const PreviewPane = ({
         return () => resizeObserver.disconnect();
     }, []);
 
+    // Auto-fit when SVG loads or viewport changes
     useEffect(() => {
-        return () => clearPendingRetry();
-    }, [clearPendingRetry]);
-
-    useEffect(() => {
-        onDiagramErrorRef.current = onDiagramError;
-    }, [onDiagramError]);
-
-    useEffect(() => {
-        if (!isImageFiletype) {
-            setDisplayedDiagramUrl(previewUrl);
-            setDisplayedImageBounds(null);
-            setImageLoaded(true);
-            return;
-        }
-
-        if (previewUrl === displayedDiagramUrl && displayedImageBounds) {
-            return;
-        }
-
-        clearPendingRetry();
-
-        let cancelled = false;
-        let attempts = 0;
-
-        const loadImage = () => {
-            const preloader = new Image();
-            preloader.onload = () => {
-                if (cancelled) {
-                    return;
-                }
-
-                clearPendingRetry();
-                setDisplayedDiagramUrl(previewUrl);
-                setDisplayedImageBounds({
-                    width: preloader.naturalWidth || viewportSize.width,
-                    height: preloader.naturalHeight || viewportSize.height,
-                });
-                setImageLoaded(true);
-            };
-            preloader.onerror = () => {
-                if (cancelled) {
-                    return;
-                }
-
-                if (attempts < 3) {
-                    attempts += 1;
-                    retryTimeoutRef.current = window.setTimeout(loadImage, attempts * 300);
-                    return;
-                }
-
-                onDiagramErrorRef.current(previewUrl);
-            };
-            preloader.src = previewUrl;
-        };
-
-        setImageLoaded(false);
-        loadImage();
-
-        return () => {
-            cancelled = true;
-            clearPendingRetry();
-        };
-    }, [clearPendingRetry, displayedDiagramUrl, displayedImageBounds, isImageFiletype, previewUrl, viewportSize.height, viewportSize.width]);
-
-    useEffect(() => {
-        if (isImageFiletype && displayedImageBounds) {
+        if (dimensions && !svg.loading) {
             fitDiagramToViewport();
         }
-    }, [displayedDiagramUrl, displayedImageBounds, fitDiagramToViewport, isImageFiletype, viewportSize.height, viewportSize.width]);
+    }, [dimensions, svg.loading, fitDiagramToViewport]);
+
+    const handleDownload = useCallback(async () => {
+        if (!svg.svgText || !dimensions) return;
+        setDownloading(true);
+
+        try {
+            const filename = `${diagramType}-diagram`;
+
+            if (filetype === 'svg') {
+                downloadSvg(svg.svgText, `${filename}.svg`);
+                return;
+            }
+
+            if (filetype === 'pdf') {
+                const blob = await exportPdf(svg.svgText, dimensions.width, dimensions.height);
+                downloadBlob(blob, `${filename}.pdf`);
+                return;
+            }
+
+            // Scale to print quality (~300 DPI at 8" width)
+            const scale = printScale(dimensions.width, dimensions.height);
+            const canvas = await svgToCanvas(svg.svgText, dimensions.width, dimensions.height, scale);
+            const format = filetype === 'jpeg' ? 'image/jpeg' : 'image/png';
+            const quality = filetype === 'jpeg' ? 0.92 : undefined;
+            const blob = await exportBlob(canvas, format as 'image/png' | 'image/jpeg', quality);
+            downloadBlob(blob, `${filename}.${filetype}`);
+        } catch (err) {
+            console.error('Export failed:', err);
+        } finally {
+            setDownloading(false);
+        }
+    }, [svg.svgText, dimensions, diagramType, filetype]);
 
     return (
         <div className="Render" ref={panelRef}>
@@ -176,81 +132,81 @@ const PreviewPane = ({
                         onChange={onFiletypeChange}
                     />
                 </div>
-                {isImageFiletype ? (
-                    <>
-                        <button type="button" className="RenderToolbarButton" onClick={() => transformApiRef.current?.zoomOut()}>
-                            -
-                        </button>
-                        <button type="button" className="RenderToolbarButton" onClick={() => transformApiRef.current?.zoomIn()}>
-                            +
-                        </button>
-                        <button type="button" className="RenderToolbarButton RenderToolbarButtonWide" onClick={fitDiagramToViewport}>
-                            Fit
-                        </button>
-                    </>
-                ) : null}
-                <a className="RenderToolbarLink" href={diagramUrl} target="_blank" rel="noreferrer">
+                <button
+                    type="button"
+                    className="RenderToolbarButton RenderToolbarButtonWide"
+                    onClick={handleDownload}
+                    disabled={downloading || svg.loading || svg.error}
+                >
+                    {downloading ? '...' : 'Save'}
+                </button>
+                <button type="button" className="RenderToolbarButton" onClick={() => transformApiRef.current?.zoomOut()}>
+                    -
+                </button>
+                <button type="button" className="RenderToolbarButton" onClick={() => transformApiRef.current?.zoomIn()}>
+                    +
+                </button>
+                <button type="button" className="RenderToolbarButton RenderToolbarButtonWide" onClick={fitDiagramToViewport}>
+                    Fit
+                </button>
+                <a className="RenderToolbarLink" href={svgUrl} target="_blank" rel="noreferrer">
                     Open
                 </a>
-                <a className="RenderToolbarLink RenderToolbarLinkAccent" href={diagramEditUrl} target="_blank" rel="noreferrer">
+                <a className="RenderToolbarLink RenderToolbarLinkAccent" href={editUrl} target="_blank" rel="noreferrer">
                     Edit
                 </a>
             </div>
-            {isImageFiletype ? (
-                <TransformWrapper
-                    minScale={minimumPreviewScale}
-                    maxScale={48}
-                    limitToBounds={false}
-                    alignmentAnimation={{ disabled: true }}
-                    wheel={{ step: 0.12 }}
-                    panning={{ velocityDisabled: true }}
-                    doubleClick={{ disabled: true }}
-                >
-                    {(controls) => {
-                        transformApiRef.current = controls;
-                        return (
-                            <div className="RenderViewport" style={{ height: `${viewportSize.height}px` }}>
-                                {diagramError && displayedDiagramUrl === previewUrl ? (
-                                    <iframe className="RenderImageError" title="Error" src={previewUrl} />
-                                ) : (
-                                    <>
-                                        <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
-                                            <div
-                                                className="RenderCanvas"
-                                                style={{
-                                                    width: `${(displayedImageBounds?.width || viewportSize.width) + (renderCanvasPadding * 2)}px`,
-                                                    height: `${(displayedImageBounds?.height || viewportSize.height) + (renderCanvasPadding * 2)}px`,
-                                                    padding: `${renderCanvasPadding}px`,
-                                                }}
-                                            >
+            <TransformWrapper
+                minScale={minimumPreviewScale}
+                maxScale={48}
+                limitToBounds={false}
+                alignmentAnimation={{ disabled: true }}
+                wheel={{ step: 0.12 }}
+                panning={{ velocityDisabled: true }}
+                doubleClick={{ disabled: true }}
+            >
+                {(controls) => {
+                    transformApiRef.current = controls;
+                    return (
+                        <div className="RenderViewport" style={{ height: `${viewportSize.height}px` }}>
+                            {svg.error ? (
+                                <div className="RenderLoading">Failed to load diagram</div>
+                            ) : (
+                                <>
+                                    <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
+                                        <div
+                                            className="RenderCanvas"
+                                            style={{
+                                                width: `${(dimensions?.width || viewportSize.width) + (renderCanvasPadding * 2)}px`,
+                                                height: `${(dimensions?.height || viewportSize.height) + (renderCanvasPadding * 2)}px`,
+                                                padding: `${renderCanvasPadding}px`,
+                                            }}
+                                        >
+                                            {svg.blobUrl ? (
                                                 <img
                                                     alt="Diagram"
                                                     className="RenderImage"
-                                                    src={displayedDiagramUrl}
+                                                    src={svg.blobUrl}
                                                     style={{
-                                                        width: displayedImageBounds ? `${displayedImageBounds.width}px` : 'auto',
-                                                        height: displayedImageBounds ? `${displayedImageBounds.height}px` : 'auto',
+                                                        width: dimensions ? `${dimensions.width}px` : 'auto',
+                                                        height: dimensions ? `${dimensions.height}px` : 'auto',
                                                     }}
                                                 />
-                                            </div>
-                                        </TransformComponent>
-                                        {!imageLoaded || displayedDiagramUrl !== previewUrl ? (
-                                            <div className="RenderLoading">
-                                                <span className="RenderLoadingDot" />
-                                                Rendering
-                                            </div>
-                                        ) : null}
-                                    </>
-                                )}
-                            </div>
-                        );
-                    }}
-                </TransformWrapper>
-            ) : (
-                <div className="RenderViewport" style={{ height: `${viewportSize.height}px` }}>
-                    <iframe className="RenderDocument" title={`Diagram ${filetype}`} src={diagramUrl} />
-                </div>
-            )}
+                                            ) : null}
+                                        </div>
+                                    </TransformComponent>
+                                    {svg.loading ? (
+                                        <div className="RenderLoading">
+                                            <span className="RenderLoadingDot" />
+                                            Rendering
+                                        </div>
+                                    ) : null}
+                                </>
+                            )}
+                        </div>
+                    );
+                }}
+            </TransformWrapper>
         </div>
     );
 };

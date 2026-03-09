@@ -39,13 +39,14 @@ export interface DiagramStateInput {
 export interface DiagramState extends DiagramStateInput {
     language: string | null;
     defaultDiagram: boolean;
-    diagramUrl: string;
-    diagramEditUrl: string;
+    svgUrl: string;
+    exportUrl: string;
+    diagramHash: string;
+    editUrl: string;
 }
 
 export interface ParsedDiagramUrl {
     diagramType: string;
     filetype: string;
-    renderUrl: string;
     diagramText: string;
 }

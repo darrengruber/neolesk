@@ -10,18 +10,17 @@ export const getExampleUrl = (exampleItem: ExampleDefinition): string => {
     return `./cache/${cachedFilename}`;
 };
 
-export const getCachedDiagramUrl = (
+export const getCachedSvgUrl = (
     diagramType: string,
-    filetype: string,
     diagramText: string,
     renderUrl: string,
 ): string | null => {
-    if (filetype !== 'svg' || renderUrl !== defaultRenderUrl) {
+    if (renderUrl !== defaultRenderUrl) {
         return null;
     }
 
     const encodedDiagram = encode(diagramText);
-    const radical = [diagramType, filetype, encodedDiagram].join('/');
+    const radical = [diagramType, 'svg', encodedDiagram].join('/');
 
     if (!cachedExampleRadicals.has(radical)) {
         return null;
