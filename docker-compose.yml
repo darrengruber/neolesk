@@ -1,16 +1,8 @@
 services:
   app:
-    image: node:20-alpine
-    working_dir: /app
+    build:
+      context: .
+      args:
+        NIOLESK_KROKI_ENGINE: ${NIOLESK_KROKI_ENGINE:-https://kroki.io/}
     ports:
-      - "5173:5173"
-    environment:
-      CHOKIDAR_USEPOLLING: "true"
-      NIOLESK_KROKI_ENGINE: "https://kroki.io/"
-    volumes:
-      - .:/app
-      - niolesk_node_modules:/app/node_modules
-    command: sh -c "npm install && npm run start -- --host 0.0.0.0 --port 5173"
-
-volumes:
-  niolesk_node_modules:
+      - "8080:8080"

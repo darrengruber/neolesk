@@ -10,7 +10,7 @@ build:
       docker:
         dockerfile: Dockerfile
         buildArgs:
-          NIOLESK_KROKI_ENGINE: https://kroki.io/
+          NIOLESK_KROKI_ENGINE: ${NIOLESK_KROKI_ENGINE:-https://kroki.io/}
   local:
     push: true
 

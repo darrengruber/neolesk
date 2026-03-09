@@ -5,3 +5,6 @@ pages_build_output_dir = "dist"
 routes = [
     { pattern = "interestingproblems.com/dac/*", zone_name = "interestingproblems.com" },
 ]
+
+[env.production.vars]
+VITE_BASE_PATH = "/dac/"

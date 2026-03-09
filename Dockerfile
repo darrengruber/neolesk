@@ -22,6 +22,6 @@ ARG NIOLESK_KROKI_ENGINE=https://kroki.io/
 ENV XDG_CONFIG_HOME=/tmp \
     XDG_DATA_HOME=/tmp
 
-COPY docker-res/Caddyfile /etc/caddy/Caddyfile
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=builder /app/dist /usr/share/caddy
 RUN printf "window.config = {\n    krokiEngineUrl: '%s',\n};\n" "$NIOLESK_KROKI_ENGINE" > /usr/share/caddy/config.js
