@@ -765,7 +765,7 @@ const excalidraw = defineExamples([
             "      \"boundElementIds\": [],",
             "      \"fontSize\": 20,",
             "      \"fontFamily\": 1,",
-            "      \"text\": \"niolesk.top\",",
+            "      \"text\": \"neolesk.top\",",
             "      \"baseline\": 18,",
             "      \"textAlign\": \"left\",",
             "      \"verticalAlign\": \"top\"",

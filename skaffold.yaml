@@ -1,11 +1,11 @@
 apiVersion: skaffold/v4beta13
 kind: Config
 metadata:
-  name: niolesk
+  name: neolesk
 
 build:
   artifacts:
-    - image: darren/niolesk
+    - image: darren/neolesk
       context: .
       docker:
         dockerfile: Dockerfile

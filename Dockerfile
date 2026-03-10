@@ -4,7 +4,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-ARG NIOLESK_KROKI_ENGINE=https://kroki.io/
+ARG NEOLESK_KROKI_ENGINE=https://kroki.io/
 
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
@@ -13,8 +13,8 @@ COPY index.html tsconfig.json vite.config.mjs ./
 COPY public ./public
 COPY scripts ./scripts
 COPY src ./src
-RUN --mount=type=cache,id=niolesk-example-cache,target=/app/public/cache \
-    NIOLESK_KROKI_ENGINE="$NIOLESK_KROKI_ENGINE" npm run build
+RUN --mount=type=cache,id=neolesk-example-cache,target=/app/public/cache \
+    NEOLESK_KROKI_ENGINE="$NEOLESK_KROKI_ENGINE" npm run build
 
 # Runtime stage
 FROM caddy:latest

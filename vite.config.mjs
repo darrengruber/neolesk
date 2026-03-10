@@ -15,12 +15,12 @@ const gitHash = (() => {
 })();
 
 export default defineConfig({
-    base: process.env.VITE_BASE_PATH || '/',
+    base: '/',
     plugins: [react({ include: /\.(js|jsx|ts|tsx)$/ })],
     define: {
         __APP_VERSION__: JSON.stringify(pkg.version),
         __GIT_HASH__: JSON.stringify(gitHash),
-        __KROKI_ENGINE_URL__: JSON.stringify(process.env.NIOLESK_KROKI_ENGINE || 'https://kroki.io/'),
+        __KROKI_ENGINE_URL__: JSON.stringify(process.env.NEOLESK_KROKI_ENGINE || 'https://kroki.io/'),
     },
     test: {
         environment: 'jsdom',

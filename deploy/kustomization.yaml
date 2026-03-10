@@ -4,7 +4,7 @@ namespace: kroki
 
 helmCharts:
   - name: app-template
-    releaseName: niolesk
+    releaseName: neolesk
     repo: https://bjw-s-labs.github.io/helm-charts
     version: 4.6.0
     valuesFile: values.yaml

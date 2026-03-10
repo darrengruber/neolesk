@@ -80,7 +80,7 @@ describe('createDiagramHash', () => {
 
 describe('createInitialDiagramState', () => {
     it('uses the default diagram when there is no hash', () => {
-        const state = createInitialDiagramState('https://niolesk.test/', '');
+        const state = createInitialDiagramState('https://neolesk.test/', '');
 
         expect(state.diagramType).toBe(defaultDiagramType);
         expect(state.renderUrl).toBe(defaultRenderUrl);
@@ -90,7 +90,7 @@ describe('createInitialDiagramState', () => {
 
 describe('changeDiagramType', () => {
     it('replaces default diagrams with the next diagram type example', () => {
-        const initialState = createInitialDiagramState('https://niolesk.test/', '');
+        const initialState = createInitialDiagramState('https://neolesk.test/', '');
         const nextState = changeDiagramType(initialState, 'mermaid');
 
         expect(nextState.diagramType).toBe('mermaid');
@@ -100,7 +100,7 @@ describe('changeDiagramType', () => {
 
     it('preserves custom diagrams when switching type', () => {
         const initialState = buildDiagramState({
-            baseUrl: 'https://niolesk.test/',
+            baseUrl: 'https://neolesk.test/',
             diagramType: 'plantuml',
             diagramText: '@startuml\nAlice -> Bob: custom\n@enduml',
             filetype: 'svg',

@@ -30,4 +30,4 @@ npm run typecheck
 
 The app falls back to its built-in default Kroki endpoint when `/config.js` is absent.
 
-In the Docker image, `NIOLESK_KROKI_ENGINE` is baked into the image with a Docker build arg and written to `/config.js` during the image build. The runtime container no longer mutates files at startup; Caddy serves the built static assets directly.
+In the Docker image, `NEOLESK_KROKI_ENGINE` is baked into the image with a Docker build arg and written to `/config.js` during the image build. The runtime container no longer mutates files at startup; Caddy serves the built static assets directly.

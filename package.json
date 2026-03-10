@@ -1,8 +1,8 @@
 {
-    "name": "niolesk",
+    "name": "neolesk",
     "version": "2.0.0",
     "private": true,
-    "homepage": "https://niolesk.top",
+    "homepage": "https://neolesk.top",
     "dependencies": {
         "@monaco-editor/react": "^4.7.0",
         "@testing-library/jest-dom": "^5.16.1",
@@ -27,7 +27,7 @@
         "test:watch": "vitest",
         "prebuild": "npm run examples:cache",
         "predeploy": "npm run build",
-        "deploy": "gh-pages -d dist"
+        "deploy": "wrangler pages deploy dist --project-name neolesk"
     },
     "browserslist": {
         "production": [
@@ -45,7 +45,7 @@
         "@types/react": "^17.0.89",
         "@types/react-dom": "^17.0.26",
         "@vitejs/plugin-react": "^5.0.0",
-        "gh-pages": "^3.2.3",
+        "wrangler": "^4.0.0",
         "jsdom": "^26.0.0",
         "knip": "^5.86.0",
         "playwright": "^1.58.2",

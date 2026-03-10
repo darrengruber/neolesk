@@ -3,6 +3,6 @@ services:
     build:
       context: .
       args:
-        NIOLESK_KROKI_ENGINE: ${NIOLESK_KROKI_ENGINE:-https://kroki.io/}
+        NEOLESK_KROKI_ENGINE: ${NEOLESK_KROKI_ENGINE:-https://kroki.io/}
     ports:
       - "8080:8080"

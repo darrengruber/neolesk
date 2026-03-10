@@ -11,7 +11,7 @@ controllers:
     containers:
       main:
         image:
-          repository: darren/niolesk
+          repository: darren/neolesk
           tag: latest
           pullPolicy: IfNotPresent
         ports:

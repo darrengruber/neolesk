@@ -7,7 +7,7 @@ const rootDir = path.resolve(__dirname, '..');
 const publicDir = path.join(rootDir, 'public');
 const cacheDir = path.join(publicDir, 'cache');
 const defaultRenderUrl = 'https://kroki.io/';
-const renderUrl = `${process.env.NIOLESK_KROKI_ENGINE || defaultRenderUrl}`.replace(/\/?$/, '/');
+const renderUrl = `${process.env.NEOLESK_KROKI_ENGINE || defaultRenderUrl}`.replace(/\/?$/, '/');
 const concurrency = 8;
 
 const moduleCache = new Map();

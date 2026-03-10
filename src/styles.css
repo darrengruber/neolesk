@@ -1,16 +1,16 @@
 :root {
-    --niolesk-bg: #eff4fb;
-    --niolesk-bg-soft: #f8fbff;
-    --niolesk-panel: #ffffff;
-    --niolesk-panel-muted: #f5f8fd;
-    --niolesk-panel-border: #d8e2ef;
-    --niolesk-border: #d2dcea;
-    --niolesk-border-strong: #b9c7da;
-    --niolesk-text: #162235;
-    --niolesk-muted: #62748d;
-    --niolesk-accent: #2563eb;
-    --niolesk-accent-soft: rgba(37, 99, 235, 0.1);
-    --niolesk-shadow: 0 16px 36px rgba(61, 89, 132, 0.08);
+    --neolesk-bg: #eff4fb;
+    --neolesk-bg-soft: #f8fbff;
+    --neolesk-panel: #ffffff;
+    --neolesk-panel-muted: #f5f8fd;
+    --neolesk-panel-border: #d8e2ef;
+    --neolesk-border: #d2dcea;
+    --neolesk-border-strong: #b9c7da;
+    --neolesk-text: #162235;
+    --neolesk-muted: #62748d;
+    --neolesk-accent: #2563eb;
+    --neolesk-accent-soft: rgba(37, 99, 235, 0.1);
+    --neolesk-shadow: 0 16px 36px rgba(61, 89, 132, 0.08);
 }
 
 html,
@@ -22,7 +22,7 @@ body,
 body {
     margin: 0;
     background: linear-gradient(180deg, #f8fbff 0%, #edf3fb 100%);
-    color: var(--niolesk-text);
+    color: var(--neolesk-text);
     font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
 }
 
@@ -49,7 +49,7 @@ textarea {
     height: 100vh;
     min-height: 100vh;
     overflow: hidden;
-    color: var(--niolesk-text);
+    color: var(--neolesk-text);
 }
 
 .code {
@@ -63,7 +63,7 @@ textarea {
     height: 50px;
     min-height: 50px;
     padding: 0 12px;
-    border-bottom: 1px solid var(--niolesk-panel-border);
+    border-bottom: 1px solid var(--neolesk-panel-border);
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(10px);
 }
@@ -96,8 +96,8 @@ textarea {
     padding: 0 10px;
     border-radius: 999px;
     background: #edf3fb;
-    border: 1px solid var(--niolesk-panel-border);
-    color: var(--niolesk-text);
+    border: 1px solid var(--neolesk-panel-border);
+    color: var(--neolesk-text);
     font-size: 0.82rem;
     font-weight: 700;
     letter-spacing: 0.02em;
@@ -112,10 +112,10 @@ textarea {
     justify-content: center;
     height: 32px;
     padding: 0 11px;
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 8px;
     background: #fff;
-    color: var(--niolesk-text);
+    color: var(--neolesk-text);
     font-size: 0.83rem;
     font-weight: 600;
     cursor: pointer;
@@ -145,13 +145,13 @@ textarea {
 .AppToolbarButton:hover,
 .ModalButton:hover {
     background: #f5f8fd;
-    border-color: var(--niolesk-border-strong);
+    border-color: var(--neolesk-border-strong);
 }
 
 .ModalButtonPrimary {
     border-color: rgba(37, 99, 235, 0.18);
     background: rgba(37, 99, 235, 0.08);
-    color: var(--niolesk-accent);
+    color: var(--neolesk-accent);
 }
 
 .MainPanel {
@@ -184,20 +184,20 @@ textarea {
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    background: var(--niolesk-panel);
+    background: var(--neolesk-panel);
 }
 
 .WorkspacePanelEditor {
     flex: 0 0 var(--editor-panel-width, 44%);
     min-width: 280px;
-    border-right: 1px solid var(--niolesk-panel-border);
+    border-right: 1px solid var(--neolesk-panel-border);
 }
 
 .WorkspaceModeHorizontal .WorkspacePanelEditor {
     flex: 0 0 48%;
     min-height: 220px;
     border-right: 0;
-    border-bottom: 1px solid var(--niolesk-panel-border);
+    border-bottom: 1px solid var(--neolesk-panel-border);
 }
 
 .WorkspacePanelPreview {
@@ -220,12 +220,12 @@ textarea {
     min-height: 38px;
     box-sizing: border-box;
     padding: 5px 8px;
-    border-bottom: 1px solid var(--niolesk-panel-border);
-    background: var(--niolesk-panel-muted);
+    border-bottom: 1px solid var(--neolesk-panel-border);
+    background: var(--neolesk-panel-muted);
 }
 
 .WorkspacePanelTitle {
-    color: var(--niolesk-muted);
+    color: var(--neolesk-muted);
     font-size: 0.72rem;
     font-weight: 800;
     letter-spacing: 0.08em;
@@ -256,7 +256,7 @@ textarea {
     left: 50%;
     width: 1px;
     transform: translateX(-50%);
-    background: var(--niolesk-panel-border);
+    background: var(--neolesk-panel-border);
 }
 
 .WorkspaceDivider:hover::before {
@@ -268,7 +268,7 @@ textarea {
     align-items: center;
     gap: 6px;
     padding: 3px;
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 10px;
     background: #eef3f9;
 }
@@ -343,10 +343,10 @@ textarea {
     justify-content: center;
     height: 26px;
     padding: 0 9px;
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 7px;
     background: #fff;
-    color: var(--niolesk-muted);
+    color: var(--neolesk-muted);
     font-size: 0.72rem;
     font-weight: 800;
     letter-spacing: 0.03em;
@@ -370,7 +370,7 @@ textarea {
 
 .Editor {
     box-sizing: border-box;
-    background: var(--niolesk-panel);
+    background: var(--neolesk-panel);
 }
 
 .Render {
@@ -449,7 +449,7 @@ textarea {
     border: 1px solid rgba(148, 163, 184, 0.28);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.92);
-    color: var(--niolesk-muted);
+    color: var(--neolesk-muted);
     font-size: 0.74rem;
     font-weight: 700;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
@@ -459,7 +459,7 @@ textarea {
     width: 7px;
     height: 7px;
     border-radius: 999px;
-    background: var(--niolesk-accent);
+    background: var(--neolesk-accent);
     animation: RenderLoadingPulse 1s ease-in-out infinite;
 }
 
@@ -516,9 +516,9 @@ textarea {
 }
 
 .DownloadDropdownToggle.active {
-    background: var(--niolesk-accent-soft);
+    background: var(--neolesk-accent-soft);
     border-color: rgba(37, 99, 235, 0.2);
-    color: var(--niolesk-accent);
+    color: var(--neolesk-accent);
 }
 
 .DownloadDropdownPanel {
@@ -529,10 +529,10 @@ textarea {
     display: flex;
     flex-direction: column;
     min-width: 80px;
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 10px;
     background: #fff;
-    box-shadow: var(--niolesk-shadow);
+    box-shadow: var(--neolesk-shadow);
     padding: 4px;
     overflow: hidden;
 }
@@ -546,22 +546,22 @@ textarea {
     border: 0;
     border-radius: 7px;
     background: transparent;
-    color: var(--niolesk-text);
+    color: var(--neolesk-text);
     font-size: 0.76rem;
     font-weight: 700;
     cursor: pointer;
 }
 
 .DownloadDropdownItem:hover {
-    background: var(--niolesk-panel-muted);
+    background: var(--neolesk-panel-muted);
 }
 
 .DownloadDropdownSpinner {
     display: inline-block;
     width: 12px;
     height: 12px;
-    border: 2px solid var(--niolesk-panel-border);
-    border-top-color: var(--niolesk-accent);
+    border: 2px solid var(--neolesk-panel-border);
+    border-top-color: var(--neolesk-accent);
     border-radius: 50%;
     animation: DownloadSpin 0.6s linear infinite;
 }
@@ -576,8 +576,8 @@ textarea {
 
 .EditorDrawer {
     flex: 0 0 auto;
-    border-top: 1px solid var(--niolesk-panel-border);
-    background: var(--niolesk-panel);
+    border-top: 1px solid var(--neolesk-panel-border);
+    background: var(--neolesk-panel);
 }
 
 .EditorDrawerHandle {
@@ -589,8 +589,8 @@ textarea {
     gap: 12px;
     padding: 0 12px;
     border: 0;
-    background: var(--niolesk-panel-muted);
-    color: var(--niolesk-text);
+    background: var(--neolesk-panel-muted);
+    color: var(--neolesk-text);
     cursor: pointer;
     text-align: left;
 }
@@ -601,7 +601,7 @@ textarea {
 }
 
 .EditorDrawerHandleState {
-    color: var(--niolesk-muted);
+    color: var(--neolesk-muted);
     font-size: 0.72rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -621,7 +621,7 @@ textarea {
 
 .CheatSheetSummary {
     margin: 0 0 6px;
-    color: var(--niolesk-muted);
+    color: var(--neolesk-muted);
     font-size: 0.8rem;
     line-height: 1.45;
 }
@@ -629,7 +629,7 @@ textarea {
 .CheatSheetDocLink {
     display: inline-block;
     margin-bottom: 10px;
-    color: var(--niolesk-accent);
+    color: var(--neolesk-accent);
     font-size: 0.78rem;
     font-weight: 600;
     text-decoration: none;
@@ -651,7 +651,7 @@ textarea {
 
 .CheatSheetHeading {
     margin: 0 0 3px;
-    color: var(--niolesk-muted);
+    color: var(--neolesk-muted);
     font-size: 0.68rem;
     font-weight: 800;
     letter-spacing: 0.06em;
@@ -661,9 +661,9 @@ textarea {
 .CheatSheetCode {
     margin: 0;
     padding: 6px 8px;
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 8px;
-    background: var(--niolesk-panel-muted);
+    background: var(--neolesk-panel-muted);
     font-size: 0.74rem;
     line-height: 1.55;
     overflow-x: auto;
@@ -673,13 +673,13 @@ textarea {
 /* Drawer Examples */
 
 .DrawerExamples {
-    border-top: 1px solid var(--niolesk-panel-border);
+    border-top: 1px solid var(--neolesk-panel-border);
     padding-top: 10px;
 }
 
 .DrawerExamplesHeading {
     margin: 0 0 6px;
-    color: var(--niolesk-muted);
+    color: var(--neolesk-muted);
     font-size: 0.68rem;
     font-weight: 800;
     letter-spacing: 0.06em;
@@ -699,17 +699,17 @@ textarea {
     gap: 8px;
     width: 100%;
     padding: 6px 8px;
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 8px;
     background: #fff;
-    color: var(--niolesk-text);
+    color: var(--neolesk-text);
     cursor: pointer;
     text-align: left;
     transition: background 120ms ease;
 }
 
 .DrawerExampleItem:hover {
-    background: var(--niolesk-panel-muted);
+    background: var(--neolesk-panel-muted);
 }
 
 .DrawerExampleTitle {
@@ -718,7 +718,7 @@ textarea {
 }
 
 .DrawerExampleDesc {
-    color: var(--niolesk-muted);
+    color: var(--neolesk-muted);
     font-size: 0.76rem;
 }
 
@@ -729,9 +729,9 @@ textarea {
 }
 
 .CopyDropdownToggle.active {
-    background: var(--niolesk-accent-soft);
+    background: var(--neolesk-accent-soft);
     border-color: rgba(37, 99, 235, 0.2);
-    color: var(--niolesk-accent);
+    color: var(--neolesk-accent);
 }
 
 .CopyDropdownPanel {
@@ -740,10 +740,10 @@ textarea {
     right: 0;
     z-index: 20;
     min-width: 280px;
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 12px;
     background: #fff;
-    box-shadow: var(--niolesk-shadow);
+    box-shadow: var(--neolesk-shadow);
     padding: 10px;
 }
 
@@ -754,7 +754,7 @@ textarea {
 }
 
 .CopyDropdownLabel {
-    color: var(--niolesk-muted);
+    color: var(--neolesk-muted);
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.06em;
@@ -767,17 +767,17 @@ textarea {
     box-sizing: border-box;
     height: 28px;
     padding: 0 8px;
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 7px;
     background: #fff;
-    color: var(--niolesk-text);
+    color: var(--neolesk-text);
     font-size: 0.76rem;
 }
 
 .CopyDropdownDivider {
     height: 1px;
     margin: 8px 0;
-    background: var(--niolesk-panel-border);
+    background: var(--neolesk-panel-border);
 }
 
 .CopyDropdownRow {
@@ -789,7 +789,7 @@ textarea {
 }
 
 .CopyDropdownRowLabel {
-    color: var(--niolesk-text);
+    color: var(--neolesk-text);
     font-size: 0.78rem;
     font-weight: 600;
 }
@@ -798,10 +798,10 @@ textarea {
     appearance: none;
     height: 24px;
     padding: 0 8px;
-    border: 1px solid var(--niolesk-border);
+    border: 1px solid var(--neolesk-border);
     border-radius: 6px;
-    background: var(--niolesk-panel-muted);
-    color: var(--niolesk-text);
+    background: var(--neolesk-panel-muted);
+    color: var(--neolesk-text);
     font-size: 0.72rem;
     font-weight: 700;
     cursor: pointer;
@@ -828,7 +828,7 @@ textarea {
 .AppSelectFieldLabel,
 .AppTextFieldLabel {
     flex: 0 0 auto;
-    color: var(--niolesk-muted);
+    color: var(--neolesk-muted);
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.06em;
@@ -842,10 +842,10 @@ textarea {
     appearance: none;
     height: 32px;
     min-width: 0;
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 8px;
     background: #fff;
-    color: var(--niolesk-text);
+    color: var(--neolesk-text);
     padding: 0 10px;
 }
 
@@ -856,8 +856,8 @@ textarea {
 .AppSelectControl {
     padding-right: 2rem;
     background-image:
-        linear-gradient(45deg, transparent 50%, var(--niolesk-muted) 50%),
-        linear-gradient(135deg, var(--niolesk-muted) 50%, transparent 50%);
+        linear-gradient(45deg, transparent 50%, var(--neolesk-muted) 50%),
+        linear-gradient(135deg, var(--neolesk-muted) 50%, transparent 50%);
     background-position:
         calc(100% - 16px) calc(50% - 2px),
         calc(100% - 11px) calc(50% - 2px);
@@ -883,7 +883,7 @@ textarea {
     flex-direction: column;
     width: min(1200px, 100%);
     max-height: min(90vh, 920px);
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 24px;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 253, 0.98));
     box-shadow: 0 40px 80px rgba(15, 23, 42, 0.16);
@@ -896,13 +896,13 @@ textarea {
     align-items: center;
     gap: 12px;
     padding: 16px 18px;
-    border-bottom: 1px solid var(--niolesk-panel-border);
+    border-bottom: 1px solid var(--neolesk-panel-border);
 }
 
 .ModalFooter {
     justify-content: flex-end;
     border-bottom: 0;
-    border-top: 1px solid var(--niolesk-panel-border);
+    border-top: 1px solid var(--neolesk-panel-border);
 }
 
 .ModalHeader h2 {
@@ -928,7 +928,7 @@ textarea {
 .ExampleCard {
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 18px;
     background: #fff;
     overflow: hidden;
@@ -961,7 +961,7 @@ textarea {
 
 .ExampleCardBody p {
     margin: 0.45rem 0 0;
-    color: var(--niolesk-muted);
+    color: var(--neolesk-muted);
     font-size: 0.84rem;
 }
 
@@ -987,7 +987,7 @@ textarea {
 
 .ExampleDetailMeta p {
     margin: 0;
-    color: var(--niolesk-muted);
+    color: var(--neolesk-muted);
 }
 
 .ExampleDetailPreview {
@@ -996,7 +996,7 @@ textarea {
     justify-content: center;
     min-height: 260px;
     padding: 20px;
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 18px;
     background: linear-gradient(180deg, #f7fbff, #edf4fc);
 }
@@ -1004,7 +1004,7 @@ textarea {
 .ExampleDetailCode {
     margin: 0;
     padding: 16px;
-    border: 1px solid var(--niolesk-panel-border);
+    border: 1px solid var(--neolesk-panel-border);
     border-radius: 18px;
     background: #fff;
     overflow: auto;
@@ -1057,7 +1057,7 @@ textarea {
         gap: 10px;
         height: 40px;
         padding: 0 10px;
-        border-bottom: 1px solid var(--niolesk-panel-border);
+        border-bottom: 1px solid var(--neolesk-panel-border);
         background: rgba(255, 255, 255, 0.86);
     }
 
@@ -1071,18 +1071,18 @@ textarea {
         appearance: none;
         height: 28px;
         padding: 0 10px;
-        border: 1px solid var(--niolesk-panel-border);
+        border: 1px solid var(--neolesk-panel-border);
         border-radius: 8px;
         background: #fff;
-        color: var(--niolesk-muted);
+        color: var(--neolesk-muted);
         font-size: 0.78rem;
         font-weight: 700;
     }
 
     .WorkspaceMobileTab.active {
         border-color: rgba(37, 99, 235, 0.24);
-        background: var(--niolesk-accent-soft);
-        color: var(--niolesk-accent);
+        background: var(--neolesk-accent-soft);
+        color: var(--neolesk-accent);
     }
 
     .WorkspacePanelEditor,
