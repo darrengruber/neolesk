@@ -20,6 +20,7 @@ export default defineConfig({
     define: {
         __APP_VERSION__: JSON.stringify(pkg.version),
         __GIT_HASH__: JSON.stringify(gitHash),
+        __KROKI_ENGINE_URL__: JSON.stringify(process.env.NIOLESK_KROKI_ENGINE || 'https://kroki.io/'),
     },
     test: {
         environment: 'jsdom',

@@ -158,7 +158,6 @@ textarea {
     position: relative;
     flex: 1 1 auto;
     min-height: 0;
-    padding-bottom: 34px;
 }
 
 .WorkspaceMobileTabs {
@@ -510,92 +509,312 @@ textarea {
     height: auto !important;
 }
 
-.OutputFormatGroup {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px;
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.62);
+/* Download Dropdown */
+
+.DownloadDropdown {
+    position: relative;
 }
 
-.OutputFormatButton {
+.DownloadDropdownToggle.active {
+    background: var(--niolesk-accent-soft);
+    border-color: rgba(37, 99, 235, 0.2);
+    color: var(--niolesk-accent);
+}
+
+.DownloadDropdownPanel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    min-width: 80px;
+    border: 1px solid var(--niolesk-panel-border);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: var(--niolesk-shadow);
+    padding: 4px;
+    overflow: hidden;
+}
+
+.DownloadDropdownItem {
     appearance: none;
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    justify-content: center;
-    height: 24px;
-    padding: 0 8px;
-    border: 1px solid transparent;
-    border-radius: 999px;
+    height: 28px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 7px;
     background: transparent;
-    color: #64748b;
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
+    color: var(--niolesk-text);
+    font-size: 0.76rem;
+    font-weight: 700;
     cursor: pointer;
 }
 
-.OutputFormatButton.active {
-    background: #ffffff;
-    border-color: rgba(37, 99, 235, 0.16);
-    color: #2563eb;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+.DownloadDropdownItem:hover {
+    background: var(--niolesk-panel-muted);
 }
 
-.LinksDrawer {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 12;
+.DownloadDropdownSpinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--niolesk-panel-border);
+    border-top-color: var(--niolesk-accent);
+    border-radius: 50%;
+    animation: DownloadSpin 0.6s linear infinite;
+}
+
+@keyframes DownloadSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Editor Drawer */
+
+.EditorDrawer {
+    flex: 0 0 auto;
     border-top: 1px solid var(--niolesk-panel-border);
-    background: rgba(255, 255, 255, 0.98);
-    box-shadow: var(--niolesk-shadow);
-    transform: translateY(calc(100% - 34px));
-    transition: transform 180ms ease;
+    background: var(--niolesk-panel);
 }
 
-.LinksDrawer.open {
-    transform: translateY(0);
-}
-
-.LinksDrawerHandle {
+.EditorDrawerHandle {
     width: 100%;
-    height: 34px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     padding: 0 12px;
     border: 0;
-    background: transparent;
+    background: var(--niolesk-panel-muted);
     color: var(--niolesk-text);
     cursor: pointer;
     text-align: left;
 }
 
-.LinksDrawerHandleText strong {
-    font-size: 0.8rem;
+.EditorDrawerHandleText strong {
+    font-size: 0.76rem;
     font-weight: 700;
 }
 
-.LinksDrawerHandleState {
+.EditorDrawerHandleState {
     color: var(--niolesk-muted);
-    font-size: 0.76rem;
+    font-size: 0.72rem;
     font-weight: 600;
     text-transform: uppercase;
 }
 
-.LinksDrawerBody {
-    max-height: min(42vh, 360px);
+.EditorDrawerBody {
+    max-height: min(40vh, 320px);
     overflow: auto;
     padding: 10px 12px 12px;
 }
 
-.LinksDrawerControls {
+/* Cheat Sheet */
+
+.CheatSheet {
+    margin-bottom: 14px;
+}
+
+.CheatSheetSummary {
+    margin: 0 0 6px;
+    color: var(--niolesk-muted);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+.CheatSheetDocLink {
+    display: inline-block;
     margin-bottom: 10px;
+    color: var(--niolesk-accent);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.CheatSheetDocLink:hover {
+    text-decoration: underline;
+}
+
+.CheatSheetSections {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.CheatSheetSection {
+    margin: 0;
+}
+
+.CheatSheetHeading {
+    margin: 0 0 3px;
+    color: var(--niolesk-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.CheatSheetCode {
+    margin: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--niolesk-panel-border);
+    border-radius: 8px;
+    background: var(--niolesk-panel-muted);
+    font-size: 0.74rem;
+    line-height: 1.55;
+    overflow-x: auto;
+    white-space: pre;
+}
+
+/* Drawer Examples */
+
+.DrawerExamples {
+    border-top: 1px solid var(--niolesk-panel-border);
+    padding-top: 10px;
+}
+
+.DrawerExamplesHeading {
+    margin: 0 0 6px;
+    color: var(--niolesk-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.DrawerExamplesList {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.DrawerExampleItem {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--niolesk-panel-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--niolesk-text);
+    cursor: pointer;
+    text-align: left;
+    transition: background 120ms ease;
+}
+
+.DrawerExampleItem:hover {
+    background: var(--niolesk-panel-muted);
+}
+
+.DrawerExampleTitle {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.DrawerExampleDesc {
+    color: var(--niolesk-muted);
+    font-size: 0.76rem;
+}
+
+/* Copy Dropdown */
+
+.CopyDropdown {
+    position: relative;
+}
+
+.CopyDropdownToggle.active {
+    background: var(--niolesk-accent-soft);
+    border-color: rgba(37, 99, 235, 0.2);
+    color: var(--niolesk-accent);
+}
+
+.CopyDropdownPanel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 20;
+    min-width: 280px;
+    border: 1px solid var(--niolesk-panel-border);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: var(--niolesk-shadow);
+    padding: 10px;
+}
+
+.CopyDropdownSection {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.CopyDropdownLabel {
+    color: var(--niolesk-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.CopyDropdownInput {
+    appearance: none;
+    width: 100%;
+    box-sizing: border-box;
+    height: 28px;
+    padding: 0 8px;
+    border: 1px solid var(--niolesk-panel-border);
+    border-radius: 7px;
+    background: #fff;
+    color: var(--niolesk-text);
+    font-size: 0.76rem;
+}
+
+.CopyDropdownDivider {
+    height: 1px;
+    margin: 8px 0;
+    background: var(--niolesk-panel-border);
+}
+
+.CopyDropdownRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.CopyDropdownRowLabel {
+    color: var(--niolesk-text);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.CopyDropdownCopyButton {
+    appearance: none;
+    height: 24px;
+    padding: 0 8px;
+    border: 1px solid var(--niolesk-border);
+    border-radius: 6px;
+    background: var(--niolesk-panel-muted);
+    color: var(--niolesk-text);
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.CopyDropdownCopyButton:hover {
+    background: #eef3f9;
+}
+
+.CopyDropdownCopyButton.copied {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.28);
+    color: #166534;
 }
 
 .AppSelectField,
@@ -646,67 +865,6 @@ textarea {
     background-repeat: no-repeat;
 }
 
-.CopyZoneGrid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px 12px;
-}
-
-.CopyZoneField {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-}
-
-.CopyZoneField label {
-    color: var(--niolesk-muted);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.CopyField {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-}
-
-.CopyFieldPre {
-    width: 100%;
-    box-sizing: border-box;
-    resize: vertical;
-    min-height: 38px;
-    padding: 0.55rem 0.7rem;
-    border: 1px solid var(--niolesk-border);
-    border-radius: 10px;
-    background: #fff;
-    color: var(--niolesk-text);
-    line-height: 1.45;
-    white-space: pre;
-    overflow: auto;
-    font-size: 0.78rem;
-}
-
-.CopyButton {
-    align-self: flex-start;
-    appearance: none;
-    border: 1px solid var(--niolesk-border);
-    border-radius: 8px;
-    background: var(--niolesk-panel-muted);
-    color: var(--niolesk-text);
-    height: 28px;
-    padding: 0 0.7rem;
-    font-size: 0.76rem;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.CopyField.copied .CopyButton {
-    background: rgba(34, 197, 94, 0.12);
-    border-color: rgba(34, 197, 94, 0.28);
-    color: #166534;
-}
 
 .ModalBackdrop {
     position: fixed;
@@ -869,7 +1027,7 @@ textarea {
 .AppToolbarButton:focus,
 .EditorWrapButton:focus,
 .SplitPresetButton:focus,
-.LinksDrawerHandle:focus,
+.EditorDrawerHandle:focus,
 .ModalButton:focus,
 .ModalInput:focus,
 .ModalSearchInput:focus {
@@ -937,10 +1095,6 @@ textarea {
 
     .WorkspaceDivider {
         display: none;
-    }
-
-    .CopyZoneGrid {
-        grid-template-columns: 1fr;
     }
 }
 

@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
-import OutputFormatGroup from './OutputFormatGroup';
+import DownloadDropdown from './DownloadDropdown';
+import CopyDropdown from './CopyDropdown';
 import { useSvgFetch } from '../hooks/useSvgFetch';
 import { downloadBlob, downloadSvg, exportBlob, exportPdf, printScale, svgToCanvas } from '../utils/svgExport';
+import type { DiagramState } from '../types';
 
 const renderCanvasPadding = 18;
 const minimumPreviewScale = 0.05;
@@ -16,20 +18,24 @@ interface TransformApi {
 
 interface PreviewPaneProps {
     svgUrl: string;
-    editUrl: string;
     diagramType: string;
-    filetype: string;
-    onFiletypeChange: (filetype: string) => void;
     filetypes: string[];
+    previewState: DiagramState;
+    editorValue: string;
+    renderUrl: string;
+    defaultRenderUrl: string;
+    onRenderUrlChange: (url: string) => void;
 }
 
 const PreviewPane = ({
     svgUrl,
-    editUrl,
     diagramType,
-    filetype,
-    onFiletypeChange,
     filetypes,
+    previewState,
+    editorValue,
+    renderUrl,
+    defaultRenderUrl,
+    onRenderUrlChange,
 }: PreviewPaneProps): JSX.Element => {
     const panelRef = useRef<HTMLDivElement | null>(null);
     const toolbarRef = useRef<HTMLDivElement | null>(null);
@@ -83,78 +89,70 @@ const PreviewPane = ({
         return () => resizeObserver.disconnect();
     }, []);
 
-    // Auto-fit when SVG loads or viewport changes
     useEffect(() => {
         if (dimensions && !svg.loading) {
             fitDiagramToViewport();
         }
     }, [dimensions, svg.loading, fitDiagramToViewport]);
 
-    const handleDownload = useCallback(async () => {
+    const handleDownload = useCallback(async (targetFiletype: string) => {
         if (!svg.svgText || !dimensions) return;
         setDownloading(true);
 
         try {
             const filename = `${diagramType}-diagram`;
 
-            if (filetype === 'svg') {
+            if (targetFiletype === 'svg') {
                 downloadSvg(svg.svgText, `${filename}.svg`);
                 return;
             }
 
-            if (filetype === 'pdf') {
+            if (targetFiletype === 'pdf') {
                 const blob = await exportPdf(svg.svgText, dimensions.width, dimensions.height);
                 downloadBlob(blob, `${filename}.pdf`);
                 return;
             }
 
-            // Scale to print quality (~300 DPI at 8" width)
             const scale = printScale(dimensions.width, dimensions.height);
             const canvas = await svgToCanvas(svg.svgText, dimensions.width, dimensions.height, scale);
-            const format = filetype === 'jpeg' ? 'image/jpeg' : 'image/png';
-            const quality = filetype === 'jpeg' ? 0.92 : undefined;
+            const format = targetFiletype === 'jpeg' ? 'image/jpeg' : 'image/png';
+            const quality = targetFiletype === 'jpeg' ? 0.92 : undefined;
             const blob = await exportBlob(canvas, format as 'image/png' | 'image/jpeg', quality);
-            downloadBlob(blob, `${filename}.${filetype}`);
+            downloadBlob(blob, `${filename}.${targetFiletype}`);
         } catch (err) {
             console.error('Export failed:', err);
         } finally {
             setDownloading(false);
         }
-    }, [svg.svgText, dimensions, diagramType, filetype]);
+    }, [svg.svgText, dimensions, diagramType]);
 
     return (
         <div className="Render" ref={panelRef}>
             <div className="RenderToolbar" ref={toolbarRef}>
                 <div className="RenderToolbarBadge">
-                    <OutputFormatGroup
-                        filetype={filetype}
-                        filetypes={filetypes}
-                        onChange={onFiletypeChange}
-                    />
+                    <button type="button" className="RenderToolbarButton" onClick={() => transformApiRef.current?.zoomOut()}>
+                        -
+                    </button>
+                    <button type="button" className="RenderToolbarButton" onClick={() => transformApiRef.current?.zoomIn()}>
+                        +
+                    </button>
+                    <button type="button" className="RenderToolbarButton RenderToolbarButtonWide" onClick={fitDiagramToViewport}>
+                        Fit
+                    </button>
                 </div>
-                <button
-                    type="button"
-                    className="RenderToolbarButton RenderToolbarButtonWide"
-                    onClick={handleDownload}
-                    disabled={downloading || svg.loading || svg.error}
-                >
-                    {downloading ? '...' : 'Save'}
-                </button>
-                <button type="button" className="RenderToolbarButton" onClick={() => transformApiRef.current?.zoomOut()}>
-                    -
-                </button>
-                <button type="button" className="RenderToolbarButton" onClick={() => transformApiRef.current?.zoomIn()}>
-                    +
-                </button>
-                <button type="button" className="RenderToolbarButton RenderToolbarButtonWide" onClick={fitDiagramToViewport}>
-                    Fit
-                </button>
-                <a className="RenderToolbarLink" href={svgUrl} target="_blank" rel="noreferrer">
-                    Open
-                </a>
-                <a className="RenderToolbarLink RenderToolbarLinkAccent" href={editUrl} target="_blank" rel="noreferrer">
-                    Edit
-                </a>
+                <DownloadDropdown
+                    filetypes={filetypes}
+                    disabled={downloading || svg.loading || !!svg.error}
+                    downloading={downloading}
+                    onDownload={handleDownload}
+                />
+                <CopyDropdown
+                    previewState={previewState}
+                    editorValue={editorValue}
+                    renderUrl={renderUrl}
+                    defaultRenderUrl={defaultRenderUrl}
+                    onRenderUrlChange={onRenderUrlChange}
+                />
             </div>
             <TransformWrapper
                 minScale={minimumPreviewScale}

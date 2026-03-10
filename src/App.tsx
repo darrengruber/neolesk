@@ -12,7 +12,6 @@ import {
     parseDiagramUrl,
 } from './state';
 import type {
-    CopyScope,
     ExampleRecord,
     LayoutMode,
     MobileTab,
@@ -21,14 +20,12 @@ import './styles.css';
 import PreviewPane from './components/PreviewPane';
 import Modal from './components/Modal';
 import ExampleImage from './components/ExampleImage';
+import EditorDrawer from './components/EditorDrawer';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { useWindowWidth } from './hooks/useWindowWidth';
 import { buildExamples, filterExamples } from './utils/examples';
-import { getCopyText } from './utils/share';
-import { copyText } from './utils/clipboard';
 
 const layoutModes: LayoutMode[] = ['vertical', 'horizontal', 'preview'];
-const copyScopes: CopyScope[] = ['image', 'edit', 'markdown', 'markdownsource'];
 
 const monacoOptions = {
     theme: 'vs' as const,
@@ -43,16 +40,9 @@ const monacoOptions = {
     wrappingIndent: 'indent' as const,
 };
 
-const initialCopiedScopes: Record<CopyScope, boolean> = {
-    image: false,
-    edit: false,
-    markdown: false,
-    markdownsource: false,
-};
-
 function App(): JSX.Element {
     const baseUrl = useMemo(() => window.location.origin + window.location.pathname, []);
-    const initialRenderUrl = normalizeRenderUrl(window.config?.krokiEngineUrl || defaultRenderUrl);
+    const initialRenderUrl = normalizeRenderUrl(__KROKI_ENGINE_URL__ || defaultRenderUrl);
     const initialDiagramState = useMemo(() => {
         const state = createInitialDiagramState(baseUrl, window.location.hash);
         return state.renderUrl === initialRenderUrl ? state : buildDiagramState({ ...state, renderUrl: initialRenderUrl });
@@ -69,7 +59,7 @@ function App(): JSX.Element {
     });
     const [layoutMode, setLayoutMode] = useState<LayoutMode>('vertical');
     const [wrapEnabled, setWrapEnabled] = useState(true);
-    const [linksOpen, setLinksOpen] = useState(false);
+    const [editorDrawerOpen, setEditorDrawerOpen] = useState(false);
     const [editorWidth, setEditorWidth] = useState(44);
     const [isDragging, setIsDragging] = useState(false);
     const [mobileTab, setMobileTab] = useState<MobileTab>('code');
@@ -78,12 +68,14 @@ function App(): JSX.Element {
     const [examplesSearch, setExamplesSearch] = useState('');
     const [importUrlOpen, setImportUrlOpen] = useState(false);
     const [importUrl, setImportUrl] = useState('');
-    const [copiedScopes, setCopiedScopes] = useState(initialCopiedScopes);
+    const [lastLoadedText, setLastLoadedText] = useState(initialDiagramState.diagramText);
     const workspaceRef = useRef<HTMLDivElement | null>(null);
 
     const debouncedEditorValue = useDebouncedValue(editorValue, 500);
     const windowWidth = useWindowWidth();
     const isCompact = windowWidth < 980;
+    const editorDirty = editorValue !== lastLoadedText;
+
     const currentState = useMemo(() => buildDiagramState({
         baseUrl,
         diagramType,
@@ -99,6 +91,7 @@ function App(): JSX.Element {
         renderUrl,
     }), [baseUrl, diagramType, filetype, previewText, renderUrl]);
     const filteredExamples = useMemo(() => filterExamples(examples, examplesSearch), [examples, examplesSearch]);
+    const currentTypeExamples = useMemo(() => examples.filter((e) => e.diagramType === diagramType), [examples, diagramType]);
     const selectedExample = examples[selectedExampleId] || examples[0];
     const supportedFiletypes = ['svg', 'png', 'jpeg', 'pdf'];
     const previewSvgUrl = useMemo(
@@ -141,6 +134,7 @@ function App(): JSX.Element {
             setFiletype(parsed.filetype);
             setEditorValue(parsed.diagramText);
             setPreviewText(parsed.diagramText);
+            setLastLoadedText(parsed.diagramText);
             updateDiagramDraft(parsed.diagramType, parsed.diagramText);
         };
 
@@ -181,7 +175,7 @@ function App(): JSX.Element {
             if (event.key === 'Escape') {
                 setExamplesMode(null);
                 setImportUrlOpen(false);
-                setLinksOpen(false);
+                setEditorDrawerOpen(false);
             }
 
             if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
@@ -217,6 +211,7 @@ function App(): JSX.Element {
         setFiletype(getValidFiletype(nextDiagramType, currentState.filetype));
         setEditorValue(nextText);
         setPreviewText(nextText);
+        setLastLoadedText(nextText);
         updateDiagramDraft(nextDiagramType, nextText);
     };
 
@@ -230,6 +225,7 @@ function App(): JSX.Element {
         setFiletype(parsed.filetype);
         setEditorValue(parsed.diagramText);
         setPreviewText(parsed.diagramText);
+        setLastLoadedText(parsed.diagramText);
         updateDiagramDraft(parsed.diagramType, parsed.diagramText);
         setImportUrlOpen(false);
         setImportUrl('');
@@ -241,17 +237,9 @@ function App(): JSX.Element {
         const exampleText = decode(example.example);
         setEditorValue(exampleText);
         setPreviewText(exampleText);
+        setLastLoadedText(exampleText);
         updateDiagramDraft(example.diagramType, exampleText);
         setExamplesMode(null);
-    };
-
-    const handleCopy = async (scope: CopyScope) => {
-        const text = getCopyText(scope, previewState, editorValue);
-        await copyText(text);
-        setCopiedScopes((current) => ({ ...current, [scope]: true }));
-        window.setTimeout(() => {
-            setCopiedScopes((current) => ({ ...current, [scope]: false }));
-        }, 1000);
     };
 
     const handleEditorChange = useCallback((value: string | undefined) => {
@@ -263,6 +251,10 @@ function App(): JSX.Element {
                 : { ...current, [diagramType]: nextValue }
         ));
     }, [diagramType]);
+
+    const handleRenderUrlChange = useCallback((value: string) => {
+        setRenderUrl(normalizeRenderUrl(value));
+    }, []);
 
     return (
         <div className="App">
@@ -398,6 +390,14 @@ function App(): JSX.Element {
                                 />
                             </div>
                         </div>
+                        <EditorDrawer
+                            diagramType={diagramType}
+                            examples={currentTypeExamples}
+                            editorDirty={editorDirty}
+                            open={editorDrawerOpen}
+                            onToggle={() => setEditorDrawerOpen((v) => !v)}
+                            onExampleImport={handleExampleImport}
+                        />
                     </section>
 
                     {!isCompact && layoutMode === 'vertical' && showEditorPane ? (
@@ -414,63 +414,18 @@ function App(): JSX.Element {
                         <div className="WorkspacePanelBody">
                             <PreviewPane
                                 svgUrl={previewSvgUrl}
-                                editUrl={previewState.editUrl}
                                 diagramType={diagramType}
-                                filetype={filetype}
                                 filetypes={supportedFiletypes}
-                                onFiletypeChange={setFiletype}
+                                previewState={previewState}
+                                editorValue={editorValue}
+                                renderUrl={renderUrl}
+                                defaultRenderUrl={defaultRenderUrl}
+                                onRenderUrlChange={handleRenderUrlChange}
                             />
                         </div>
                     </section>
                 </div>
             </main>
-
-            <section className={`LinksDrawer${linksOpen ? ' open' : ''}`}>
-                <button type="button" className="LinksDrawerHandle" onClick={() => setLinksOpen((current) => !current)}>
-                    <span className="LinksDrawerHandleText">
-                        <strong>Generated Links</strong>
-                    </span>
-                    <span className="LinksDrawerHandleState">{linksOpen ? 'Close' : 'Open'}</span>
-                </button>
-                <div className="LinksDrawerBody">
-                    <div className="LinksDrawerControls">
-                        <label className="AppTextField RenderUrlField">
-                            <span className="AppTextFieldLabel">Kroki engine</span>
-                            <input
-                                className="AppTextControl RenderUrlInput code"
-                                value={renderUrl}
-                                onChange={(event) => setRenderUrl(normalizeRenderUrl(event.target.value))}
-                                placeholder={defaultRenderUrl}
-                            />
-                        </label>
-                    </div>
-                    <div className="CopyZone">
-                        <div className="CopyZoneGrid">
-                            {copyScopes.map((scope) => (
-                                <div key={scope} className="CopyZoneField">
-                                    <label>
-                                        {scope === 'image' ? 'Render URL' : null}
-                                        {scope === 'edit' ? 'Edit URL' : null}
-                                        {scope === 'markdown' ? 'Markdown snippet' : null}
-                                        {scope === 'markdownsource' ? 'Markdown with source comment' : null}
-                                    </label>
-                                    <div className={`CopyField${copiedScopes[scope] ? ' copied' : ''}`}>
-                                        <textarea
-                                            className="CopyFieldPre code"
-                                            rows={scope === 'markdownsource' || scope === 'markdown' ? 4 : 1}
-                                            value={getCopyText(scope, previewState, editorValue)}
-                                            readOnly
-                                        />
-                                        <button type="button" className="CopyButton" onClick={() => handleCopy(scope)}>
-                                            {copiedScopes[scope] ? 'Copied' : 'Copy'}
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </section>
 
             <Modal
                 open={examplesMode === 'grid'}

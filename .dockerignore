@@ -12,6 +12,7 @@ yarn-error.log*
 public/cache
 README.md
 LICENSE
-deploy
+deploy/*
+!deploy/Caddyfile
 docker-compose.yml
 skaffold.yaml

@@ -4,24 +4,23 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+ARG NIOLESK_KROKI_ENGINE=https://kroki.io/
+
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 COPY index.html tsconfig.json vite.config.mjs ./
 COPY public ./public
 COPY scripts ./scripts
 COPY src ./src
 RUN --mount=type=cache,id=niolesk-example-cache,target=/app/public/cache \
-    npm run build
+    NIOLESK_KROKI_ENGINE="$NIOLESK_KROKI_ENGINE" npm run build
 
 # Runtime stage
 FROM caddy:latest
-
-ARG NIOLESK_KROKI_ENGINE=https://kroki.io/
 
 ENV XDG_CONFIG_HOME=/tmp \
     XDG_DATA_HOME=/tmp
 
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=builder /app/dist /usr/share/caddy
-RUN printf "window.config = {\n    krokiEngineUrl: '%s',\n};\n" "$NIOLESK_KROKI_ENGINE" > /usr/share/caddy/config.js

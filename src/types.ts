@@ -28,6 +28,16 @@ export type LayoutMode = 'vertical' | 'horizontal' | 'preview';
 export type MobileTab = 'code' | 'preview';
 export type CopyScope = 'image' | 'edit' | 'markdown' | 'markdownsource';
 
+export interface CheatSheetSection {
+    heading: string;
+    items: string[];
+}
+
+export interface CheatSheet {
+    summary: string;
+    sections: CheatSheetSection[];
+}
+
 export interface DiagramStateInput {
     baseUrl: string;
     diagramType: string;
