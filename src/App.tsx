@@ -260,7 +260,7 @@ function App(): JSX.Element {
         <div className="App">
             <header className="AppToolbar">
                 <div className="AppToolbarBrand">
-                    <span className="AppToolbarLogo">Niolesk</span>
+                    <span className="AppToolbarLogo">Neolesk</span>
                 </div>
                 <div className="AppToolbarControls">
                     <label className="AppSelectField DiagramTypeField">

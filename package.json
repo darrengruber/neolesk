@@ -2,7 +2,7 @@
     "name": "neolesk",
     "version": "2.0.0",
     "private": true,
-    "homepage": "https://neolesk.top",
+    "homepage": "https://neolesk.pages.dev",
     "dependencies": {
         "@monaco-editor/react": "^4.7.0",
         "@testing-library/jest-dom": "^5.16.1",
