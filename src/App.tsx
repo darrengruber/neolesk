@@ -24,6 +24,7 @@ import EditorDrawer from './components/EditorDrawer';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { useWindowWidth } from './hooks/useWindowWidth';
 import { buildExamples, filterExamples } from './utils/examples';
+import { useMcpServer } from './hooks/useMcpServer';
 
 const layoutModes: LayoutMode[] = ['vertical', 'horizontal', 'preview'];
 
@@ -70,12 +71,34 @@ function App(): JSX.Element {
     const [importUrlOpen, setImportUrlOpen] = useState(false);
     const [importUrl, setImportUrl] = useState('');
     const [lastLoadedText, setLastLoadedText] = useState(initialDiagramState.diagramText);
+    const [mcpModalOpen, setMcpModalOpen] = useState(false);
+    const [mcpRelayUrl, setMcpRelayUrl] = useState('');
     const workspaceRef = useRef<HTMLDivElement | null>(null);
 
     const debouncedEditorValue = useDebouncedValue(editorValue, 500);
     const windowWidth = useWindowWidth();
     const isCompact = windowWidth < 980;
     const editorDirty = editorValue !== lastLoadedText;
+
+    const handleMcpSetDiagram = useCallback((patch: Partial<{ diagramType: string; diagramText: string }>) => {
+        if (patch.diagramType && diagramTypes[patch.diagramType]) {
+            setDiagramType(patch.diagramType);
+            setFiletype(getValidFiletype(patch.diagramType, filetype));
+        }
+        if (patch.diagramText !== undefined) {
+            setEditorValue(patch.diagramText);
+            setPreviewText(patch.diagramText);
+            setLastLoadedText(patch.diagramText);
+        }
+    }, [filetype]);
+
+    const mcp = useMcpServer({
+        diagramType,
+        diagramText: editorValue,
+        filetype,
+        renderUrl,
+        onSetDiagram: handleMcpSetDiagram,
+    });
 
     const currentState = useMemo(() => buildDiagramState({
         baseUrl,
@@ -350,6 +373,28 @@ function App(): JSX.Element {
                         </span>
                         <span className="AppToolbarButtonLabel">Import</span>
                     </button>
+                    <button
+                        type="button"
+                        className={`AppToolbarButton AppToolbarButtonIconOnlyMobile McpButton${mcp.isActive ? ' McpButtonActive' : ''}`}
+                        onClick={() => {
+                            if (mcp.isActive) {
+                                setMcpModalOpen(true);
+                            } else {
+                                setMcpModalOpen(true);
+                            }
+                        }}
+                        aria-label="MCP Server"
+                        title="MCP Server"
+                    >
+                        <span className="AppToolbarButtonIcon" aria-hidden="true">
+                            <svg viewBox="0 0 20 20" focusable="false">
+                                <circle cx="10" cy="10" r="3" />
+                                <path d="M10 2v3M10 15v3M2 10h3M15 10h3M4.2 4.2l2.1 2.1M13.7 13.7l2.1 2.1M4.2 15.8l2.1-2.1M13.7 6.3l2.1-2.1" strokeWidth="1.8" stroke="currentColor" fill="none" strokeLinecap="round" />
+                            </svg>
+                        </span>
+                        <span className="AppToolbarButtonLabel">MCP</span>
+                        {mcp.isActive ? <span className="McpStatusDot" /> : null}
+                    </button>
                 </div>
             </header>
 
@@ -547,6 +592,104 @@ function App(): JSX.Element {
                         value={importUrl}
                         onChange={(event) => setImportUrl(event.target.value)}
                     />
+                </div>
+            </Modal>
+
+            <Modal
+                open={mcpModalOpen}
+                title="MCP Server"
+                onClose={() => setMcpModalOpen(false)}
+                actions={
+                    mcp.isActive ? (
+                        <button
+                            type="button"
+                            className="ModalButton"
+                            onClick={() => { mcp.stop(); }}
+                        >
+                            Disconnect
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            className="ModalButton ModalButtonPrimary"
+                            onClick={() => {
+                                if (mcpRelayUrl.trim()) {
+                                    mcp.start(mcpRelayUrl.trim());
+                                } else {
+                                    mcp.start();
+                                }
+                            }}
+                        >
+                            Connect
+                        </button>
+                    )
+                }
+            >
+                <div className="McpModalContent">
+                    <p className="McpModalDescription">
+                        Run an MCP server directly from your browser. External MCP clients
+                        (like Claude Desktop) can connect through a Cloudflare Worker relay
+                        to read and control your diagrams in real-time.
+                    </p>
+
+                    {!mcp.isActive ? (
+                        <div className="McpModalForm">
+                            <label className="McpModalLabel">
+                                Relay Worker URL
+                                <input
+                                    className="ModalInput code"
+                                    placeholder="https://neolesk-mcp-relay.your-account.workers.dev"
+                                    value={mcpRelayUrl}
+                                    onChange={(event) => setMcpRelayUrl(event.target.value)}
+                                />
+                            </label>
+                            <p className="McpModalHint">
+                                Deploy the relay worker from <span className="code">mcp-relay/</span> to your
+                                Cloudflare account, then enter the URL above.
+                            </p>
+                        </div>
+                    ) : null}
+
+                    {mcp.tunnelState.status === 'connected' && mcp.tunnelState.sseUrl ? (
+                        <div className="McpModalConnected">
+                            <div className="McpModalStatusRow">
+                                <span className="McpStatusDotInline McpStatusDotConnected" />
+                                <span>Connected</span>
+                            </div>
+                            <label className="McpModalLabel">
+                                SSE endpoint for MCP clients
+                                <input
+                                    className="ModalInput code"
+                                    readOnly
+                                    value={mcp.tunnelState.sseUrl}
+                                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                                />
+                            </label>
+                            <p className="McpModalHint">
+                                Add this URL as an MCP server in your client config. Tools available:
+                                get_diagram, set_diagram, render_diagram, list_diagram_types.
+                            </p>
+                        </div>
+                    ) : null}
+
+                    {mcp.tunnelState.status === 'connecting' ? (
+                        <div className="McpModalStatusRow">
+                            <span className="McpStatusDotInline McpStatusDotConnecting" />
+                            <span>Connecting...</span>
+                        </div>
+                    ) : null}
+
+                    {mcp.tunnelState.status === 'error' ? (
+                        <div className="McpModalError">
+                            <div className="McpModalStatusRow">
+                                <span className="McpStatusDotInline McpStatusDotError" />
+                                <span>Connection failed</span>
+                            </div>
+                            {mcp.tunnelState.error ? (
+                                <p className="McpModalErrorText">{mcp.tunnelState.error}</p>
+                            ) : null}
+                        </div>
+                    ) : null}
                 </div>
             </Modal>
         </div>
