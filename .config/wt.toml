@@ -1,0 +1,4 @@
+[post-create]
+deps = "npm install"
+cache = "cp -r {{ primary_worktree_path }}/public/cache public/cache 2>/dev/null || true"
+env = "cp {{ primary_worktree_path }}/.env* . 2>/dev/null || true"

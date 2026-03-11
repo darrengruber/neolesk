@@ -27,7 +27,9 @@
         "test:watch": "vitest",
         "prebuild": "npm run examples:cache",
         "predeploy": "npm run build",
-        "deploy": "wrangler pages deploy dist --project-name neolesk"
+        "deploy": "wrangler pages deploy dist --project-name neolesk",
+        "dev": "skaffold dev -n kroki --cleanup=false",
+        "deploy:k8s": "skaffold run -n kroki --cleanup=false"
     },
     "browserslist": {
         "production": [

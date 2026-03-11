@@ -17,6 +17,7 @@ html,
 body,
 #root {
     height: 100%;
+    overflow: hidden;
 }
 
 body {
@@ -24,6 +25,8 @@ body {
     background: linear-gradient(180deg, #f8fbff 0%, #edf3fb 100%);
     color: var(--neolesk-text);
     font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    position: fixed;
+    width: 100%;
 }
 
 body.workspace-resizing {
@@ -46,10 +49,16 @@ textarea {
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    min-height: 100vh;
+    height: 100dvh;
+    min-height: 0;
     overflow: hidden;
     color: var(--neolesk-text);
+}
+
+@supports not (height: 100dvh) {
+    .App {
+        height: 100vh;
+    }
 }
 
 .code {
@@ -62,10 +71,13 @@ textarea {
     gap: 10px;
     height: 50px;
     min-height: 50px;
+    flex: 0 0 auto;
     padding: 0 12px;
     border-bottom: 1px solid var(--neolesk-panel-border);
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(10px);
+    z-index: 10;
+    position: relative;
 }
 
 .AppToolbarBrand,
@@ -162,6 +174,9 @@ textarea {
 
 .WorkspaceMobileTabs {
     display: none;
+    flex: 0 0 auto;
+    z-index: 10;
+    position: relative;
 }
 
 .compactHidden {

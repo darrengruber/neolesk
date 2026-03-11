@@ -7,6 +7,18 @@ const rootDir = path.resolve(__dirname, '..');
 const publicDir = path.join(rootDir, 'public');
 const cacheDir = path.join(publicDir, 'cache');
 const defaultRenderUrl = 'https://kroki.io/';
+
+// Load .env if present (Vite does this for the app, but this script runs via Node directly)
+const dotenvPath = path.join(rootDir, '.env');
+if (fs.existsSync(dotenvPath)) {
+    for (const line of fs.readFileSync(dotenvPath, 'utf8').split('\n')) {
+        const match = line.match(/^\s*([^#=]+?)\s*=\s*(.*?)\s*$/);
+        if (match && !process.env[match[1]]) {
+            process.env[match[1]] = match[2];
+        }
+    }
+}
+
 const renderUrl = `${process.env.NEOLESK_KROKI_ENGINE || defaultRenderUrl}`.replace(/\/?$/, '/');
 const concurrency = 8;
 

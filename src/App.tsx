@@ -42,7 +42,8 @@ const monacoOptions = {
 
 function App(): JSX.Element {
     const baseUrl = useMemo(() => window.location.origin + window.location.pathname, []);
-    const initialRenderUrl = normalizeRenderUrl(__KROKI_ENGINE_URL__ || defaultRenderUrl);
+    const [runtimeRenderUrl, setRuntimeRenderUrl] = useState<string | null>(null);
+    const initialRenderUrl = normalizeRenderUrl(runtimeRenderUrl || __KROKI_ENGINE_URL__ || defaultRenderUrl);
     const initialDiagramState = useMemo(() => {
         const state = createInitialDiagramState(baseUrl, window.location.hash);
         return state.renderUrl === initialRenderUrl ? state : buildDiagramState({ ...state, renderUrl: initialRenderUrl });
@@ -103,6 +104,19 @@ function App(): JSX.Element {
         ...monacoOptions,
         wordWrap: wrapEnabled ? 'on' as const : 'off' as const,
     }), [wrapEnabled]);
+
+    useEffect(() => {
+        fetch('/config.json')
+            .then((res) => res.ok ? res.json() : null)
+            .then((config) => {
+                if (config?.krokiEngineUrl) {
+                    const url = normalizeRenderUrl(config.krokiEngineUrl);
+                    setRuntimeRenderUrl(url);
+                    setRenderUrl(url);
+                }
+            })
+            .catch(() => {});
+    }, []);
 
     useEffect(() => {
         if (!isCompact) {

@@ -26,20 +26,18 @@ controllers:
             enabled: true
             custom: true
             spec:
-              httpGet:
-                path: /
-                port: 8080
-              initialDelaySeconds: 5
-              periodSeconds: 5
+              exec:
+                command: ["wget", "-qO/dev/null", "http://localhost:8080/"]
+              initialDelaySeconds: 2
+              periodSeconds: 3
               timeoutSeconds: 3
               failureThreshold: 10
           liveness:
             enabled: true
             custom: true
             spec:
-              httpGet:
-                path: /
-                port: 8080
+              exec:
+                command: ["wget", "-qO/dev/null", "http://localhost:8080/"]
               periodSeconds: 10
               timeoutSeconds: 5
               failureThreshold: 3
@@ -47,9 +45,8 @@ controllers:
             enabled: true
             custom: true
             spec:
-              httpGet:
-                path: /
-                port: 8080
+              exec:
+                command: ["wget", "-qO/dev/null", "http://localhost:8080/"]
               periodSeconds: 5
               timeoutSeconds: 3
               failureThreshold: 3

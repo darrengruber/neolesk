@@ -37,6 +37,7 @@ yarn-error.log*
 
 /storybook-static
 /public/cache/*
+/public/config.json
 
 jest_html_reporters.html
 
