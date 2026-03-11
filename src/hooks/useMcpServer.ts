@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { McpServer } from '../mcp/server';
 import type { McpServerCallbacks, McpDiagramState } from '../mcp/server';
-import { McpTunnel } from '../mcp/tunnel';
-import type { TunnelState } from '../mcp/tunnel';
+import { createTunnel } from '../mcp/tunnel';
+import type { McpTunnelHandle, TunnelState } from '../mcp/tunnel';
 import { encode } from '../kroki/coder';
 
 const DEFAULT_RELAY_URL = 'https://neolesk-mcp-relay.YOUR_SUBDOMAIN.workers.dev';
@@ -36,7 +36,7 @@ export const useMcpServer = (options: UseMcpServerOptions): UseMcpServerResult =
     });
 
     const serverRef = useRef<McpServer | null>(null);
-    const tunnelRef = useRef<McpTunnel | null>(null);
+    const tunnelRef = useRef<McpTunnelHandle | null>(null);
     const optionsRef = useRef(options);
     optionsRef.current = options;
 
@@ -78,14 +78,10 @@ export const useMcpServer = (options: UseMcpServerOptions): UseMcpServerResult =
         const server = new McpServer(createCallbacks());
         serverRef.current = server;
 
-        const tunnel = new McpTunnel(
-            relayUrl || DEFAULT_RELAY_URL,
-            server,
-            { onStateChange: setTunnelState },
-        );
+        const tunnel = createTunnel(server, { onStateChange: setTunnelState });
         tunnelRef.current = tunnel;
 
-        tunnel.connect();
+        tunnel.connect(relayUrl || DEFAULT_RELAY_URL);
     }, []);
 
     const stop = useCallback(() => {

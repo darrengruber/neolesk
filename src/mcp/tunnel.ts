@@ -1,17 +1,14 @@
 /**
- * WebSocket tunnel client that connects the browser-side MCP server
- * to the Cloudflare Worker relay.
+ * Tunnel client that connects the browser-side MCP server to the
+ * Cloudflare Worker relay via a SharedWorker.
  *
- * Flow:
- * 1. POST /session to get a session ID
- * 2. Connect WebSocket to /s/{sessionId}/ws
- * 3. Relay incoming MCP requests to the McpServer, send responses back
+ * The SharedWorker holds the WebSocket connection and keepalive timers,
+ * which are immune to browser background-tab throttling. MCP requests
+ * are forwarded from the SharedWorker to this client via MessagePort,
+ * processed by the McpServer on the main thread (which has React state
+ * access), and responses sent back through the same channel.
  *
- * Reliability features:
- * - Automatic reconnection with exponential backoff on unexpected drops
- * - Keepalive pings to prevent idle timeouts (especially in background tabs)
- * - Visibility-aware: sends pings more aggressively when tab is hidden
- *   since browsers throttle background tab timers
+ * If SharedWorker is unavailable, falls back to a main-thread WebSocket.
  */
 
 import type { McpServer } from './server';
@@ -29,15 +26,12 @@ interface TunnelCallbacks {
     onStateChange: (state: TunnelState) => void;
 }
 
-const KEEPALIVE_INTERVAL_MS = 20_000;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_BASE_DELAY_MS = 1_000;
+// --- SharedWorker-based tunnel ---
 
-export class McpTunnel {
-    private relayBaseUrl: string;
+class SharedWorkerTunnel {
+    private worker: SharedWorker;
     private server: McpServer;
     private callbacks: TunnelCallbacks;
-    private ws: WebSocket | null = null;
     private state: TunnelState = {
         status: 'disconnected',
         sessionId: null,
@@ -45,18 +39,84 @@ export class McpTunnel {
         error: null,
     };
 
-    // Reconnection state
+    constructor(server: McpServer, callbacks: TunnelCallbacks) {
+        this.server = server;
+        this.callbacks = callbacks;
+
+        this.worker = new SharedWorker(
+            new URL('./tunnel-worker.ts', import.meta.url),
+            { type: 'module', name: 'neolesk-mcp-tunnel' },
+        );
+
+        this.worker.port.onmessage = (event: MessageEvent) => {
+            const data = event.data;
+
+            if (data.type === 'state') {
+                this.state = data.state;
+                this.callbacks.onStateChange(this.state);
+            } else if (data.type === 'mcp_request') {
+                this.handleMcpRequest(data.clientId, data.body);
+            }
+        };
+
+        this.worker.port.start();
+    }
+
+    private async handleMcpRequest(clientId: string, body: string): Promise<void> {
+        try {
+            const response = await this.server.handleMessage(body);
+            if (response) {
+                this.worker.port.postMessage({
+                    type: 'mcp_response',
+                    clientId,
+                    body: response,
+                });
+            }
+        } catch (err) {
+            console.error('[McpTunnel] Error handling MCP request:', err);
+        }
+    }
+
+    connect(relayBaseUrl: string): void {
+        this.worker.port.postMessage({
+            type: 'connect',
+            relayBaseUrl,
+        });
+    }
+
+    disconnect(): void {
+        this.worker.port.postMessage({ type: 'disconnect' });
+    }
+
+    getState(): TunnelState {
+        return this.state;
+    }
+}
+
+// --- Main-thread fallback tunnel (for browsers without SharedWorker) ---
+
+const KEEPALIVE_INTERVAL_MS = 20_000;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_BASE_DELAY_MS = 1_000;
+
+class MainThreadTunnel {
+    private server: McpServer;
+    private callbacks: TunnelCallbacks;
+    private ws: WebSocket | null = null;
+    private relayBaseUrl: string | null = null;
+    private state: TunnelState = {
+        status: 'disconnected',
+        sessionId: null,
+        sseUrl: null,
+        error: null,
+    };
     private intentionalDisconnect = false;
     private reconnectAttempts = 0;
     private reconnectTimer: number | null = null;
-    private lastRelayUrl: string | null = null;
-
-    // Keepalive state
     private keepaliveTimer: number | null = null;
     private visibilityHandler: (() => void) | null = null;
 
-    constructor(relayBaseUrl: string, server: McpServer, callbacks: TunnelCallbacks) {
-        this.relayBaseUrl = relayBaseUrl.replace(/\/+$/, '');
+    constructor(server: McpServer, callbacks: TunnelCallbacks) {
         this.server = server;
         this.callbacks = callbacks;
     }
@@ -66,64 +126,41 @@ export class McpTunnel {
         this.callbacks.onStateChange(this.state);
     }
 
-    async connect(): Promise<void> {
-        if (this.ws) {
-            this.disconnect();
-        }
-
+    connect(relayBaseUrl: string): void {
+        if (this.ws) this.disconnect();
+        this.relayBaseUrl = relayBaseUrl.replace(/\/+$/, '');
         this.intentionalDisconnect = false;
         this.reconnectAttempts = 0;
-        this.lastRelayUrl = this.relayBaseUrl;
-        await this.doConnect();
+        this.doConnect();
     }
 
     private async doConnect(): Promise<void> {
+        if (!this.relayBaseUrl) return;
         const isReconnect = this.reconnectAttempts > 0;
-        this.updateState({
-            status: isReconnect ? 'reconnecting' : 'connecting',
-            error: null,
-        });
+        this.updateState({ status: isReconnect ? 'reconnecting' : 'connecting', error: null });
 
         try {
-            // Step 1: Create a session
             const sessionRes = await fetch(`${this.relayBaseUrl}/session`, { method: 'POST' });
-            if (!sessionRes.ok) {
-                throw new Error(`Failed to create session: HTTP ${sessionRes.status}`);
-            }
+            if (!sessionRes.ok) throw new Error(`Failed to create session: HTTP ${sessionRes.status}`);
             const { sessionId } = await sessionRes.json() as { sessionId: string };
 
-            // Step 2: Connect WebSocket
             const wsUrl = `${this.relayBaseUrl.replace(/^http/, 'ws')}/s/${sessionId}/ws`;
             const ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
                 this.reconnectAttempts = 0;
                 const sseUrl = `${this.relayBaseUrl}/s/${sessionId}/sse`;
-                this.updateState({
-                    status: 'connected',
-                    sessionId,
-                    sseUrl,
-                    error: null,
-                });
+                this.updateState({ status: 'connected', sessionId, sseUrl, error: null });
                 this.startKeepalive();
             };
 
             ws.onmessage = async (event) => {
                 try {
-                    const envelope = JSON.parse(event.data) as {
-                        type: string;
-                        clientId: string;
-                        body: string;
-                    };
-
+                    const envelope = JSON.parse(event.data) as { type: string; clientId: string; body: string };
                     if (envelope.type === 'mcp_request') {
                         const response = await this.server.handleMessage(envelope.body);
                         if (response) {
-                            ws.send(JSON.stringify({
-                                type: 'mcp_response',
-                                clientId: envelope.clientId,
-                                body: response,
-                            }));
+                            ws.send(JSON.stringify({ type: 'mcp_response', clientId: envelope.clientId, body: response }));
                         }
                     }
                 } catch (err) {
@@ -137,20 +174,12 @@ export class McpTunnel {
                 if (!this.intentionalDisconnect && this.state.status === 'connected') {
                     this.scheduleReconnect();
                 } else if (!this.intentionalDisconnect) {
-                    this.updateState({
-                        status: 'disconnected',
-                        sessionId: null,
-                        sseUrl: null,
-                    });
+                    this.updateState({ status: 'disconnected', sessionId: null, sseUrl: null });
                 }
             };
 
             ws.onerror = () => {
-                // onclose will fire after this, so let onclose handle reconnection.
-                // Only set error state if we haven't started reconnecting.
-                if (this.reconnectAttempts === 0) {
-                    this.updateState({ error: 'WebSocket connection failed' });
-                }
+                if (this.reconnectAttempts === 0) this.updateState({ error: 'WebSocket connection failed' });
             };
 
             this.ws = ws;
@@ -163,52 +192,27 @@ export class McpTunnel {
 
     private scheduleReconnect(errorMsg?: string): void {
         if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            this.updateState({
-                status: 'error',
-                error: errorMsg || `Disconnected after ${MAX_RECONNECT_ATTEMPTS} reconnect attempts`,
-                sessionId: null,
-                sseUrl: null,
-            });
+            this.updateState({ status: 'error', error: errorMsg || `Disconnected after ${MAX_RECONNECT_ATTEMPTS} reconnect attempts`, sessionId: null, sseUrl: null });
             return;
         }
-
         this.reconnectAttempts++;
         const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, this.reconnectAttempts - 1);
-
-        this.updateState({
-            status: 'reconnecting',
-            error: `Reconnecting (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`,
-            sessionId: null,
-            sseUrl: null,
-        });
-
-        this.reconnectTimer = window.setTimeout(() => {
-            this.reconnectTimer = null;
-            this.doConnect();
-        }, delay);
+        this.updateState({ status: 'reconnecting', error: `Reconnecting (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`, sessionId: null, sseUrl: null });
+        this.reconnectTimer = window.setTimeout(() => { this.reconnectTimer = null; this.doConnect(); }, delay);
     }
 
     private startKeepalive(): void {
         this.stopKeepalive();
-
-        // Send periodic pings to keep the WebSocket alive.
-        // Browsers throttle setInterval in background tabs to ~1/min,
-        // but WebSocket connections themselves stay open. The pings
-        // ensure the relay doesn't consider us idle and close us.
         this.keepaliveTimer = window.setInterval(() => {
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
                 this.ws.send(JSON.stringify({ type: 'ping' }));
             }
         }, KEEPALIVE_INTERVAL_MS);
-
-        // When the tab goes from hidden -> visible, send an immediate ping.
-        // This compensates for throttled timers while backgrounded.
         this.visibilityHandler = () => {
             if (document.visibilityState === 'visible' && this.ws) {
                 if (this.ws.readyState === WebSocket.OPEN) {
                     this.ws.send(JSON.stringify({ type: 'ping' }));
                 } else if (this.ws.readyState === WebSocket.CLOSED) {
-                    // WebSocket died while we were in the background
                     this.ws = null;
                     this.stopKeepalive();
                     this.scheduleReconnect();
@@ -219,41 +223,36 @@ export class McpTunnel {
     }
 
     private stopKeepalive(): void {
-        if (this.keepaliveTimer !== null) {
-            clearInterval(this.keepaliveTimer);
-            this.keepaliveTimer = null;
-        }
-        if (this.visibilityHandler) {
-            document.removeEventListener('visibilitychange', this.visibilityHandler);
-            this.visibilityHandler = null;
-        }
+        if (this.keepaliveTimer !== null) { clearInterval(this.keepaliveTimer); this.keepaliveTimer = null; }
+        if (this.visibilityHandler) { document.removeEventListener('visibilitychange', this.visibilityHandler); this.visibilityHandler = null; }
     }
 
     disconnect(): void {
         this.intentionalDisconnect = true;
-
-        if (this.reconnectTimer !== null) {
-            clearTimeout(this.reconnectTimer);
-            this.reconnectTimer = null;
-        }
-
+        if (this.reconnectTimer !== null) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
         this.stopKeepalive();
-
-        if (this.ws) {
-            this.ws.onclose = null;
-            this.ws.onerror = null;
-            this.ws.close();
-            this.ws = null;
-        }
-        this.updateState({
-            status: 'disconnected',
-            sessionId: null,
-            sseUrl: null,
-            error: null,
-        });
+        if (this.ws) { this.ws.onclose = null; this.ws.onerror = null; this.ws.close(); this.ws = null; }
+        this.updateState({ status: 'disconnected', sessionId: null, sseUrl: null, error: null });
     }
 
     getState(): TunnelState {
         return this.state;
     }
+}
+
+// --- Public API ---
+
+export interface McpTunnelHandle {
+    connect(relayBaseUrl: string): void;
+    disconnect(): void;
+    getState(): TunnelState;
+}
+
+const supportsSharedWorker = typeof SharedWorker !== 'undefined';
+
+export function createTunnel(server: McpServer, callbacks: TunnelCallbacks): McpTunnelHandle {
+    if (supportsSharedWorker) {
+        return new SharedWorkerTunnel(server, callbacks);
+    }
+    return new MainThreadTunnel(server, callbacks);
 }
