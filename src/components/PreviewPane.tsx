@@ -3,7 +3,7 @@ import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
 import DownloadDropdown from './DownloadDropdown';
 import CopyDropdown from './CopyDropdown';
 import LoadingOverlay from './LoadingOverlay';
-import { useSvgRender } from '../hooks/useSvgRender';
+import type { SvgRenderResult } from '../hooks/useSvgRender';
 import { downloadBlob, downloadSvg, exportBlob, exportPdf, printScale, svgToCanvas } from '../utils/svgExport';
 import type { DiagramState } from '../types';
 
@@ -18,7 +18,7 @@ interface TransformApi {
 }
 
 interface PreviewPaneProps {
-    svgUrl: string;
+    svg: SvgRenderResult;
     diagramType: string;
     filetypes: string[];
     previewState: DiagramState;
@@ -29,7 +29,7 @@ interface PreviewPaneProps {
 }
 
 const PreviewPane = ({
-    svgUrl,
+    svg,
     diagramType,
     filetypes,
     previewState,
@@ -44,8 +44,6 @@ const PreviewPane = ({
     const [viewportSize, setViewportSize] = useState({ width: 960, height: 640 });
     const [downloading, setDownloading] = useState(false);
     const [downloadLabel, setDownloadLabel] = useState('');
-
-    const svg = useSvgRender(diagramType, editorValue, svgUrl);
     const dimensions = svg.dimensions;
 
     const fitDiagramToViewport = useCallback(() => {
@@ -177,7 +175,7 @@ const PreviewPane = ({
                     return (
                         <div className="RenderViewport" style={{ height: `${viewportSize.height}px` }}>
                             {svg.error ? (
-                                <div className="RenderLoading">Failed to load diagram</div>
+                                <div className="RenderLoading">{svg.error.message}</div>
                             ) : (
                                 <>
                                     <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>

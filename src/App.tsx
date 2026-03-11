@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MonacoEditor from '@monaco-editor/react';
+import type * as monacoEditor from 'monaco-editor';
 import { getCachedSvgUrl } from './examples/cache';
 import { decode } from './kroki/coder';
 import {
@@ -22,8 +23,15 @@ import Modal from './components/Modal';
 import ExampleImage from './components/ExampleImage';
 import EditorDrawer from './components/EditorDrawer';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
+import { useSvgRender } from './hooks/useSvgRender';
 import { useWindowWidth } from './hooks/useWindowWidth';
 import { buildExamples, filterExamples } from './utils/examples';
+import {
+    configureDiagramLanguages,
+    getEditorLanguageId,
+    getEditorModelPath,
+    validateDiagramText,
+} from './editor/diagramLanguageRegistry';
 
 const layoutModes: LayoutMode[] = ['vertical', 'horizontal', 'preview'];
 
@@ -35,8 +43,12 @@ const monacoOptions = {
     fontSize: 14,
     lineHeight: 22,
     padding: { top: 18, bottom: 18 },
+    quickSuggestions: { other: true, comments: false, strings: true },
     scrollBeyondLastLine: false,
+    snippetSuggestions: 'top' as const,
+    suggestOnTriggerCharacters: true,
     smoothScrolling: true,
+    tabCompletion: 'on' as const,
     wrappingIndent: 'indent' as const,
 };
 
@@ -71,6 +83,8 @@ function App(): JSX.Element {
     const [importUrl, setImportUrl] = useState('');
     const [lastLoadedText, setLastLoadedText] = useState(initialDiagramState.diagramText);
     const workspaceRef = useRef<HTMLDivElement | null>(null);
+    const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
+    const monacoRef = useRef<typeof monacoEditor | null>(null);
 
     const debouncedEditorValue = useDebouncedValue(editorValue, 500);
     const windowWidth = useWindowWidth();
@@ -99,6 +113,30 @@ function App(): JSX.Element {
         () => getCachedSvgUrl(previewState.diagramType, previewState.diagramText, previewState.renderUrl) || previewState.svgUrl,
         [previewState.diagramText, previewState.diagramType, previewState.svgUrl, previewState.renderUrl],
     );
+    const svg = useSvgRender(diagramType, previewText, previewSvgUrl);
+    const editorLanguageId = useMemo(
+        () => getEditorLanguageId(diagramType, currentState.language),
+        [currentState.language, diagramType],
+    );
+    const editorModelPath = useMemo(() => getEditorModelPath(diagramType), [diagramType]);
+    const localValidationMarkers = useMemo(
+        () => validateDiagramText(diagramType, editorValue),
+        [diagramType, editorValue],
+    );
+    const remoteValidationMarkers = useMemo(() => {
+        if (!svg.error || svg.local || previewText !== editorValue) {
+            return [];
+        }
+
+        return [{
+            message: svg.error.message,
+            startLineNumber: svg.error.line || 1,
+            startColumn: svg.error.column || 1,
+            endLineNumber: svg.error.line || 1,
+            endColumn: (svg.error.column || 1) + 1,
+            severity: 'error' as const,
+        }];
+    }, [editorValue, previewText, svg.error, svg.local]);
 
     const editorOptions = useMemo(() => ({
         ...monacoOptions,
@@ -129,6 +167,39 @@ function App(): JSX.Element {
             setPreviewText(debouncedEditorValue);
         }
     }, [debouncedEditorValue, editorValue]);
+
+    useEffect(() => {
+        const editor = editorRef.current;
+        const monaco = monacoRef.current;
+
+        if (!editor || !monaco) {
+            return;
+        }
+
+        const model = editor.getModel();
+        if (!model) {
+            return;
+        }
+
+        const toMonacoMarker = (
+            marker: {
+                message: string;
+                startLineNumber: number;
+                startColumn: number;
+                endLineNumber: number;
+                endColumn: number;
+                severity: 'error' | 'warning';
+            },
+        ): monacoEditor.editor.IMarkerData => ({
+            ...marker,
+            severity: marker.severity === 'warning'
+                ? monaco.MarkerSeverity.Warning
+                : monaco.MarkerSeverity.Error,
+        });
+
+        monaco.editor.setModelMarkers(model, 'neolesk-local-validation', localValidationMarkers.map(toMonacoMarker));
+        monaco.editor.setModelMarkers(model, 'neolesk-remote-validation', remoteValidationMarkers.map(toMonacoMarker));
+    }, [localValidationMarkers, remoteValidationMarkers]);
 
     useEffect(() => {
         const nextHash = `#${previewState.diagramHash}`;
@@ -270,6 +341,14 @@ function App(): JSX.Element {
         setRenderUrl(normalizeRenderUrl(value));
     }, []);
 
+    const handleEditorMount = useCallback((
+        editor: monacoEditor.editor.IStandaloneCodeEditor,
+        monaco: typeof monacoEditor,
+    ) => {
+        editorRef.current = editor;
+        monacoRef.current = monaco;
+    }, []);
+
     return (
         <div className="App">
             <header className="AppToolbar">
@@ -396,7 +475,10 @@ function App(): JSX.Element {
                             <div className="Editor">
                                 <MonacoEditor
                                     className="MonacoEditor"
-                                    language={currentState.language || 'plaintext'}
+                                    beforeMount={configureDiagramLanguages}
+                                    onMount={handleEditorMount}
+                                    language={editorLanguageId}
+                                    path={editorModelPath}
                                     value={editorValue}
                                     onChange={handleEditorChange}
                                     height="100%"
@@ -427,7 +509,7 @@ function App(): JSX.Element {
                     <section className={`WorkspacePanel WorkspacePanelPreview${showPreviewPane ? '' : ' compactHidden'}${!isCompact && layoutMode === 'preview' ? ' previewOnly' : ''}`}>
                         <div className="WorkspacePanelBody">
                             <PreviewPane
-                                svgUrl={previewSvgUrl}
+                                svg={svg}
                                 diagramType={diagramType}
                                 filetypes={supportedFiletypes}
                                 previewState={previewState}

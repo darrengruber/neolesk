@@ -21,7 +21,8 @@
         "react-zoom-pan-pinch": "^3.0.7",
         "vega": "^6.2.0",
         "vega-lite": "^6.4.1",
-        "wavedrom": "^3.5.0"
+        "wavedrom": "^3.5.0",
+        "yaml": "^2.8.2"
     },
     "scripts": {
         "examples:cache": "node scripts/generate-example-cache.cjs",
