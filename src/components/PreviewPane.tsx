@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
 import DownloadDropdown from './DownloadDropdown';
 import CopyDropdown from './CopyDropdown';
-import { useSvgFetch } from '../hooks/useSvgFetch';
+import LoadingOverlay from './LoadingOverlay';
+import { useSvgRender } from '../hooks/useSvgRender';
 import { downloadBlob, downloadSvg, exportBlob, exportPdf, printScale, svgToCanvas } from '../utils/svgExport';
 import type { DiagramState } from '../types';
 
@@ -42,8 +43,9 @@ const PreviewPane = ({
     const transformApiRef = useRef<TransformApi | null>(null);
     const [viewportSize, setViewportSize] = useState({ width: 960, height: 640 });
     const [downloading, setDownloading] = useState(false);
+    const [downloadLabel, setDownloadLabel] = useState('');
 
-    const svg = useSvgFetch(svgUrl);
+    const svg = useSvgRender(diagramType, editorValue, svgUrl);
     const dimensions = svg.dimensions;
 
     const fitDiagramToViewport = useCallback(() => {
@@ -98,6 +100,7 @@ const PreviewPane = ({
     const handleDownload = useCallback(async (targetFiletype: string) => {
         if (!svg.svgText || !dimensions) return;
         setDownloading(true);
+        setDownloadLabel(`Exporting ${targetFiletype.toUpperCase()}`);
 
         try {
             const filename = `${diagramType}-diagram`;
@@ -123,6 +126,7 @@ const PreviewPane = ({
             console.error('Export failed:', err);
         } finally {
             setDownloading(false);
+            setDownloadLabel('');
         }
     }, [svg.svgText, dimensions, diagramType]);
 
@@ -140,6 +144,11 @@ const PreviewPane = ({
                         Fit
                     </button>
                 </div>
+                {!svg.loading && !svg.error && svg.svgText ? (
+                    <span className={`RenderModeBadge${svg.local ? ' RenderModeBadgeLocal' : ''}`}>
+                        {svg.local ? 'Local' : 'API'}
+                    </span>
+                ) : null}
                 <DownloadDropdown
                     filetypes={filetypes}
                     disabled={downloading || svg.loading || !!svg.error}
@@ -193,11 +202,10 @@ const PreviewPane = ({
                                             ) : null}
                                         </div>
                                     </TransformComponent>
-                                    {svg.loading ? (
-                                        <div className="RenderLoading">
-                                            <span className="RenderLoadingDot" />
-                                            Rendering
-                                        </div>
+                                    {downloading ? (
+                                        <LoadingOverlay message={downloadLabel} />
+                                    ) : svg.loading ? (
+                                        <LoadingOverlay message="Rendering" />
                                     ) : null}
                                 </>
                             )}

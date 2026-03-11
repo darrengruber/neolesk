@@ -5,15 +5,23 @@
     "homepage": "https://neolesk.pages.dev",
     "dependencies": {
         "@monaco-editor/react": "^4.7.0",
+        "@softwaretechnik/dbml-renderer": "^1.0.31",
         "@testing-library/jest-dom": "^5.16.1",
         "@testing-library/react": "^12.1.2",
+        "bytefield-svg": "^1.11.0",
         "canvg": "^4.0.3",
         "jspdf": "^4.2.0",
+        "mermaid": "^11.12.3",
         "monaco-editor": "^0.52.2",
+        "nomnoml": "^1.7.0",
+        "onml": "^2.1.0",
         "pako": "^2.0.4",
         "react": "^17.0.2",
         "react-dom": "^17.0.2",
-        "react-zoom-pan-pinch": "^3.0.7"
+        "react-zoom-pan-pinch": "^3.0.7",
+        "vega": "^6.2.0",
+        "vega-lite": "^6.4.1",
+        "wavedrom": "^3.5.0"
     },
     "scripts": {
         "examples:cache": "node scripts/generate-example-cache.cjs",
@@ -47,12 +55,12 @@
         "@types/react": "^17.0.89",
         "@types/react-dom": "^17.0.26",
         "@vitejs/plugin-react": "^5.0.0",
-        "wrangler": "^4.0.0",
         "jsdom": "^26.0.0",
         "knip": "^5.86.0",
         "playwright": "^1.58.2",
         "typescript": "^5.8.2",
         "vite": "^6.2.0",
-        "vitest": "^3.0.8"
+        "vitest": "^3.0.8",
+        "wrangler": "^4.0.0"
     }
 }

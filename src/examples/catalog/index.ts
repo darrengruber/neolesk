@@ -5,6 +5,7 @@ import bytefield from './bytefield';
 import c4plantuml from './c4plantuml';
 import d2 from './d2';
 import dbml from './dbml';
+import diagramsnet from './diagramsnet';
 import ditaa from './ditaa';
 import erd from './erd';
 import excalidraw from './excalidraw';
@@ -35,6 +36,7 @@ const catalog = [
     ...c4plantuml,
     ...d2,
     ...dbml,
+    ...diagramsnet,
     ...ditaa,
     ...erd,
     ...excalidraw,
