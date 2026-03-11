@@ -138,7 +138,7 @@ function App(): React.JSX.Element {
             <View style={[styles.workspace, isTablet && styles.workspaceTablet]}>
                 {showEditor && (
                     <View style={[styles.pane, isTablet && styles.paneEditor]}>
-                        <CodeEditor value={editorValue} onChange={handleEditorChange} />
+                        <CodeEditor value={editorValue} language={previewState.language} onChange={handleEditorChange} />
                     </View>
                 )}
                 {showPreview && (
