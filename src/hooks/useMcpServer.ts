@@ -109,6 +109,6 @@ export const useMcpServer = (options: UseMcpServerOptions): UseMcpServerResult =
         tunnelState,
         start,
         stop,
-        isActive: tunnelState.status === 'connected' || tunnelState.status === 'connecting',
+        isActive: tunnelState.status === 'connected' || tunnelState.status === 'connecting' || tunnelState.status === 'reconnecting',
     };
 };

@@ -672,10 +672,10 @@ function App(): JSX.Element {
                         </div>
                     ) : null}
 
-                    {mcp.tunnelState.status === 'connecting' ? (
+                    {mcp.tunnelState.status === 'connecting' || mcp.tunnelState.status === 'reconnecting' ? (
                         <div className="McpModalStatusRow">
                             <span className="McpStatusDotInline McpStatusDotConnecting" />
-                            <span>Connecting...</span>
+                            <span>{mcp.tunnelState.status === 'reconnecting' ? 'Reconnecting...' : 'Connecting...'}</span>
                         </div>
                     ) : null}
 
