@@ -1,0 +1,33 @@
+{
+  "name": "neolesk-mobile",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "expo": "~55.0.5",
+    "expo-clipboard": "~55.0.8",
+    "expo-file-system": "~55.0.10",
+    "expo-sharing": "~55.0.11",
+    "expo-status-bar": "~55.0.4",
+    "pako": "^2.0.4",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.2",
+    "react-native-gesture-handler": "~2.30.0",
+    "react-native-reanimated": "4.2.1",
+    "react-native-svg": "15.15.3",
+    "react-native-web": "^0.21.0",
+    "react-native-webview": "13.16.0"
+  },
+  "devDependencies": {
+    "@types/pako": "^2.0.3",
+    "@types/react": "~19.2.2",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
