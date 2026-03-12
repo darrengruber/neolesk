@@ -5,7 +5,7 @@ import { defaultFiletype } from './kroki/metadata';
 import type { DiagramState, DiagramStateInput, DiagramTypeMap, ParsedDiagramUrl } from './types';
 
 export const defaultDiagramType = 'plantuml';
-export const defaultRenderUrl = 'https://kroki.io/';
+export const defaultRenderUrl = 'https://kroki.tailbf5ac.ts.net/';
 
 export const diagramTypes = krokiInfo as DiagramTypeMap;
 

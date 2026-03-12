@@ -7,6 +7,9 @@ node_modules/
 .expo/
 dist/
 web-build/
+
+# Pre-rendered example cache (generated at build time)
+/public/cache/
 expo-env.d.ts
 
 # Native

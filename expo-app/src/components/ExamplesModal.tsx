@@ -1,11 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
     FlatList,
     Image,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
     TextInput,
+    useWindowDimensions,
     View,
 } from 'react-native';
 import Modal from './Modal';
@@ -21,21 +23,67 @@ interface ExamplesModalProps {
     onImport: (example: ExampleRecord) => void;
 }
 
+const CARD_MIN_WIDTH = 320;
+
+const ExampleCard = React.memo(({ item, onSelect, onImport }: {
+    item: ExampleRecord;
+    onSelect: (id: number) => void;
+    onImport: (item: ExampleRecord) => void;
+}) => {
+    const imageUri = Platform.OS === 'web' ? item.cacheUrl : item.url;
+
+    return (
+        <View style={styles.card}>
+            <Pressable onPress={() => onSelect(item.id)} style={styles.cardPreview}>
+                <Image
+                    source={{ uri: imageUri }}
+                    style={styles.cardImage}
+                    resizeMode="contain"
+                />
+            </Pressable>
+            <View style={styles.cardBody}>
+                <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={styles.cardDescription} numberOfLines={2}>{item.description}</Text>
+            </View>
+            <View style={styles.cardFooter}>
+                <Pressable style={styles.viewButton} onPress={() => onSelect(item.id)}>
+                    <Text style={styles.viewButtonText}>View</Text>
+                </Pressable>
+                <Pressable style={styles.importButton} onPress={() => onImport(item)}>
+                    <Text style={styles.importButtonText}>Import</Text>
+                </Pressable>
+            </View>
+        </View>
+    );
+});
+
 const ExamplesModal = ({ open, onClose, examples, onImport }: ExamplesModalProps): React.JSX.Element | null => {
     const [search, setSearch] = useState('');
     const [selectedId, setSelectedId] = useState<number | null>(null);
+    const { width: windowWidth } = useWindowDimensions();
+
+    const numColumns = Math.max(1, Math.floor((windowWidth - spacing.xl * 2) / CARD_MIN_WIDTH));
 
     const filtered = useMemo(() => filterExamples(examples, search), [examples, search]);
     const selected = selectedId !== null ? examples.find((e) => e.id === selectedId) : null;
 
-    const handleBack = () => setSelectedId(null);
-    const handleClose = () => {
+    const handleBack = useCallback(() => setSelectedId(null), []);
+    const handleClose = useCallback(() => {
         setSelectedId(null);
         setSearch('');
         onClose();
-    };
+    }, [onClose]);
+
+    const handleImport = useCallback((item: ExampleRecord) => {
+        onImport(item);
+        handleClose();
+    }, [onImport, handleClose]);
+
+    const handleSelect = useCallback((id: number) => setSelectedId(id), []);
 
     if (selected) {
+        const imageUri = Platform.OS === 'web' ? selected.cacheUrl : selected.url;
+
         return (
             <Modal
                 open={open}
@@ -46,7 +94,7 @@ const ExamplesModal = ({ open, onClose, examples, onImport }: ExamplesModalProps
                         <Pressable style={styles.actionButton} onPress={handleBack}>
                             <Text style={styles.actionButtonText}>Back</Text>
                         </Pressable>
-                        <Pressable style={styles.importButton} onPress={() => { onImport(selected); handleClose(); }}>
+                        <Pressable style={styles.importButton} onPress={() => handleImport(selected)}>
                             <Text style={styles.importButtonText}>Import</Text>
                         </Pressable>
                     </>
@@ -54,7 +102,13 @@ const ExamplesModal = ({ open, onClose, examples, onImport }: ExamplesModalProps
             >
                 <View style={styles.detailContainer}>
                     <Text style={styles.detailDescription}>{selected.description}</Text>
-                    <Image source={{ uri: selected.url }} style={styles.detailImage} resizeMode="contain" />
+                    <View style={styles.detailImageContainer}>
+                        <Image
+                            source={{ uri: imageUri }}
+                            style={styles.detailImage}
+                            resizeMode="contain"
+                        />
+                    </View>
                     <View style={styles.codeBlock}>
                         <Text style={styles.codeText}>{decode(selected.example)}</Text>
                     </View>
@@ -83,20 +137,15 @@ const ExamplesModal = ({ open, onClose, examples, onImport }: ExamplesModalProps
             <FlatList
                 data={filtered}
                 keyExtractor={(item) => String(item.id)}
-                scrollEnabled={false}
+                numColumns={numColumns}
+                key={`grid-${numColumns}`}
+                columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
                 renderItem={({ item }) => (
-                    <Pressable style={styles.card} onPress={() => setSelectedId(item.id)}>
-                        <Image source={{ uri: item.url }} style={styles.cardImage} resizeMode="contain" />
-                        <View style={styles.cardBody}>
-                            <Text style={styles.cardTitle}>{item.title}</Text>
-                            <Text style={styles.cardDescription} numberOfLines={2}>{item.description}</Text>
-                        </View>
-                        <View style={styles.cardActions}>
-                            <Pressable style={styles.importButton} onPress={() => { onImport(item); handleClose(); }}>
-                                <Text style={styles.importButtonText}>Import</Text>
-                            </Pressable>
-                        </View>
-                    </Pressable>
+                    <ExampleCard
+                        item={item}
+                        onSelect={handleSelect}
+                        onImport={handleImport}
+                    />
                 )}
             />
         </Modal>
@@ -113,25 +162,34 @@ const styles = StyleSheet.create({
         color: colors.text,
         minWidth: 120,
     },
+    row: {
+        gap: spacing.md,
+    },
     card: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: spacing.md,
-        marginBottom: spacing.sm,
+        flex: 1,
         backgroundColor: colors.surface,
         borderRadius: radius.md,
         borderWidth: 1,
         borderColor: colors.surfaceBorder,
-        gap: spacing.md,
+        marginBottom: spacing.md,
+        overflow: 'hidden',
+    },
+    cardPreview: {
+        backgroundColor: '#ffffff',
+        borderBottomWidth: 1,
+        borderBottomColor: colors.divider,
+        height: 200,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: spacing.sm,
     },
     cardImage: {
-        width: 64,
-        height: 48,
-        borderRadius: radius.sm,
-        backgroundColor: colors.codeBackground,
+        width: '100%',
+        height: '100%',
     },
     cardBody: {
-        flex: 1,
+        padding: spacing.md,
+        gap: 2,
     },
     cardTitle: {
         fontSize: 14,
@@ -141,10 +199,40 @@ const styles = StyleSheet.create({
     cardDescription: {
         fontSize: 12,
         color: colors.textSecondary,
-        marginTop: 2,
+        lineHeight: 16,
     },
-    cardActions: {
+    cardFooter: {
+        flexDirection: 'row',
         gap: spacing.xs,
+        paddingHorizontal: spacing.md,
+        paddingBottom: spacing.md,
+    },
+    viewButton: {
+        flex: 1,
+        paddingVertical: spacing.sm,
+        borderRadius: radius.sm,
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.surfaceBorder,
+        alignItems: 'center',
+    },
+    viewButtonText: {
+        fontSize: 13,
+        fontWeight: '500',
+        color: colors.text,
+    },
+    importButton: {
+        flex: 1,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radius.sm,
+        backgroundColor: colors.accent,
+        alignItems: 'center',
+    },
+    importButtonText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#ffffff',
     },
     actionButton: {
         paddingHorizontal: spacing.lg,
@@ -159,17 +247,6 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         color: colors.text,
     },
-    importButton: {
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
-        borderRadius: radius.sm,
-        backgroundColor: colors.accent,
-    },
-    importButtonText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#ffffff',
-    },
     detailContainer: {
         gap: spacing.lg,
     },
@@ -177,11 +254,17 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: colors.textSecondary,
     },
+    detailImageContainer: {
+        backgroundColor: '#ffffff',
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: colors.divider,
+        padding: spacing.md,
+        height: 280,
+    },
     detailImage: {
         width: '100%',
-        height: 200,
-        borderRadius: radius.md,
-        backgroundColor: colors.codeBackground,
+        height: '100%',
     },
     codeBlock: {
         backgroundColor: colors.codeBackground,

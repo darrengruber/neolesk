@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, TextInput, View } from 'react-native';
-import { colors, spacing } from '../theme';
+import { Platform, StyleSheet, View } from 'react-native';
+import { colors } from '../theme';
 
 // WebView import is conditional — not available on web platform
 let WebView: React.ComponentType<any> | null = null;
@@ -8,7 +8,17 @@ if (Platform.OS !== 'web') {
     try {
         WebView = require('react-native-webview').default;
     } catch {
-        // WebView not available, fall back to TextInput
+        // WebView not available
+    }
+}
+
+// CodeMirror React wrapper — only available on web
+let CodeEditorWeb: React.ComponentType<any> | null = null;
+if (Platform.OS === 'web') {
+    try {
+        CodeEditorWeb = require('./CodeEditorWeb').default;
+    } catch {
+        // Fallback handled below
     }
 }
 
@@ -41,7 +51,6 @@ const CodeEditor = ({ value, language, onChange }: CodeEditorProps): React.JSX.E
         }
     }, [onChange]);
 
-    // Send init message once WebView loads
     const handleLoad = useCallback(() => {
         webViewRef.current?.postMessage(JSON.stringify({
             type: 'init',
@@ -51,7 +60,6 @@ const CodeEditor = ({ value, language, onChange }: CodeEditorProps): React.JSX.E
         }));
     }, [value, language]);
 
-    // Sync value changes from parent into the editor
     useEffect(() => {
         if (ready && value !== lastSentValue.current) {
             lastSentValue.current = value;
@@ -62,7 +70,6 @@ const CodeEditor = ({ value, language, onChange }: CodeEditorProps): React.JSX.E
         }
     }, [value, ready]);
 
-    // Sync language changes
     useEffect(() => {
         if (ready && language) {
             webViewRef.current?.postMessage(JSON.stringify({
@@ -72,7 +79,16 @@ const CodeEditor = ({ value, language, onChange }: CodeEditorProps): React.JSX.E
         }
     }, [language, ready]);
 
-    // Use WebView on native, TextInput on web
+    // Web: use React CodeMirror wrapper
+    if (Platform.OS === 'web' && CodeEditorWeb) {
+        return (
+            <View style={styles.container}>
+                <CodeEditorWeb value={value} language={language} onChange={onChange} />
+            </View>
+        );
+    }
+
+    // Native: use WebView with CodeMirror HTML
     if (WebView && editorHtml) {
         return (
             <View style={styles.container}>
@@ -92,23 +108,7 @@ const CodeEditor = ({ value, language, onChange }: CodeEditorProps): React.JSX.E
         );
     }
 
-    // Fallback: plain TextInput (web platform or if WebView unavailable)
-    return (
-        <View style={styles.container}>
-            <TextInput
-                style={styles.editor}
-                value={value}
-                onChangeText={onChange}
-                multiline
-                autoCapitalize="none"
-                autoCorrect={false}
-                spellCheck={false}
-                textAlignVertical="top"
-                placeholder="Enter diagram code here..."
-                placeholderTextColor={colors.textMuted}
-            />
-        </View>
-    );
+    return <View style={styles.container} />;
 };
 
 const styles = StyleSheet.create({
@@ -119,15 +119,6 @@ const styles = StyleSheet.create({
     webview: {
         flex: 1,
         backgroundColor: colors.surface,
-    },
-    editor: {
-        flex: 1,
-        fontFamily: 'monospace',
-        fontSize: 14,
-        lineHeight: 22,
-        color: colors.text,
-        padding: spacing.lg,
-        textAlignVertical: 'top',
     },
 });
 

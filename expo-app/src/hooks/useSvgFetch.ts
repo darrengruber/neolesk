@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
+import { hasLocalEngine, renderLocal } from '../engines';
 
 interface SvgFetchResult {
     svgUrl: string;
     svgText: string | null;
+    blobUrl: string | null;
     dimensions: { width: number; height: number } | null;
     loading: boolean;
     error: boolean;
+    local: boolean;
+}
+
+interface UseSvgFetchOptions {
+    svgUrl: string;
+    diagramType: string;
+    diagramText: string;
 }
 
 /** Parse width/height from SVG text using regex (no DOMParser in RN). */
@@ -30,61 +40,107 @@ const parseSvgDimensions = (svgText: string): { width: number; height: number } 
     return null;
 };
 
-export const useSvgFetch = (svgUrl: string): SvgFetchResult => {
+const createSvgBlobUrl = (svgText: string): string | null => {
+    if (Platform.OS !== 'web' || typeof Blob === 'undefined' || typeof URL === 'undefined') {
+        return null;
+    }
+    const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+    return URL.createObjectURL(blob);
+};
+
+export const useSvgFetch = ({ svgUrl, diagramType, diagramText }: UseSvgFetchOptions): SvgFetchResult => {
     const [state, setState] = useState<SvgFetchResult>({
         svgUrl,
         svgText: null,
+        blobUrl: null,
         dimensions: null,
         loading: true,
         error: false,
+        local: false,
     });
-    const currentUrlRef = useRef<string>(svgUrl);
+    const blobUrlRef = useRef<string | null>(null);
+
+    const revokeBlobUrl = useCallback(() => {
+        if (blobUrlRef.current && typeof URL !== 'undefined') {
+            URL.revokeObjectURL(blobUrlRef.current);
+            blobUrlRef.current = null;
+        }
+    }, []);
+
+    const applySvg = useCallback((svgText: string, url: string, local: boolean) => {
+        revokeBlobUrl();
+        const blobUrl = createSvgBlobUrl(svgText);
+        blobUrlRef.current = blobUrl;
+        const dimensions = parseSvgDimensions(svgText) || { width: 800, height: 600 };
+        setState({ svgUrl: url, svgText, blobUrl, dimensions, loading: false, error: false, local });
+    }, [revokeBlobUrl]);
 
     useEffect(() => {
-        currentUrlRef.current = svgUrl;
         const controller = new AbortController();
-        let attempts = 0;
+        let cancelled = false;
         let retryTimeout: ReturnType<typeof setTimeout> | null = null;
 
-        const fetchSvg = async () => {
-            try {
-                const response = await fetch(svgUrl, { signal: controller.signal });
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+        setState((prev) => ({ ...prev, svgUrl, loading: true, error: false }));
+
+        const fetchRemote = async () => {
+            let attempts = 0;
+            const doFetch = async (): Promise<void> => {
+                try {
+                    const response = await fetch(svgUrl, { signal: controller.signal });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                    const text = await response.text();
+                    if (!text.includes('<svg')) throw new Error('Invalid SVG response');
+                    if (cancelled) return;
+
+                    applySvg(text, svgUrl, false);
+                } catch (err) {
+                    if (cancelled || controller.signal.aborted) return;
+
+                    if (attempts < 3) {
+                        attempts += 1;
+                        await new Promise<void>((resolve) => {
+                            retryTimeout = setTimeout(resolve, attempts * 300);
+                        });
+                        if (!cancelled) return doFetch();
+                    }
+
+                    setState({ svgUrl, svgText: null, blobUrl: null, dimensions: null, loading: false, error: true, local: false });
                 }
-
-                const text = await response.text();
-                if (!text.includes('<svg')) {
-                    throw new Error('Invalid SVG response');
-                }
-
-                if (currentUrlRef.current !== svgUrl) return;
-
-                const dimensions = parseSvgDimensions(text) || { width: 800, height: 600 };
-                setState({ svgUrl, svgText: text, dimensions, loading: false, error: false });
-            } catch (err) {
-                if (controller.signal.aborted) return;
-
-                if (attempts < 3) {
-                    attempts += 1;
-                    retryTimeout = setTimeout(fetchSvg, attempts * 300);
-                    return;
-                }
-
-                setState({ svgUrl, svgText: null, dimensions: null, loading: false, error: true });
-            }
+            };
+            return doFetch();
         };
 
-        setState((prev) => ({ ...prev, svgUrl, loading: true, error: false }));
-        fetchSvg();
+        const run = async () => {
+            // Try local engine first
+            if (hasLocalEngine(diagramType)) {
+                try {
+                    const svgText = await renderLocal(diagramType, diagramText);
+                    if (cancelled) return;
+                    applySvg(svgText, svgUrl, true);
+                    return;
+                } catch {
+                    // Local failed, fall through to remote
+                    if (cancelled) return;
+                }
+            }
+
+            // Remote fetch
+            await fetchRemote();
+        };
+
+        run();
 
         return () => {
+            cancelled = true;
             controller.abort();
-            if (retryTimeout !== null) {
-                clearTimeout(retryTimeout);
-            }
+            if (retryTimeout !== null) clearTimeout(retryTimeout);
         };
-    }, [svgUrl]);
+    }, [svgUrl, diagramType, diagramText, applySvg]);
+
+    useEffect(() => {
+        return () => revokeBlobUrl();
+    }, [revokeBlobUrl]);
 
     return state;
 };

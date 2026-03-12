@@ -1,7 +1,7 @@
 import type { ExampleRecord } from '../types';
 import exampleData from '../examples';
-import { encode } from '../kroki/coder';
 import { defaultRenderUrl } from '../state';
+import { getExampleCacheFilename } from '../examples/cacheKey';
 
 const createKrokiUrl = (diagramType: string, encodedText: string): string =>
     `${defaultRenderUrl}${diagramType}/svg/${encodedText}`;
@@ -12,6 +12,7 @@ export const buildExamples = (): ExampleRecord[] =>
         ...example,
         searchField: `${example.title} ${example.description} ${(example.keywords || []).join(' ')}`.toLowerCase(),
         url: createKrokiUrl(example.diagramType, example.example),
+        cacheUrl: `./cache/${getExampleCacheFilename(example)}`,
     }));
 
 export const filterExamples = (examples: ExampleRecord[], search: string): ExampleRecord[] => {

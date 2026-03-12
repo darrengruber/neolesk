@@ -143,7 +143,7 @@ function App(): React.JSX.Element {
                 )}
                 {showPreview && (
                     <View style={[styles.pane, isTablet && styles.panePreview]}>
-                        <PreviewPane svgUrl={previewState.svgUrl} />
+                        <PreviewPane svgUrl={previewState.svgUrl} diagramType={diagramType} diagramText={previewText} />
                     </View>
                 )}
             </View>

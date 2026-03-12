@@ -13,6 +13,7 @@ export interface ExampleRecord extends ExampleDefinition {
     id: number;
     searchField: string;
     url: string;
+    cacheUrl: string;
 }
 
 export interface DiagramTypeDefinition {
