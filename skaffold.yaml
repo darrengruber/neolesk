@@ -12,6 +12,10 @@ build:
   local:
     push: true
 
+deploy:
+  kubectl:
+    defaultNamespace: kroki
+
 manifests:
   kustomize:
     paths:
