@@ -4,7 +4,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-ARG NEOLESK_KROKI_ENGINE=https://kroki.io/
+ARG NEOLESK_KROKI_ENGINE
 
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
@@ -15,8 +15,12 @@ COPY public ./public
 COPY scripts ./scripts
 COPY src ./src
 RUN --mount=type=cache,id=neolesk-example-cache,target=/app/public/cache \
-    if [ -z "$NEOLESK_KROKI_ENGINE" ] && [ -f .env ]; then \
-      export $(grep -v '^#' .env | xargs); \
+    _KROKI_ARG="$NEOLESK_KROKI_ENGINE" && \
+    if [ -f .env ]; then \
+      set -a && . .env && set +a; \
+    fi && \
+    if [ -n "$_KROKI_ARG" ]; then \
+      export NEOLESK_KROKI_ENGINE="$_KROKI_ARG"; \
     fi && \
     npm run build
 

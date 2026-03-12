@@ -3,6 +3,12 @@
 controllers:
   main:
     strategy: Recreate
+    initContainers:
+      wait-db:
+        image:
+          repository: busybox
+          tag: latest
+        command: ["sh", "-c", "until nc -z rivet-db-rw 5432; do echo 'waiting for postgres'; sleep 2; done && until nc -z nats 4222; do echo 'waiting for nats'; sleep 2; done"]
     containers:
       main:
         image:
@@ -78,6 +84,7 @@ ingress:
     className: tailscale
     annotations:
       tailscale.com/hostname: rivet-engine
+      tailscale.com/funnel: "true"
     defaultBackend:
       service:
         name: rivet-engine

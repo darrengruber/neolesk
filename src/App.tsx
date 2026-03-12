@@ -137,6 +137,9 @@ function App(): JSX.Element {
                     setRuntimeRenderUrl(url);
                     setRenderUrl(url);
                 }
+                if (config?.relayUrl) {
+                    setMcpRelayUrl(config.relayUrl);
+                }
             })
             .catch(() => {});
     }, []);
@@ -628,14 +631,14 @@ function App(): JSX.Element {
                 <div className="McpModalContent">
                     <p className="McpModalDescription">
                         Run an MCP server directly from your browser. External MCP clients
-                        (like Claude Desktop) can connect through a Cloudflare Worker relay
+                        (like Claude Desktop) can connect through a relay server
                         to read and control your diagrams in real-time.
                     </p>
 
                     {!mcp.isActive ? (
                         <div className="McpModalForm">
                             <label className="McpModalLabel">
-                                Relay Worker URL
+                                Relay URL
                                 <input
                                     className="ModalInput code"
                                     placeholder="https://neolesk-mcp-relay.your-account.workers.dev"
@@ -644,8 +647,8 @@ function App(): JSX.Element {
                                 />
                             </label>
                             <p className="McpModalHint">
-                                Deploy the relay worker from <span className="code">mcp-relay/</span> to your
-                                Cloudflare account, then enter the URL above.
+                                Deploy the relay from <span className="code">mcp-relay/</span> as a
+                                Cloudflare Worker or standalone server, then enter the URL above.
                             </p>
                         </div>
                     ) : null}
@@ -657,17 +660,29 @@ function App(): JSX.Element {
                                 <span>Connected</span>
                             </div>
                             <label className="McpModalLabel">
-                                SSE endpoint for MCP clients
+                                Claude Code
                                 <input
                                     className="ModalInput code"
                                     readOnly
-                                    value={mcp.tunnelState.sseUrl}
+                                    value={`claude mcp add neolesk --transport sse ${mcp.tunnelState.sseUrl}`}
                                     onClick={(e) => (e.target as HTMLInputElement).select()}
                                 />
                             </label>
+                            <label className="McpModalLabel">
+                                Claude Desktop / Cursor
+                                <pre
+                                    className="McpModalCodeBlock code"
+                                    onClick={(e) => {
+                                        const sel = window.getSelection();
+                                        const range = document.createRange();
+                                        range.selectNodeContents(e.currentTarget);
+                                        sel?.removeAllRanges();
+                                        sel?.addRange(range);
+                                    }}
+                                >{JSON.stringify({ mcpServers: { neolesk: { command: 'npx', args: ['-y', 'mcp-remote', mcp.tunnelState.sseUrl] } } }, null, 2)}</pre>
+                            </label>
                             <p className="McpModalHint">
-                                Add this URL as an MCP server in your client config. Tools available:
-                                get_diagram, set_diagram, render_diagram, list_diagram_types.
+                                Tools: get_diagram, set_diagram, render_diagram, list_diagram_types.
                             </p>
                         </div>
                     ) : null}

@@ -1284,6 +1284,20 @@ textarea {
     gap: 10px;
 }
 
+.McpModalCodeBlock {
+    margin: 0;
+    padding: 8px 10px;
+    background: var(--neolesk-bg, #f5f5f5);
+    border: 1px solid var(--neolesk-border, #e0e0e0);
+    border-radius: 6px;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    white-space: pre;
+    overflow-x: auto;
+    cursor: text;
+    user-select: all;
+}
+
 .McpModalStatusRow {
     display: flex;
     align-items: center;
