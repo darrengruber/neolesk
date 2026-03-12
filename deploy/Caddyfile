@@ -5,6 +5,11 @@
 }
 
 http://:8080 {
+	handle /kroki/* {
+		uri strip_prefix /kroki
+		reverse_proxy {$KROKI_UPSTREAM:kroki-main.kroki.svc.cluster.local:8000}
+	}
+
 	root * /usr/share/caddy
 	try_files {path} /index.html
 	file_server
