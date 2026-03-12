@@ -8,5 +8,5 @@
         "skipLibCheck": true,
         "esModuleInterop": true
     },
-    "include": ["standalone.ts"]
+    "include": ["standalone.ts", "src/core.ts"]
 }

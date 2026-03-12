@@ -1,9 +1,9 @@
 /**
  * Standalone relay server for browser-based MCP server.
  *
- * This is a Node.js equivalent of the Cloudflare Worker relay (src/index.ts),
- * using in-memory state instead of Durable Objects. Suitable for single-instance
- * deployment in Kubernetes.
+ * Node.js adapter that wraps the shared RelaySession core.
+ * Uses in-memory session management. Suitable for single-instance
+ * deployment in Kubernetes or local development.
  *
  * Architecture:
  *   Browser <--WebSocket--> This server <--SSE/POST--> MCP Client
@@ -12,53 +12,27 @@
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
+import { RelaySession, CORS_HEADERS } from './src/core';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
-// --- Session state ---
+// --- Session management ---
 
-interface PendingResponse {
-    resolve: (body: string) => void;
-    timeout: ReturnType<typeof setTimeout>;
-}
+const sessions = new Map<string, RelaySession>();
 
-interface SseClient {
-    res: ServerResponse;
-    keepAlive: ReturnType<typeof setInterval>;
-}
-
-interface Session {
-    browserSocket: WebSocket | null;
-    sseClients: Map<string, SseClient>;
-    pendingResponses: Map<string | number, PendingResponse>;
-}
-
-const sessions = new Map<string, Session>();
-
-function getOrCreateSession(sessionId: string): Session {
+function getOrCreateSession(sessionId: string): RelaySession {
     let session = sessions.get(sessionId);
     if (!session) {
-        session = {
-            browserSocket: null,
-            sseClients: new Map(),
-            pendingResponses: new Map(),
-        };
+        session = new RelaySession();
         sessions.set(sessionId, session);
     }
     return session;
 }
 
-// --- CORS ---
-
-const corsHeaders: Record<string, string> = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': '*',
-    'Access-Control-Expose-Headers': 'Mcp-Session-Id',
-};
+// --- Node.js helpers ---
 
 function setCors(res: ServerResponse): void {
-    for (const [k, v] of Object.entries(corsHeaders)) {
+    for (const [k, v] of Object.entries(CORS_HEADERS)) {
         res.setHeader(k, v);
     }
 }
@@ -75,8 +49,6 @@ function sendText(res: ServerResponse, status: number, text: string): void {
     res.end(text);
 }
 
-// --- Helpers ---
-
 function readBody(req: IncomingMessage): Promise<string> {
     return new Promise((resolve, reject) => {
         const chunks: Buffer[] = [];
@@ -86,64 +58,46 @@ function readBody(req: IncomingMessage): Promise<string> {
     });
 }
 
-// --- WebSocket message handler ---
+/**
+ * Convert a Web API Response (from RelaySession) to a Node.js ServerResponse.
+ * Handles both regular responses and streaming SSE responses.
+ */
+async function sendWebResponse(webRes: Response, nodeRes: ServerResponse): Promise<void> {
+    // Copy headers
+    webRes.headers.forEach((value, key) => {
+        nodeRes.setHeader(key, value);
+    });
+    nodeRes.writeHead(webRes.status);
 
-function handleBrowserMessage(session: Session, data: string): void {
-    let parsed: { type: string; clientId?: string; body?: string };
-    try {
-        parsed = JSON.parse(data);
-    } catch {
+    if (!webRes.body) {
+        nodeRes.end();
         return;
     }
 
-    if (parsed.type !== 'mcp_response' || !parsed.clientId || !parsed.body) {
-        return;
-    }
-
-    // HTTP Streamable: resolve the pending response promise
-    if (parsed.clientId === '__streamable__') {
-        try {
-            const responseJson = JSON.parse(parsed.body) as { id?: string | number };
-            if (responseJson.id !== undefined) {
-                const pending = session.pendingResponses.get(responseJson.id);
-                if (pending) {
-                    clearTimeout(pending.timeout);
-                    session.pendingResponses.delete(responseJson.id);
-                    pending.resolve(parsed.body);
-                }
+    // Stream the body
+    const reader = webRes.body.getReader();
+    const pump = async () => {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (!nodeRes.destroyed) {
+                nodeRes.write(value);
+            } else {
+                reader.cancel();
+                break;
             }
-        } catch {}
-        return;
-    }
-
-    // SSE transport: write to SSE stream
-    const client = session.sseClients.get(parsed.clientId);
-    if (client) {
-        try {
-            client.res.write(`event: message\ndata: ${parsed.body}\n\n`);
-        } catch {
-            cleanupSseClient(session, parsed.clientId);
         }
-    }
-}
+    };
 
-function cleanupSseClient(session: Session, clientId: string): void {
-    const client = session.sseClients.get(clientId);
-    if (client) {
-        clearInterval(client.keepAlive);
-        try { client.res.end(); } catch {}
-        session.sseClients.delete(clientId);
-    }
-}
+    // Don't end the response for SSE streams — let them stay open
+    // until the reader is done (client disconnect closes the stream)
+    nodeRes.on('close', () => {
+        reader.cancel().catch(() => {});
+    });
 
-function cleanupSession(session: Session): void {
-    for (const [id] of session.sseClients) {
-        cleanupSseClient(session, id);
-    }
-    for (const [id, pending] of session.pendingResponses) {
-        clearTimeout(pending.timeout);
-        session.pendingResponses.delete(id);
-    }
+    pump().catch(() => {
+        reader.cancel().catch(() => {});
+    });
 }
 
 // --- HTTP server ---
@@ -192,146 +146,33 @@ const server = createServer(async (req, res) => {
 
     // GET /s/{id}/sse — MCP client SSE stream
     if (subPath === '/sse' && method === 'GET') {
-        if (!session.browserSocket || session.browserSocket.readyState !== WebSocket.OPEN) {
-            sendText(res, 503, 'No browser connected');
-            return;
-        }
-
-        const clientId = randomUUID();
-        setCors(res);
-        res.writeHead(200, {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-        });
-
-        // Send endpoint event
         const origin = `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
-        const endpointUrl = `${origin}/s/${sessionId}/message?clientId=${clientId}`;
-        res.write(`event: endpoint\ndata: ${endpointUrl}\n\n`);
-
-        // Keep-alive ping every 15 seconds
-        const keepAlive = setInterval(() => {
-            try {
-                res.write(': ping\n\n');
-            } catch {
-                cleanupSseClient(session, clientId);
-            }
-        }, 15000);
-
-        session.sseClients.set(clientId, { res, keepAlive });
-
-        // Clean up on disconnect
-        req.on('close', () => cleanupSseClient(session, clientId));
+        const webRes = session.handleSseConnect(`${origin}/s/${sessionId}`);
+        await sendWebResponse(webRes, res);
         return;
     }
 
     // POST /s/{id}/sse — HTTP Streamable transport
     if (subPath === '/sse' && method === 'POST') {
-        if (!session.browserSocket || session.browserSocket.readyState !== WebSocket.OPEN) {
-            sendText(res, 503, 'No browser connected');
-            return;
-        }
-
         const body = await readBody(req);
-        let parsed: { id?: string | number; method?: string };
-        try {
-            parsed = JSON.parse(body);
-        } catch {
-            sendText(res, 400, 'Invalid JSON');
-            return;
-        }
-
-        const mcpSessionId = sessionId;
-        setCors(res);
-        res.setHeader('Mcp-Session-Id', mcpSessionId);
-
-        // Notifications (no id) don't expect a response
-        if (parsed.id === undefined) {
-            try {
-                session.browserSocket.send(JSON.stringify({
-                    type: 'mcp_request',
-                    clientId: '__streamable__',
-                    body,
-                }));
-            } catch {
-                res.writeHead(503);
-                res.end('Browser disconnected');
-                return;
-            }
-            res.writeHead(202);
-            res.end();
-            return;
-        }
-
-        // Requests with an id: forward and wait for response
-        const requestId = parsed.id;
-
-        const responsePromise = new Promise<string>((resolve) => {
-            const timeout = setTimeout(() => {
-                session.pendingResponses.delete(requestId);
-                resolve(JSON.stringify({
-                    jsonrpc: '2.0',
-                    id: requestId,
-                    error: { code: -32000, message: 'Timeout waiting for browser response' },
-                }));
-            }, 30000);
-            session.pendingResponses.set(requestId, { resolve, timeout });
-        });
-
-        try {
-            session.browserSocket.send(JSON.stringify({
-                type: 'mcp_request',
-                clientId: '__streamable__',
-                body,
-            }));
-        } catch {
-            session.pendingResponses.delete(requestId);
-            res.writeHead(503);
-            res.end('Browser disconnected');
-            return;
-        }
-
-        const responseBody = await responsePromise;
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(responseBody);
+        const webRes = await session.handleStreamablePost(body, sessionId);
+        await sendWebResponse(webRes, res);
         return;
     }
 
     // DELETE /s/{id}/sse — session cleanup
     if (subPath === '/sse' && method === 'DELETE') {
-        setCors(res);
-        res.writeHead(200);
-        res.end();
+        const webRes = session.handleStreamableDelete();
+        await sendWebResponse(webRes, res);
         return;
     }
 
     // POST /s/{id}/message — MCP client sends message (SSE transport)
     if (subPath.startsWith('/message') && method === 'POST') {
-        if (!session.browserSocket || session.browserSocket.readyState !== WebSocket.OPEN) {
-            sendText(res, 503, 'No browser connected');
-            return;
-        }
-
-        const clientId = url.searchParams.get('clientId');
-        if (!clientId || !session.sseClients.has(clientId)) {
-            sendText(res, 400, 'Unknown client');
-            return;
-        }
-
+        const clientId = url.searchParams.get('clientId') || '';
         const body = await readBody(req);
-        try {
-            session.browserSocket.send(JSON.stringify({
-                type: 'mcp_request',
-                clientId,
-                body,
-            }));
-        } catch {
-            sendText(res, 503, 'Browser disconnected');
-            return;
-        }
-
-        sendText(res, 202, 'Accepted');
+        const webRes = session.handleMcpMessage(clientId, body);
+        await sendWebResponse(webRes, res);
         return;
     }
 
@@ -354,30 +195,27 @@ server.on('upgrade', (req, socket, head) => {
     const session = getOrCreateSession(sessionId);
 
     wss.handleUpgrade(req, socket, head, (ws) => {
-        // Close existing browser socket if any
-        if (session.browserSocket) {
-            try { session.browserSocket.close(1000, 'replaced'); } catch {}
-        }
+        // Close existing browser socket if any — handleBrowserDisconnect
+        // cleans up SSE clients and pending responses
+        session.handleBrowserDisconnect();
 
-        session.browserSocket = ws;
+        session.setBrowserSend((msg) => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(msg);
+            }
+        });
 
         ws.on('message', (data) => {
             const text = typeof data === 'string' ? data : data.toString();
-            handleBrowserMessage(session, text);
+            session.handleBrowserMessage(text);
         });
 
         ws.on('close', () => {
-            if (session.browserSocket === ws) {
-                session.browserSocket = null;
-                cleanupSession(session);
-            }
+            session.handleBrowserDisconnect();
         });
 
         ws.on('error', () => {
-            if (session.browserSocket === ws) {
-                session.browserSocket = null;
-                cleanupSession(session);
-            }
+            session.handleBrowserDisconnect();
         });
     });
 });
