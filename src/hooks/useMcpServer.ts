@@ -5,7 +5,7 @@ import { createTunnel } from '../mcp/tunnel';
 import type { McpTunnelHandle, TunnelState } from '../mcp/tunnel';
 import { encode } from '../kroki/coder';
 
-const DEFAULT_RELAY_URL = 'https://neolesk-mcp-relay.YOUR_SUBDOMAIN.workers.dev';
+const DEFAULT_RELAY_URL = 'https://neolesk-mcp-relay.zgruber.workers.dev';
 
 export interface UseMcpServerOptions {
     diagramType: string;

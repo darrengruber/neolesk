@@ -32,15 +32,27 @@ export class McpRelay {
         this.state = state;
     }
 
+    /** Recover browser WebSocket after hibernation wake-up. */
+    private ensureBrowserSocket(): void {
+        if (this.browserSocket) return;
+        const sockets = this.state.getWebSockets();
+        if (sockets.length > 0) {
+            this.browserSocket = sockets[0];
+            this.sessionReady = true;
+        }
+    }
+
     async fetch(request: Request): Promise<Response> {
+        this.ensureBrowserSocket();
         const url = new URL(request.url);
         const path = url.pathname;
 
         // CORS headers for all responses
         const corsHeaders: Record<string, string> = {
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': '*',
+            'Access-Control-Expose-Headers': 'Mcp-Session-Id',
         };
 
         if (request.method === 'OPTIONS') {
@@ -52,12 +64,22 @@ export class McpRelay {
             return this.handleBrowserWebSocket(request, corsHeaders);
         }
 
-        // MCP client connects via SSE
+        // MCP client connects via SSE (GET) or HTTP Streamable (POST)
         if (path === '/sse' && request.method === 'GET') {
             return this.handleMcpSse(request, corsHeaders);
         }
 
-        // MCP client sends messages via POST
+        // HTTP Streamable: POST to /sse sends a JSON-RPC message and gets response inline
+        if (path === '/sse' && request.method === 'POST') {
+            return this.handleStreamablePost(request, corsHeaders);
+        }
+
+        // HTTP Streamable: DELETE to /sse terminates the session
+        if (path === '/sse' && request.method === 'DELETE') {
+            return new Response(null, { status: 200, headers: corsHeaders });
+        }
+
+        // MCP client sends messages via POST (SSE transport)
         if (path.startsWith('/message') && request.method === 'POST') {
             return this.handleMcpMessage(request, corsHeaders);
         }
@@ -87,7 +109,7 @@ export class McpRelay {
         return new Response(null, { status: 101, webSocket: client });
     }
 
-    private handleMcpSse(_request: Request, corsHeaders: Record<string, string>): Response {
+    private handleMcpSse(request: Request, corsHeaders: Record<string, string>): Response {
         if (!this.sessionReady || !this.browserSocket) {
             return new Response('No browser connected', { status: 503, headers: corsHeaders });
         }
@@ -98,8 +120,10 @@ export class McpRelay {
 
         this.sseClients.set(clientId, writer);
 
-        // Send the endpoint event so the MCP client knows where to POST messages
-        const endpointUrl = `/message?clientId=${clientId}`;
+        // Build absolute endpoint URL so all MCP clients can resolve it
+        const sessionPrefix = request.headers.get('X-Session-Prefix') || '';
+        const origin = new URL(request.url).origin;
+        const endpointUrl = `${origin}${sessionPrefix}/message?clientId=${clientId}`;
         const endpointEvent = `event: endpoint\ndata: ${endpointUrl}\n\n`;
         writer.write(this.encoder.encode(endpointEvent)).catch(() => {
             this.sseClients.delete(clientId);
@@ -108,24 +132,22 @@ export class McpRelay {
         // Clean up when the client disconnects
         const cleanup = () => {
             this.sseClients.delete(clientId);
+            if (keepAlive) clearInterval(keepAlive);
             writer.close().catch(() => {});
         };
 
         // Keep-alive ping every 15 seconds
         const keepAlive = setInterval(() => {
             writer.write(this.encoder.encode(': ping\n\n')).catch(() => {
-                clearInterval(keepAlive);
                 cleanup();
             });
         }, 15000);
 
-        // When the readable side is cancelled (client disconnect), clean up
-        readable.pipeTo(new WritableStream({
-            close: () => { clearInterval(keepAlive); cleanup(); },
-            abort: () => { clearInterval(keepAlive); cleanup(); },
-        })).catch(() => { clearInterval(keepAlive); cleanup(); });
+        // Use a tee: one branch for the Response, the other to detect client disconnect
+        const [responseBranch, watchBranch] = readable.tee();
+        watchBranch.pipeTo(new WritableStream()).catch(() => { cleanup(); });
 
-        return new Response(readable, {
+        return new Response(responseBranch, {
             headers: {
                 ...corsHeaders,
                 'Content-Type': 'text/event-stream',
@@ -162,6 +184,74 @@ export class McpRelay {
         return new Response('Accepted', { status: 202, headers: corsHeaders });
     }
 
+    /**
+     * HTTP Streamable transport: POST to /sse.
+     * Forward the JSON-RPC request to the browser and wait for the response,
+     * returning it directly (or as an SSE stream for requests that expect one).
+     */
+    private async handleStreamablePost(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
+        if (!this.sessionReady || !this.browserSocket) {
+            return new Response('No browser connected', { status: 503, headers: corsHeaders });
+        }
+
+        const body = await request.text();
+        let parsed: { id?: string | number; method?: string };
+        try {
+            parsed = JSON.parse(body);
+        } catch {
+            return new Response('Invalid JSON', { status: 400, headers: corsHeaders });
+        }
+
+        // Session ID for HTTP Streamable transport
+        const mcpSessionId = this.state.id.toString();
+        const streamableHeaders = { ...corsHeaders, 'Mcp-Session-Id': mcpSessionId };
+
+        // Notifications (no id) don't expect a response
+        if (parsed.id === undefined) {
+            try {
+                this.browserSocket.send(JSON.stringify({
+                    type: 'mcp_request',
+                    clientId: '__streamable__',
+                    body,
+                }));
+            } catch {
+                return new Response('Browser disconnected', { status: 503, headers: streamableHeaders });
+            }
+            return new Response(null, { status: 202, headers: streamableHeaders });
+        }
+
+        // Requests with an id: forward and wait for response
+        const requestId = parsed.id;
+
+        const responsePromise = new Promise<string>((resolve) => {
+            const timeout = setTimeout(() => {
+                this.pendingResponses.delete(requestId);
+                resolve(JSON.stringify({ jsonrpc: '2.0', id: requestId, error: { code: -32000, message: 'Timeout waiting for browser response' } }));
+            }, 30000) as unknown as number;
+            this.pendingResponses.set(requestId, { resolve, timeout });
+        });
+
+        try {
+            this.browserSocket.send(JSON.stringify({
+                type: 'mcp_request',
+                clientId: '__streamable__',
+                body,
+            }));
+        } catch {
+            this.pendingResponses.delete(requestId);
+            return new Response('Browser disconnected', { status: 503, headers: corsHeaders });
+        }
+
+        const responseBody = await responsePromise;
+
+        return new Response(responseBody, {
+            headers: {
+                ...streamableHeaders,
+                'Content-Type': 'application/json',
+            },
+        });
+    }
+
     // Handle WebSocket messages from the browser
     async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
         const text = typeof message === 'string' ? message : new TextDecoder().decode(message);
@@ -174,6 +264,23 @@ export class McpRelay {
         }
 
         if (parsed.type === 'mcp_response' && parsed.clientId && parsed.body) {
+            // HTTP Streamable: resolve the pending response promise
+            if (parsed.clientId === '__streamable__') {
+                try {
+                    const responseJson = JSON.parse(parsed.body) as { id?: string | number };
+                    if (responseJson.id !== undefined) {
+                        const pending = this.pendingResponses.get(responseJson.id);
+                        if (pending) {
+                            clearTimeout(pending.timeout);
+                            this.pendingResponses.delete(responseJson.id);
+                            pending.resolve(parsed.body);
+                        }
+                    }
+                } catch {}
+                return;
+            }
+
+            // SSE transport: write to SSE stream
             const writer = this.sseClients.get(parsed.clientId);
             if (writer) {
                 const sseEvent = `event: message\ndata: ${parsed.body}\n\n`;
@@ -211,8 +318,9 @@ export default {
 
         const corsHeaders: Record<string, string> = {
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': '*',
+            'Access-Control-Expose-Headers': 'Mcp-Session-Id',
         };
 
         if (request.method === 'OPTIONS') {
@@ -254,6 +362,10 @@ export default {
         const doUrl = new URL(request.url);
         doUrl.pathname = subPath;
 
-        return stub.fetch(new Request(doUrl.toString(), request));
+        // Pass the session prefix so the DO can construct absolute URLs
+        const headers = new Headers(request.headers);
+        headers.set('X-Session-Prefix', `/s/${sessionId}`);
+
+        return stub.fetch(new Request(doUrl.toString(), { method: request.method, headers, body: request.body }));
     },
 };
