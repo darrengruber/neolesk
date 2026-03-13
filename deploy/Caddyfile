@@ -10,7 +10,9 @@ http://:8080 {
 		reverse_proxy {$KROKI_UPSTREAM:kroki-main.kroki.svc.cluster.local:8000}
 	}
 
-	root * /usr/share/caddy
-	try_files {path} /index.html
-	file_server
+	handle {
+		root * /usr/share/caddy
+		try_files {path} /index.html
+		file_server
+	}
 }

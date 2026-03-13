@@ -119,8 +119,8 @@ function App(): JSX.Element {
     const selectedExample = examples[selectedExampleId] || examples[0];
     const supportedFiletypes = ['svg', 'png', 'jpeg', 'pdf'];
     const previewSvgUrl = useMemo(
-        () => getCachedSvgUrl(previewState.diagramType, previewState.diagramText, previewState.renderUrl) || previewState.svgUrl,
-        [previewState.diagramText, previewState.diagramType, previewState.svgUrl, previewState.renderUrl],
+        () => getCachedSvgUrl(previewState.diagramType, previewState.diagramText) || previewState.svgUrl,
+        [previewState.diagramText, previewState.diagramType, previewState.svgUrl],
     );
 
     const editorOptions = useMemo(() => ({
