@@ -1,24 +1,19 @@
 # syntax=docker/dockerfile:1.7
 
-# Build stage
+# Build stage – Expo web app
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-ARG NEOLESK_KROKI_ENGINE=https://kroki.io/
+ARG EXPO_PUBLIC_KROKI_ENGINE=https://kroki.io/
 
-COPY package.json package-lock.json ./
+COPY expo-app/package.json expo-app/package-lock.json ./
 RUN npm ci --ignore-scripts
 
-COPY .env* ./
-COPY index.html tsconfig.json vite.config.mjs ./
-COPY public ./public
-COPY scripts ./scripts
-COPY src ./src
-RUN --mount=type=cache,id=neolesk-example-cache,target=/app/public/cache \
-    if [ -z "$NEOLESK_KROKI_ENGINE" ] && [ -f .env ]; then \
-      export $(grep -v '^#' .env | xargs); \
-    fi && \
-    npm run build
+COPY expo-app/ ./
+RUN --mount=type=cache,id=neolesk-expo-cache,target=/app/public/cache \
+    EXPO_PUBLIC_KROKI_ENGINE="${EXPO_PUBLIC_KROKI_ENGINE}" \
+    npm run examples:cache && \
+    npx expo export --platform web
 
 # Runtime stage
 FROM caddy:latest

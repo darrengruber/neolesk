@@ -4,6 +4,7 @@
   "main": "index.ts",
   "scripts": {
     "examples:cache": "node scripts/generate-example-cache.cjs",
+    "test:exports": "node scripts/run-export-test.mjs",
     "prestart": "npm run examples:cache",
     "start": "expo start",
     "android": "expo start --android",
@@ -37,6 +38,7 @@
     "react-native-view-shot": "^4.0.3",
     "react-native-web": "^0.21.0",
     "react-native-webview": "13.16.0",
+    "svg2pdf.js": "^2.7.0",
     "vega": "^6.2.0",
     "vega-lite": "^6.4.2",
     "wavedrom": "^3.5.0"
@@ -44,6 +46,9 @@
   "devDependencies": {
     "@types/pako": "^2.0.3",
     "@types/react": "~19.2.2",
+    "pixelmatch": "^7.1.0",
+    "playwright": "^1.58.2",
+    "pngjs": "^7.0.0",
     "typescript": "~5.9.2"
   },
   "private": true

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+    Platform,
     Pressable,
     SafeAreaView,
     StatusBar,
@@ -15,16 +16,16 @@ import {
     defaultRenderUrl,
     diagramTypes,
     getValidFiletype,
+    parseDiagramUrl,
 } from './src/state';
 import type { ExampleRecord } from './src/types';
 import { useDebouncedValue } from './src/hooks/useDebouncedValue';
 import { buildExamples } from './src/utils/examples';
 import CodeEditor from './src/components/CodeEditor';
 import PreviewPane from './src/components/PreviewPane';
+import DocsDrawer from './src/components/DocsDrawer';
 import DiagramTypePicker from './src/components/DiagramTypePicker';
 import ExamplesModal from './src/components/ExamplesModal';
-import ShareSheet from './src/components/ShareSheet';
-import Modal from './src/components/Modal';
 import { colors, radius, spacing } from './src/theme';
 
 type Tab = 'code' | 'preview';
@@ -35,7 +36,10 @@ function App(): React.JSX.Element {
     const { width: windowWidth } = useWindowDimensions();
     const isTablet = windowWidth >= 768;
 
-    const initialState = useMemo(() => createInitialDiagramState(BASE_URL), []);
+    const initialState = useMemo(() => {
+        const hash = Platform.OS === 'web' ? window.location.hash : '';
+        return createInitialDiagramState(BASE_URL, hash);
+    }, []);
     const examples = useMemo(() => buildExamples(), []);
 
     const [diagramType, setDiagramType] = useState(initialState.diagramType);
@@ -48,7 +52,7 @@ function App(): React.JSX.Element {
     });
     const [activeTab, setActiveTab] = useState<Tab>('code');
     const [examplesOpen, setExamplesOpen] = useState(false);
-    const [shareOpen, setShareOpen] = useState(false);
+    const [docsOpen, setDocsOpen] = useState(false);
 
     const debouncedEditorValue = useDebouncedValue(editorValue, 500);
 
@@ -65,6 +69,30 @@ function App(): React.JSX.Element {
             setPreviewText(debouncedEditorValue);
         }
     }, [debouncedEditorValue, editorValue]);
+
+    // Sync URL hash with diagram state (web only)
+    useEffect(() => {
+        if (Platform.OS !== 'web') return;
+        const nextHash = `#${previewState.diagramHash}`;
+        if (window.location.hash !== nextHash) {
+            window.history.replaceState(null, '', nextHash);
+        }
+    }, [previewState.diagramHash]);
+
+    useEffect(() => {
+        if (Platform.OS !== 'web') return;
+        const handleHashChange = () => {
+            const parsed = parseDiagramUrl(window.location.hash);
+            if (!parsed) return;
+            setDiagramType(parsed.diagramType);
+            setFiletype(parsed.filetype);
+            setEditorValue(parsed.diagramText);
+            setPreviewText(parsed.diagramText);
+            updateDraft(parsed.diagramType, parsed.diagramText);
+        };
+        window.addEventListener('hashchange', handleHashChange);
+        return () => window.removeEventListener('hashchange', handleHashChange);
+    }, []);
 
     const updateDraft = (type: string, text: string) => {
         setDraftsByDiagramType((current) =>
@@ -95,6 +123,7 @@ function App(): React.JSX.Element {
         setEditorValue(exampleText);
         setPreviewText(exampleText);
         updateDraft(example.diagramType, exampleText);
+        setExamplesOpen(false);
     }, [filetype]);
 
     const showEditor = isTablet || activeTab === 'code';
@@ -108,11 +137,9 @@ function App(): React.JSX.Element {
             <View style={styles.toolbar}>
                 <Text style={styles.toolbarTitle}>Neolesk</Text>
                 <DiagramTypePicker value={diagramType} onChange={handleDiagramTypeChange} />
+                <View style={styles.toolbarSpacer} />
                 <Pressable style={styles.iconButton} onPress={() => setExamplesOpen(true)}>
-                    <Text style={styles.iconButtonText}>Ex</Text>
-                </Pressable>
-                <Pressable style={styles.iconButton} onPress={() => setShareOpen(true)}>
-                    <Text style={styles.iconButtonText}>Share</Text>
+                    <Text style={styles.iconButtonText}>Examples</Text>
                 </Pressable>
             </View>
 
@@ -138,7 +165,18 @@ function App(): React.JSX.Element {
             <View style={[styles.workspace, isTablet && styles.workspaceTablet]}>
                 {showEditor && (
                     <View style={[styles.pane, isTablet && styles.paneEditor]}>
-                        <CodeEditor value={editorValue} language={previewState.language} onChange={handleEditorChange} />
+                        <View style={styles.editorWithDrawer}>
+                            <View style={styles.editorArea}>
+                                <CodeEditor value={editorValue} language={previewState.language} onChange={handleEditorChange} />
+                            </View>
+                            <DocsDrawer
+                                diagramType={diagramType}
+                                examples={examples}
+                                open={docsOpen}
+                                onToggle={() => setDocsOpen(!docsOpen)}
+                                onExampleImport={handleExampleImport}
+                            />
+                        </View>
                     </View>
                 )}
                 {showPreview && (
@@ -155,10 +193,6 @@ function App(): React.JSX.Element {
                 examples={examples}
                 onImport={handleExampleImport}
             />
-
-            <Modal open={shareOpen} title="Share & Copy" onClose={() => setShareOpen(false)}>
-                <ShareSheet previewState={previewState} editorValue={editorValue} />
-            </Modal>
         </SafeAreaView>
     );
 }
@@ -184,6 +218,9 @@ const styles = StyleSheet.create({
         color: colors.text,
         letterSpacing: -0.3,
         marginRight: spacing.sm,
+    },
+    toolbarSpacer: {
+        flex: 1,
     },
     iconButton: {
         paddingHorizontal: spacing.md,
@@ -238,6 +275,12 @@ const styles = StyleSheet.create({
     },
     panePreview: {
         flex: 0.56,
+    },
+    editorWithDrawer: {
+        flex: 1,
+    },
+    editorArea: {
+        flex: 1,
     },
 });
 

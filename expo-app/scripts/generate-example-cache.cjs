@@ -7,10 +7,8 @@ const rootDir = path.resolve(__dirname, '..');
 const publicDir = path.join(rootDir, 'public');
 const cacheDir = path.join(publicDir, 'cache');
 
-// Read the render URL from state.ts to stay in sync
-const stateSource = fs.readFileSync(path.join(rootDir, 'src/state.ts'), 'utf8');
-const renderUrlMatch = stateSource.match(/defaultRenderUrl\s*=\s*['"]([^'"]+)['"]/);
-const renderUrl = (renderUrlMatch ? renderUrlMatch[1] : 'https://kroki.io/').replace(/\/?$/, '/');
+// Use EXPO_PUBLIC_KROKI_ENGINE env var, falling back to https://kroki.io/
+const renderUrl = (process.env.EXPO_PUBLIC_KROKI_ENGINE || 'https://kroki.io/').replace(/\/?$/, '/');
 
 const concurrency = 8;
 const moduleCache = new Map();

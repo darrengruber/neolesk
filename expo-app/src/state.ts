@@ -5,7 +5,10 @@ import { defaultFiletype } from './kroki/metadata';
 import type { DiagramState, DiagramStateInput, DiagramTypeMap, ParsedDiagramUrl } from './types';
 
 export const defaultDiagramType = 'plantuml';
-export const defaultRenderUrl = 'https://kroki.tailbf5ac.ts.net/';
+
+const envRenderUrl = process.env.EXPO_PUBLIC_KROKI_ENGINE;
+
+export const defaultRenderUrl = (envRenderUrl || 'https://kroki.io/').replace(/\/*$/, '/');
 
 export const diagramTypes = krokiInfo as DiagramTypeMap;
 
@@ -60,10 +63,13 @@ export const buildDiagramState = (input: DiagramStateInput): DiagramState => {
     };
 };
 
-export const createInitialDiagramState = (baseUrl: string): DiagramState => {
-    const diagramType = defaultDiagramType;
-    const diagramText = decode(diagramTypes[diagramType].example);
-    const filetype = getValidFiletype(diagramType, defaultFiletype);
+export const createInitialDiagramState = (baseUrl: string, hash?: string): DiagramState => {
+    const parsed = hash ? parseDiagramUrl(hash) : null;
+
+    const diagramType = parsed?.diagramType || defaultDiagramType;
+    const fallbackExample = diagramTypes[diagramType]?.example || diagramTypes[defaultDiagramType].example;
+    const diagramText = parsed?.diagramText || decode(fallbackExample);
+    const filetype = parsed?.filetype || getValidFiletype(diagramType, defaultFiletype);
     const renderUrl = defaultRenderUrl;
 
     return buildDiagramState({

@@ -44,3 +44,4 @@ jest_html_reporters.html
 dist/
 
 **/charts/*
+
