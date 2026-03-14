@@ -1,2 +1,2 @@
 name = "neolesk"
-pages_build_output_dir = "dist"
+pages_build_output_dir = "expo-app/dist"

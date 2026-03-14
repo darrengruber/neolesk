@@ -1,8 +1,0 @@
-services:
-  app:
-    build:
-      context: .
-      args:
-        NEOLESK_KROKI_ENGINE: ${NEOLESK_KROKI_ENGINE:-https://kroki.io/}
-    ports:
-      - "8080:8080"
