@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { hasLocalEngine, renderLocal } from '../engines';
+import { cachedSvgFetch } from '../utils/svgCache';
 
 interface SvgFetchResult {
     svgUrl: string;
@@ -86,7 +87,7 @@ export const useSvgFetch = ({ svgUrl, diagramType, diagramText }: UseSvgFetchOpt
             let attempts = 0;
             const doFetch = async (): Promise<void> => {
                 try {
-                    const response = await fetch(svgUrl, { signal: controller.signal });
+                    const response = await cachedSvgFetch(svgUrl, null, controller.signal);
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
                     const text = await response.text();

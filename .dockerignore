@@ -10,6 +10,5 @@ dist
 *.log
 README.md
 LICENSE
-deploy
 skaffold.yaml
 .env

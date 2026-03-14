@@ -1,8 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
     FlatList,
-    Image,
-    Platform,
     Pressable,
     StyleSheet,
     Text,
@@ -14,6 +12,7 @@ import Modal from './Modal';
 import { decode } from '../kroki/coder';
 import { filterExamples } from '../utils/examples';
 import type { ExampleRecord } from '../types';
+import CachedSvgImage from './CachedSvgImage';
 import { colors, radius, spacing } from '../theme';
 
 interface ExamplesModalProps {
@@ -30,15 +29,13 @@ const ExampleCard = React.memo(({ item, onSelect, onImport }: {
     onSelect: (id: number) => void;
     onImport: (item: ExampleRecord) => void;
 }) => {
-    const imageUri = Platform.OS === 'web' ? item.cacheUrl : item.url;
-
     return (
         <View style={styles.card}>
             <Pressable onPress={() => onSelect(item.id)} style={styles.cardPreview}>
-                <Image
-                    source={{ uri: imageUri }}
+                <CachedSvgImage
+                    url={item.url}
+                    cacheUrl={item.cacheUrl}
                     style={styles.cardImage}
-                    resizeMode="contain"
                 />
             </Pressable>
             <View style={styles.cardBody}>
@@ -82,8 +79,6 @@ const ExamplesModal = ({ open, onClose, examples, onImport }: ExamplesModalProps
     const handleSelect = useCallback((id: number) => setSelectedId(id), []);
 
     if (selected) {
-        const imageUri = Platform.OS === 'web' ? selected.cacheUrl : selected.url;
-
         return (
             <Modal
                 open={open}
@@ -103,10 +98,10 @@ const ExamplesModal = ({ open, onClose, examples, onImport }: ExamplesModalProps
                 <View style={styles.detailContainer}>
                     <Text style={styles.detailDescription}>{selected.description}</Text>
                     <View style={styles.detailImageContainer}>
-                        <Image
-                            source={{ uri: imageUri }}
+                        <CachedSvgImage
+                            url={selected.url}
+                            cacheUrl={selected.cacheUrl}
                             style={styles.detailImage}
-                            resizeMode="contain"
                         />
                     </View>
                     <View style={styles.codeBlock}>

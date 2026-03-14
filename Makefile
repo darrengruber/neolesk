@@ -4,7 +4,7 @@ export
 .PHONY: dev build deploy
 
 dev:
-	cd expo-app && npm run web
+	cd expo-app && npm run examples:cache && npm run web
 
 build:
 	cd expo-app && npm run examples:cache && npx expo export --platform web
