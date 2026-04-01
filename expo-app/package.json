@@ -5,6 +5,7 @@
   "scripts": {
     "examples:cache": "node scripts/generate-example-cache.cjs",
     "test:exports": "node scripts/run-export-test.mjs",
+    "test:engines": "node scripts/run-engine-test.mjs",
     "prestart": "npm run examples:cache",
     "start": "expo start",
     "android": "expo start --android",
