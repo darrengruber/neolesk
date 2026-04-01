@@ -60,3 +60,8 @@ export interface ParsedDiagramUrl {
     filetype: string;
     diagramText: string;
 }
+
+export interface KrokiError {
+    message: string;
+    lineNumber: number | null;
+}

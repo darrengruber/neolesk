@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createSvgBlobUrl, getDimensions } from '../utils/svgExport';
+import { parseKrokiError } from '../utils/errorParser';
+import type { KrokiError } from '../types';
 
-interface SvgFetchResult {
+export interface SvgFetchResult {
     svgText: string | null;
     blobUrl: string | null;
     dimensions: { width: number; height: number } | null;
     loading: boolean;
-    error: boolean;
+    error: KrokiError | null;
 }
 
 export const useSvgFetch = (svgUrl: string): SvgFetchResult => {
@@ -15,7 +17,7 @@ export const useSvgFetch = (svgUrl: string): SvgFetchResult => {
         blobUrl: null,
         dimensions: null,
         loading: true,
-        error: false,
+        error: null,
     });
     const blobUrlRef = useRef<string | null>(null);
     const currentUrlRef = useRef<string>(svgUrl);
@@ -37,6 +39,13 @@ export const useSvgFetch = (svgUrl: string): SvgFetchResult => {
             try {
                 const response = await fetch(svgUrl, { signal: controller.signal });
                 if (!response.ok) {
+                    if (response.status === 400) {
+                        const body = await response.text();
+                        if (currentUrlRef.current !== svgUrl) return;
+                        const krokiError = parseKrokiError(body);
+                        setState({ svgText: null, blobUrl: null, dimensions: null, loading: false, error: krokiError });
+                        return;
+                    }
                     throw new Error(`HTTP ${response.status}`);
                 }
 
@@ -56,7 +65,7 @@ export const useSvgFetch = (svgUrl: string): SvgFetchResult => {
 
                 if (currentUrlRef.current !== svgUrl) return;
 
-                setState({ svgText: text, blobUrl, dimensions, loading: false, error: false });
+                setState({ svgText: text, blobUrl, dimensions, loading: false, error: null });
             } catch (err) {
                 if (controller.signal.aborted) {
                     return;
@@ -68,11 +77,17 @@ export const useSvgFetch = (svgUrl: string): SvgFetchResult => {
                     return;
                 }
 
-                setState({ svgText: null, blobUrl: null, dimensions: null, loading: false, error: true });
+                setState({
+                    svgText: null,
+                    blobUrl: null,
+                    dimensions: null,
+                    loading: false,
+                    error: { message: 'Failed to load diagram', lineNumber: null },
+                });
             }
         };
 
-        setState((prev) => ({ ...prev, loading: true, error: false }));
+        setState((prev) => ({ ...prev, loading: true, error: null }));
         fetchSvg();
 
         return () => {
