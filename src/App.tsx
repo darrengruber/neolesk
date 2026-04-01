@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MonacoEditor from '@monaco-editor/react';
+import type { editor as monacoEditor, MarkerSeverity } from 'monaco-editor';
 import { getCachedSvgUrl } from './examples/cache';
 import { decode } from './kroki/coder';
 import {
@@ -23,6 +24,7 @@ import ExampleImage from './components/ExampleImage';
 import EditorDrawer from './components/EditorDrawer';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { useWindowWidth } from './hooks/useWindowWidth';
+import { useSvgFetch } from './hooks/useSvgFetch';
 import { buildExamples, filterExamples } from './utils/examples';
 
 const layoutModes: LayoutMode[] = ['vertical', 'horizontal', 'preview'];
@@ -71,6 +73,8 @@ function App(): JSX.Element {
     const [importUrl, setImportUrl] = useState('');
     const [lastLoadedText, setLastLoadedText] = useState(initialDiagramState.diagramText);
     const workspaceRef = useRef<HTMLDivElement | null>(null);
+    const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null);
+    const monacoRef = useRef<{ MarkerSeverity: typeof MarkerSeverity; editor: typeof monacoEditor } | null>(null);
 
     const debouncedEditorValue = useDebouncedValue(editorValue, 500);
     const windowWidth = useWindowWidth();
@@ -99,6 +103,8 @@ function App(): JSX.Element {
         () => getCachedSvgUrl(previewState.diagramType, previewState.diagramText, previewState.renderUrl) || previewState.svgUrl,
         [previewState.diagramText, previewState.diagramType, previewState.svgUrl, previewState.renderUrl],
     );
+
+    const svg = useSvgFetch(previewSvgUrl);
 
     const editorOptions = useMemo(() => ({
         ...monacoOptions,
@@ -206,6 +212,34 @@ function App(): JSX.Element {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    useEffect(() => {
+        const monaco = monacoRef.current;
+        const editor = editorRef.current;
+        if (!monaco || !editor) return;
+
+        const model = editor.getModel();
+        if (!model) return;
+
+        if (svg.error) {
+            const line = svg.error.lineNumber || 1;
+            monaco.editor.setModelMarkers(model, 'kroki', [{
+                startLineNumber: line,
+                startColumn: 1,
+                endLineNumber: line,
+                endColumn: model.getLineMaxColumn(line),
+                message: svg.error.message,
+                severity: monaco.MarkerSeverity.Error,
+            }]);
+        } else {
+            monaco.editor.setModelMarkers(model, 'kroki', []);
+        }
+    }, [svg.error]);
+
+    const handleEditorMount = useCallback((editor: monacoEditor.IStandaloneCodeEditor, monaco: typeof import('monaco-editor')) => {
+        editorRef.current = editor;
+        monacoRef.current = monaco;
     }, []);
 
     const showEditorPane = !isCompact ? layoutMode !== 'preview' : mobileTab === 'code';
@@ -399,6 +433,7 @@ function App(): JSX.Element {
                                     language={currentState.language || 'plaintext'}
                                     value={editorValue}
                                     onChange={handleEditorChange}
+                                    onMount={handleEditorMount}
                                     height="100%"
                                     options={editorOptions}
                                 />
@@ -427,7 +462,7 @@ function App(): JSX.Element {
                     <section className={`WorkspacePanel WorkspacePanelPreview${showPreviewPane ? '' : ' compactHidden'}${!isCompact && layoutMode === 'preview' ? ' previewOnly' : ''}`}>
                         <div className="WorkspacePanelBody">
                             <PreviewPane
-                                svgUrl={previewSvgUrl}
+                                svg={svg}
                                 diagramType={diagramType}
                                 filetypes={supportedFiletypes}
                                 previewState={previewState}
