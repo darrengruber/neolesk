@@ -3,6 +3,7 @@ import { RendererRegistry } from './registry';
 const registry = new RendererRegistry();
 
 registry.register('bytefield', () => import('./bytefield').then(m => m.load()));
+registry.register('excalidraw', () => import('./excalidraw').then(m => m.load()));
 registry.register('dbml', () => import('./dbml').then(m => m.load()));
 registry.register('mermaid', () => import('./mermaid').then(m => m.load()));
 registry.register('nomnoml', () => import('./nomnoml').then(m => m.load()));
