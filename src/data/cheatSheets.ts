@@ -67,6 +67,14 @@ const cheatSheets: Record<string, CheatSheet> = {
             { heading: 'Enums', items: ['Enum status {', '  active', '  inactive', '  pending', '}'] },
         ],
     },
+    diagramsnet: {
+        summary: 'diagrams.net / draw.io diagrams stored as XML using mxGraphModel.',
+        sections: [
+            { heading: 'Root file', items: ['<mxfile>', '  <diagram name="Page-1" id="page1">', '    <mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel>', '  </diagram>', '</mxfile>'] },
+            { heading: 'Vertices', items: ['<mxCell id="2" value="Client" vertex="1" parent="1">', '  <mxGeometry x="120" y="80" width="120" height="60" as="geometry"/>', '</mxCell>'] },
+            { heading: 'Edges', items: ['<mxCell id="3" edge="1" source="2" target="4" parent="1">', '  <mxGeometry relative="1" as="geometry"/>', '</mxCell>'] },
+        ],
+    },
     ditaa: {
         summary: 'ASCII art diagrams converted to proper graphics. Draw boxes and arrows using text characters.',
         sections: [
@@ -88,7 +96,7 @@ const cheatSheets: Record<string, CheatSheet> = {
     excalidraw: {
         summary: 'Hand-drawn style diagrams defined in JSON format with elements, positions, and styling.',
         sections: [
-            { heading: 'Root structure', items: ['{ "type": "excalidraw",', '  "elements": [...],', '  "appState": { "viewBackgroundColor": "#fff" }', '}'] },
+            { heading: 'Root structure', items: ['{', '  "type": "excalidraw",', '  "elements": [],', '  "appState": { "viewBackgroundColor": "#ffffff" }', '}'] },
             { heading: 'Element types', items: ['"type": "rectangle"', '"type": "ellipse"', '"type": "diamond"', '"type": "text"', '"type": "arrow"', '"type": "line"'] },
             { heading: 'Common properties', items: ['"x": 100, "y": 100', '"width": 200, "height": 100', '"strokeColor": "#000"', '"backgroundColor": "#fff"', '"fillStyle": "hachure"'] },
         ],
@@ -116,10 +124,10 @@ const cheatSheets: Record<string, CheatSheet> = {
     nomnoml: {
         summary: 'Simple UML-like diagrams with a minimalist text syntax and customizable styling.',
         sections: [
-            { heading: 'Nodes & edges', items: ['[Node A] -> [Node B]', '[Node A] -- [Node B]  (association)', '[A] -:> [B]  (dependency)', '[A] o- [B]  (composition)'] },
-            { heading: 'Classifiers', items: ['[<actor> User]', '[<abstract> Shape]', '[<instance> :Shape]', '[<note> A note]', '[<package> Models]'] },
-            { heading: 'Styling', items: ['#direction: right', '#fill: #fdf6e3', '#stroke: #333', '#fontSize: 12', '#lineWidth: 2'] },
-            { heading: 'Nested', items: ['[Outer |', '  [Inner A] -> [Inner B]', ']'] },
+            { heading: 'Associations', items: ['[Pirate]->[Rum]', '[Marauder]<:--[Pirate]', '[beard]--[parrot]', '[beard]-:>[foul mouth]'] },
+            { heading: 'Classifiers', items: ['[Pirate|eyeCount: Int|raid();pillage()]', '[<actor>Sailor]', '[<abstract>Marauder]', '[<table>mischief | bawl | sing || yell | drink]'] },
+            { heading: 'Directives', items: ['#direction: right', '#fill: #fdf6e3; #f5f5f5', '#.pirate: fill=#fdf6e3 dashed', '#fontSize: 12'] },
+            { heading: 'Nested', items: ['[Pirate|eyeCount: Int|raid();pillage()|', '  [beard]--[parrot]', '  [beard]-:>[foul mouth]', ']'] },
         ],
     },
     nwdiag: {
@@ -223,7 +231,7 @@ const cheatSheets: Record<string, CheatSheet> = {
     vega: {
         summary: 'Declarative visualization grammar in JSON. Build interactive charts with precise data-driven mappings.',
         sections: [
-            { heading: 'Top-level', items: ['{ "$schema": "https://vega.github.io/schema/vega/v5.json",', '  "width": 400, "height": 200,', '  "data": [...],', '  "marks": [...]', '}'] },
+            { heading: 'Top-level', items: ['{', '  "$schema": "https://vega.github.io/schema/vega/v5.json",', '  "width": 400,', '  "height": 200,', '  "data": [],', '  "marks": []', '}'] },
             { heading: 'Data', items: ['"data": [{ "name": "table",', '  "values": [{"x": 1, "y": 28}]', '}]'] },
             { heading: 'Scales', items: ['"scales": [{ "name": "x",', '  "type": "linear",', '  "domain": {"data":"table","field":"x"},', '  "range": "width"', '}]'] },
             { heading: 'Marks', items: ['"marks": [{ "type": "rect",', '  "from": {"data": "table"},', '  "encode": { "enter": {', '    "x": {"scale":"x","field":"x"}', '  }}', '}]'] },
@@ -232,7 +240,7 @@ const cheatSheets: Record<string, CheatSheet> = {
     vegalite: {
         summary: 'High-level grammar for interactive visualizations. Concise JSON syntax for common chart types.',
         sections: [
-            { heading: 'Basic chart', items: ['{ "$schema": "https://vega.github.io/schema/vega-lite/v5.json",', '  "data": {"values": [...]},', '  "mark": "bar",', '  "encoding": {...}', '}'] },
+            { heading: 'Basic chart', items: ['{', '  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",', '  "data": { "values": [] },', '  "mark": "bar",', '  "encoding": {}', '}'] },
             { heading: 'Mark types', items: ['"mark": "bar"', '"mark": "line"', '"mark": "point"', '"mark": "area"', '"mark": "circle"'] },
             { heading: 'Encoding', items: ['"encoding": {', '  "x": {"field": "a", "type": "ordinal"},', '  "y": {"field": "b", "type": "quantitative"},', '  "color": {"field": "c", "type": "nominal"}', '}'] },
             { heading: 'Data types', items: ['"quantitative"  (numbers)', '"ordinal"  (ordered categories)', '"nominal"  (unordered categories)', '"temporal"  (dates/times)'] },

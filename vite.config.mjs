@@ -50,6 +50,17 @@ export default defineConfig({
         __GIT_HASH__: JSON.stringify(gitHash),
         __KROKI_ENGINE_URL__: JSON.stringify(process.env.NEOLESK_KROKI_ENGINE || 'https://kroki.io/'),
     },
+    resolve: {
+        alias: {
+            // Browser-native engine deps reference Node built-ins that are never
+            // reached at runtime (nomnoml's compileFile, viz.js render_sync,
+            // sax stream mode). Alias to empty modules to suppress Vite warnings.
+            fs: resolve('src/engines/empty-module.mjs'),
+            path: resolve('src/engines/empty-module.mjs'),
+            stream: resolve('src/engines/empty-module.mjs'),
+            crypto: resolve('src/engines/empty-module.mjs'),
+        },
+    },
     test: {
         environment: 'jsdom',
         globals: true,
