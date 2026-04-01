@@ -9,8 +9,16 @@ build:
       context: .
       docker:
         dockerfile: Dockerfile
+    - image: darren/mcp-relay
+      context: mcp-relay
+      docker:
+        dockerfile: Dockerfile
   local:
     push: true
+
+deploy:
+  kubectl:
+    defaultNamespace: kroki
 
 manifests:
   kustomize:

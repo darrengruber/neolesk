@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/app-template-4.6.0/charts/other/app-template/values.schema.json
+---
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          repository: darren/mcp-relay
+          tag: latest
+        ports:
+          - name: http
+            containerPort: 3001
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 3001
+
+ingress:
+  main:
+    enabled: true
+    className: tailscale
+    annotations:
+      tailscale.com/hostname: mcp-relay
+      tailscale.com/funnel: "true"
+    defaultBackend:
+      service:
+        name: mcp-relay
+        port:
+          number: 3001
+    tls:
+    - hosts:
+      - mcp-relay

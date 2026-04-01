@@ -44,3 +44,7 @@ jest_html_reporters.html
 dist/
 
 **/charts/*
+
+**/node_modules/*
+mcp-relay/.wrangler
+.mcp.json

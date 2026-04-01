@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/app-template-4.6.0/charts/other/app-template/values.schema.json
+---
+controllers:
+  main:
+    strategy: Recreate
+    initContainers:
+      wait-db:
+        image:
+          repository: busybox
+          tag: latest
+        command: ["sh", "-c", "until nc -z rivet-db-rw 5432; do echo 'waiting for postgres'; sleep 2; done && until nc -z nats 4222; do echo 'waiting for nats'; sleep 2; done"]
+    containers:
+      main:
+        image:
+          repository: rivetdev/engine
+          tag: latest
+          pullPolicy: Always
+        args: ["start"]
+        env:
+          - name: RIVET_CONFIG_PATH
+            value: /etc/rivet/config.jsonc
+          - name: RIVET__POSTGRES__URL
+            valueFrom:
+              secretKeyRef:
+                name: rivet-db-app
+                key: uri
+        ports:
+          - name: guard
+            containerPort: 6420
+          - name: api-peer
+            containerPort: 6421
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+        probes:
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /health
+                port: 6421
+              initialDelaySeconds: 15
+              periodSeconds: 10
+              failureThreshold: 30
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /health
+                port: 6421
+              periodSeconds: 10
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /health
+                port: 6421
+              periodSeconds: 5
+
+persistence:
+  config:
+    enabled: true
+    type: configMap
+    name: rivet-engine-config
+    globalMounts:
+      - path: /etc/rivet
+
+service:
+  main:
+    controller: main
+    ports:
+      guard:
+        port: 6420
+      api-peer:
+        port: 6421
+
+ingress:
+  main:
+    enabled: true
+    className: tailscale
+    annotations:
+      tailscale.com/hostname: rivet-engine
+      tailscale.com/funnel: "true"
+    defaultBackend:
+      service:
+        name: rivet-engine
+        port:
+          number: 6420
+    tls:
+    - hosts:
+      - rivet-engine

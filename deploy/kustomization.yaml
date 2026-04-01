@@ -10,6 +10,42 @@ helmCharts:
     valuesFile: values.yaml
     namespace: kroki
 
+  - name: app-template
+    releaseName: rivet-engine
+    repo: https://bjw-s-labs.github.io/helm-charts
+    version: 4.6.0
+    valuesFile: rivet/values.yaml
+    namespace: kroki
+
+  - name: app-template
+    releaseName: mcp-relay
+    repo: https://bjw-s-labs.github.io/helm-charts
+    version: 4.6.0
+    valuesFile: relay-values.yaml
+    namespace: kroki
+
+  - name: nats
+    repo: https://nats-io.github.io/k8s/helm/charts/
+    version: 2.12.5
+    releaseName: nats
+    namespace: kroki
+    valuesInline:
+      config:
+        cluster:
+          enabled: false
+        jetstream:
+          enabled: false
+      natsBox:
+        enabled: false
+      container:
+        merge:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+
 resources:
   - namespace.yaml
   - ingress.yaml
+  - rivet/cnpg-cluster.yaml
+  - rivet/engine-configmap.yaml

@@ -19,7 +19,11 @@ if (fs.existsSync(dotenvPath)) {
     }
 }
 
-const renderUrl = `${process.env.NEOLESK_KROKI_ENGINE || defaultRenderUrl}`.replace(/\/?$/, '/');
+// NEOLESK_KROKI_CACHE_URL allows overriding the fetch URL for cache generation
+// (e.g. a Tailscale Funnel URL), while NEOLESK_KROKI_ENGINE may be a relative
+// path like /kroki/ that only works at runtime in the browser.
+const cacheUrl = process.env.NEOLESK_KROKI_CACHE_URL;
+const renderUrl = cacheUrl ? `${cacheUrl}`.replace(/\/?$/, '/') : defaultRenderUrl;
 const concurrency = 8;
 
 const moduleCache = new Map();

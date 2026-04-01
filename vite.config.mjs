@@ -25,6 +25,9 @@ function runtimeConfigPlugin() {
         if (process.env.NEOLESK_KROKI_ENGINE) {
             config.krokiEngineUrl = process.env.NEOLESK_KROKI_ENGINE;
         }
+        if (process.env.NEOLESK_RELAY_URL) {
+            config.relayUrl = process.env.NEOLESK_RELAY_URL;
+        }
         if (Object.keys(config).length > 0) {
             writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
         } else if (existsSync(configPath)) {
