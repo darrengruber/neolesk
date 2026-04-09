@@ -9,6 +9,8 @@ build:
       context: .
       docker:
         dockerfile: Dockerfile
+        buildArgs:
+          EXPO_PUBLIC_KROKI_ENGINE: "{{.EXPO_PUBLIC_KROKI_ENGINE}}"
   local:
     push: true
 
