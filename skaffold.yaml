@@ -5,7 +5,7 @@ metadata:
 
 build:
   artifacts:
-    - image: darren/neolesk
+    - image: zot.grubernet.es/darren/neolesk
       context: .
       docker:
         dockerfile: Dockerfile
