@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MonacoEditor from '@monaco-editor/react';
 import type * as monacoEditor from 'monaco-editor';
 import { getCachedSvgUrl } from './examples/cache';
@@ -22,6 +22,7 @@ import PreviewPane from './components/PreviewPane';
 import Modal from './components/Modal';
 import ExampleImage from './components/ExampleImage';
 import EditorDrawer from './components/EditorDrawer';
+import LoadingOverlay from './components/LoadingOverlay';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { useSvgRender } from './hooks/useSvgRender';
 import { useWindowWidth } from './hooks/useWindowWidth';
@@ -32,6 +33,8 @@ import {
     getEditorModelPath,
     validateDiagramText,
 } from './editor/diagramLanguageRegistry';
+
+const ExcalidrawCanvas = lazy(() => import('./components/ExcalidrawCanvas'));
 
 const layoutModes: LayoutMode[] = ['vertical', 'horizontal', 'preview'];
 
@@ -82,6 +85,7 @@ function App(): JSX.Element {
     const [importUrlOpen, setImportUrlOpen] = useState(false);
     const [importUrl, setImportUrl] = useState('');
     const [lastLoadedText, setLastLoadedText] = useState(initialDiagramState.diagramText);
+    const [excalidrawViewMode, setExcalidrawViewMode] = useState<'canvas' | 'json'>('canvas');
     const workspaceRef = useRef<HTMLDivElement | null>(null);
     const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
     const monacoRef = useRef<typeof monacoEditor | null>(null);
@@ -279,8 +283,13 @@ function App(): JSX.Element {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    const showEditorPane = !isCompact ? layoutMode !== 'preview' : mobileTab === 'code';
-    const showPreviewPane = !isCompact ? true : mobileTab === 'preview';
+    const isExcalidraw = diagramType === 'excalidraw';
+    const showEditorPane = isExcalidraw
+        ? (excalidrawViewMode === 'json' && (!isCompact || mobileTab === 'code'))
+        : (!isCompact ? layoutMode !== 'preview' : mobileTab === 'code');
+    const showPreviewPane = isExcalidraw
+        ? false
+        : (!isCompact ? true : mobileTab === 'preview');
 
     const updateDiagramDraft = (nextDiagramType: string, nextText: string) => {
         setDraftsByDiagramType((current) => (
@@ -372,7 +381,7 @@ function App(): JSX.Element {
                     </label>
                 </div>
                 <div className="AppToolbarActions">
-                    {!isCompact ? (
+                    {!isCompact && !isExcalidraw ? (
                         <div className="SplitPresetGroup" aria-label="Preview layout modes">
                             {layoutModes.map((mode) => (
                                 <button
@@ -434,93 +443,178 @@ function App(): JSX.Element {
 
             {isCompact ? (
                 <div className="WorkspaceMobileTabs">
-                    <div className="WorkspaceMobileTabGroup">
-                        <button type="button" className={`WorkspaceMobileTab${mobileTab === 'code' ? ' active' : ''}`} onClick={() => setMobileTab('code')}>
-                            Code
-                        </button>
-                        <button type="button" className={`WorkspaceMobileTab${mobileTab === 'preview' ? ' active' : ''}`} onClick={() => setMobileTab('preview')}>
-                            Preview
-                        </button>
-                    </div>
-                    <button
-                        type="button"
-                        className={`EditorWrapButton EditorWrapButtonCompact${wrapEnabled ? ' active' : ''}`}
-                        onClick={() => setWrapEnabled((current) => !current)}
-                    >
-                        Wrap
-                    </button>
+                    {isExcalidraw ? (
+                        <div className="WorkspaceMobileTabGroup">
+                            <button type="button" className={`WorkspaceMobileTab${excalidrawViewMode === 'canvas' ? ' active' : ''}`} onClick={() => setExcalidrawViewMode('canvas')}>
+                                Canvas
+                            </button>
+                            <button type="button" className={`WorkspaceMobileTab${excalidrawViewMode === 'json' ? ' active' : ''}`} onClick={() => setExcalidrawViewMode('json')}>
+                                JSON
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="WorkspaceMobileTabGroup">
+                                <button type="button" className={`WorkspaceMobileTab${mobileTab === 'code' ? ' active' : ''}`} onClick={() => setMobileTab('code')}>
+                                    Code
+                                </button>
+                                <button type="button" className={`WorkspaceMobileTab${mobileTab === 'preview' ? ' active' : ''}`} onClick={() => setMobileTab('preview')}>
+                                    Preview
+                                </button>
+                            </div>
+                            <button
+                                type="button"
+                                className={`EditorWrapButton EditorWrapButtonCompact${wrapEnabled ? ' active' : ''}`}
+                                onClick={() => setWrapEnabled((current) => !current)}
+                            >
+                                Wrap
+                            </button>
+                        </>
+                    )}
                 </div>
             ) : null}
 
             <main className="MainPanel">
-                <div
-                    className={`Workspace WorkspaceMode${layoutMode[0].toUpperCase()}${layoutMode.slice(1)}`}
-                    ref={workspaceRef}
-                    style={{ ['--editor-panel-width' as string]: `${editorWidth}%` }}
-                >
-                    <section className={`WorkspacePanel WorkspacePanelEditor${showEditorPane ? '' : ' compactHidden'}`}>
-                        {!isCompact ? (
-                            <div className="WorkspacePanelBar">
-                                <span className="WorkspacePanelTitle">Code</span>
-                                <button
-                                    type="button"
-                                    className={`EditorWrapButton${wrapEnabled ? ' active' : ''}`}
-                                    onClick={() => setWrapEnabled((current) => !current)}
-                                >
-                                    Wrap
-                                </button>
+                {isExcalidraw ? (
+                    <div className="Workspace WorkspaceModePreview" ref={workspaceRef}>
+                        {excalidrawViewMode === 'canvas' ? (
+                            <section className="WorkspacePanel WorkspacePanelExcalidraw">
+                                {!isCompact ? (
+                                    <div className="WorkspacePanelBar">
+                                        <span className="WorkspacePanelTitle">Canvas</span>
+                                        <div className="ExcalidrawBarActions">
+                                            <button
+                                                type="button"
+                                                className="EditorWrapButton"
+                                                onClick={() => setExcalidrawViewMode('json')}
+                                            >
+                                                JSON
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : null}
+                                <div className="WorkspacePanelBody">
+                                    <Suspense fallback={<LoadingOverlay message="Loading Excalidraw" detail="~2 MB" />}>
+                                        <ExcalidrawCanvas
+                                            value={editorValue}
+                                            onChange={handleEditorChange}
+                                            isCompact={isCompact}
+                                            viewMode={excalidrawViewMode}
+                                        />
+                                    </Suspense>
+                                </div>
+                            </section>
+                        ) : (
+                            <section className="WorkspacePanel WorkspacePanelEditor">
+                                {!isCompact ? (
+                                    <div className="WorkspacePanelBar">
+                                        <span className="WorkspacePanelTitle">JSON</span>
+                                        <div className="ExcalidrawBarActions">
+                                            <button
+                                                type="button"
+                                                className="EditorWrapButton"
+                                                onClick={() => setExcalidrawViewMode('canvas')}
+                                            >
+                                                Canvas
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`EditorWrapButton${wrapEnabled ? ' active' : ''}`}
+                                                onClick={() => setWrapEnabled((current) => !current)}
+                                            >
+                                                Wrap
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : null}
+                                <div className="WorkspacePanelBody">
+                                    <div className="Editor">
+                                        <MonacoEditor
+                                            className="MonacoEditor"
+                                            beforeMount={configureDiagramLanguages}
+                                            onMount={handleEditorMount}
+                                            language={editorLanguageId}
+                                            path={editorModelPath}
+                                            value={editorValue}
+                                            onChange={handleEditorChange}
+                                            height="100%"
+                                            options={editorOptions}
+                                        />
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+                    </div>
+                ) : (
+                    <div
+                        className={`Workspace WorkspaceMode${layoutMode[0].toUpperCase()}${layoutMode.slice(1)}`}
+                        ref={workspaceRef}
+                        style={{ ['--editor-panel-width' as string]: `${editorWidth}%` }}
+                    >
+                        <section className={`WorkspacePanel WorkspacePanelEditor${showEditorPane ? '' : ' compactHidden'}`}>
+                            {!isCompact ? (
+                                <div className="WorkspacePanelBar">
+                                    <span className="WorkspacePanelTitle">Code</span>
+                                    <button
+                                        type="button"
+                                        className={`EditorWrapButton${wrapEnabled ? ' active' : ''}`}
+                                        onClick={() => setWrapEnabled((current) => !current)}
+                                    >
+                                        Wrap
+                                    </button>
+                                </div>
+                            ) : null}
+                            <div className="WorkspacePanelBody">
+                                <div className="Editor">
+                                    <MonacoEditor
+                                        className="MonacoEditor"
+                                        beforeMount={configureDiagramLanguages}
+                                        onMount={handleEditorMount}
+                                        language={editorLanguageId}
+                                        path={editorModelPath}
+                                        value={editorValue}
+                                        onChange={handleEditorChange}
+                                        height="100%"
+                                        options={editorOptions}
+                                    />
+                                </div>
                             </div>
+                            <EditorDrawer
+                                diagramType={diagramType}
+                                examples={currentTypeExamples}
+                                editorDirty={editorDirty}
+                                open={editorDrawerOpen}
+                                onToggle={() => setEditorDrawerOpen((v) => !v)}
+                                onExampleImport={handleExampleImport}
+                            />
+                        </section>
+
+                        {!isCompact && layoutMode === 'vertical' && showEditorPane ? (
+                            <button
+                                type="button"
+                                aria-label="Resize panels"
+                                className="WorkspaceDivider"
+                                onMouseDown={() => setIsDragging(true)}
+                                onDoubleClick={() => setEditorWidth(44)}
+                            />
                         ) : null}
-                        <div className="WorkspacePanelBody">
-                            <div className="Editor">
-                                <MonacoEditor
-                                    className="MonacoEditor"
-                                    beforeMount={configureDiagramLanguages}
-                                    onMount={handleEditorMount}
-                                    language={editorLanguageId}
-                                    path={editorModelPath}
-                                    value={editorValue}
-                                    onChange={handleEditorChange}
-                                    height="100%"
-                                    options={editorOptions}
+
+                        <section className={`WorkspacePanel WorkspacePanelPreview${showPreviewPane ? '' : ' compactHidden'}${!isCompact && layoutMode === 'preview' ? ' previewOnly' : ''}`}>
+                            <div className="WorkspacePanelBody">
+                                <PreviewPane
+                                    svg={svg}
+                                    diagramType={diagramType}
+                                    filetypes={supportedFiletypes}
+                                    previewState={previewState}
+                                    editorValue={editorValue}
+                                    renderUrl={renderUrl}
+                                    defaultRenderUrl={defaultRenderUrl}
+                                    onRenderUrlChange={handleRenderUrlChange}
                                 />
                             </div>
-                        </div>
-                        <EditorDrawer
-                            diagramType={diagramType}
-                            examples={currentTypeExamples}
-                            editorDirty={editorDirty}
-                            open={editorDrawerOpen}
-                            onToggle={() => setEditorDrawerOpen((v) => !v)}
-                            onExampleImport={handleExampleImport}
-                        />
-                    </section>
-
-                    {!isCompact && layoutMode === 'vertical' && showEditorPane ? (
-                        <button
-                            type="button"
-                            aria-label="Resize panels"
-                            className="WorkspaceDivider"
-                            onMouseDown={() => setIsDragging(true)}
-                            onDoubleClick={() => setEditorWidth(44)}
-                        />
-                    ) : null}
-
-                    <section className={`WorkspacePanel WorkspacePanelPreview${showPreviewPane ? '' : ' compactHidden'}${!isCompact && layoutMode === 'preview' ? ' previewOnly' : ''}`}>
-                        <div className="WorkspacePanelBody">
-                            <PreviewPane
-                                svg={svg}
-                                diagramType={diagramType}
-                                filetypes={supportedFiletypes}
-                                previewState={previewState}
-                                editorValue={editorValue}
-                                renderUrl={renderUrl}
-                                defaultRenderUrl={defaultRenderUrl}
-                                onRenderUrlChange={handleRenderUrlChange}
-                            />
-                        </div>
-                    </section>
-                </div>
+                        </section>
+                    </div>
+                )}
             </main>
 
             <Modal
