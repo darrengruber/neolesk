@@ -345,9 +345,16 @@ const plantuml = defineExamples([
         title: "PlantUML",
         doc: "https://plantuml.com/en/nwdiag",
         keywords: ["network", "diagram", "nwdiag", "architecture", "subnet", "netmask", "router"],
+        // @startnwdiag, NOT @startuml. Kroki wraps a bare PlantUML source in
+        // @startuml when it has no @start block of its own, and current
+        // PlantUML rejects nwdiag inside a @startuml block outright:
+        //   "This looks like a network diagram. Please use @startnwdiag
+        //    instead of @startuml. (Assumed diagram type: sequence)"
+        // This example rendered when it was written and broke under a later
+        // PlantUML release. The old `skin rose` line went with it — that
+        // directive is long deprecated and is not valid inside @startnwdiag.
         source: lines([
-            "skin rose",
-            "",
+            "@startnwdiag",
             "nwdiag {",
             "  network Sample_front {",
             "    address = \"192.168.10.0/24\";",
@@ -372,7 +379,7 @@ const plantuml = defineExamples([
             "    }",
             "  }",
             "}",
-            "",
+            "@endnwdiag",
         ], true),
     },
     {

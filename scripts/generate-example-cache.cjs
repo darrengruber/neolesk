@@ -100,6 +100,9 @@ const buildEntries = (examples) => {
             radical,
             filename,
             url: `${renderUrl}${radical}`,
+            // Only for humans reading a failure. "plantuml / Network diagram"
+            // is findable in src/examples/catalog/; a content hash is not.
+            label: `${example.diagramType} / ${example.description || example.title}`,
         };
     });
 };
@@ -156,25 +159,58 @@ const runWithConcurrency = async (items, worker, workerCount) => {
     await Promise.all(runners);
 };
 
+// Strict mode turns this script from best-effort into a gate.
+//
+// By default it stays best-effort on purpose: a developer offline, or building
+// against an engine that is briefly down, should still get a working dev server
+// — the app renders live and only loses the pre-baked example thumbnails.
+//
+// CI sets NEOLESK_CACHE_STRICT=1, and then a single example that will not
+// render fails the build. Without that, the previous behaviour was to warn into
+// a build log nobody reads and exit 0, which is how a broken PlantUML example
+// shipped to production and stayed there until someone rendered the corpus by
+// hand. An existing cache file also counted as success, so a once-good example
+// that upstream later broke never re-surfaced.
+const strict = process.env.NEOLESK_CACHE_STRICT === '1';
+
 const main = async () => {
     const examples = loadExamples();
     const entries = buildEntries(examples);
 
     syncExistingFiles(entries);
 
-    const readyEntries = [];
+    const failures = [];
 
     await runWithConcurrency(entries, async (entry) => {
         const cached = await cacheMissingEntry(entry);
-        if (cached || fs.existsSync(path.join(cacheDir, entry.filename))) {
-            readyEntries.push(entry);
+        if (!cached && !fs.existsSync(path.join(cacheDir, entry.filename))) {
+            failures.push(entry);
         }
     }, concurrency);
 
-    console.log(`[examples:cache] ${readyEntries.length}/${entries.length} example renders available`);
+    const ready = entries.length - failures.length;
+    console.log(`[examples:cache] ${ready}/${entries.length} example renders available`);
+
+    if (failures.length === 0) {
+        return;
+    }
+
+    for (const entry of failures) {
+        console.warn(`[examples:cache] no render for ${entry.label}`);
+    }
+
+    if (strict) {
+        console.error(
+            `[examples:cache] ${failures.length} example(s) do not render against ${renderUrl}. ` +
+            'Fix the example or the engine — do not ship a diagram editor that cannot draw its own examples.',
+        );
+        process.exitCode = 1;
+    }
 };
 
 main().catch((error) => {
-    console.warn(`[examples:cache] Unexpected failure: ${error.message}`);
-    process.exitCode = 0;
+    // An unexpected crash (bad catalog, unreadable cache dir) is a real defect.
+    // It used to be pinned to exit 0, so CI could not see it either.
+    console.error(`[examples:cache] Unexpected failure: ${error.stack || error.message}`);
+    process.exitCode = strict ? 1 : 0;
 });
