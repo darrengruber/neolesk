@@ -100,6 +100,7 @@ const buildEntries = (examples) => {
             radical,
             filename,
             url: `${renderUrl}${radical}`,
+            diagramType: example.diagramType,
             // Only for humans reading a failure. "plantuml / Network diagram"
             // is findable in src/examples/catalog/; a content hash is not.
             label: `${example.diagramType} / ${example.description || example.title}`,
@@ -118,30 +119,45 @@ const syncExistingFiles = (entries) => {
     }
 };
 
+// Outcomes are classified rather than pass/fail, because WHOSE fault a failure
+// is decides whether CI should block on it:
+//
+//   'ok'     rendered (or already cached)
+//   'source' the engine rejected the diagram — 4xx. This is OUR bug: a broken
+//            example, exactly like the PlantUML nwdiag one that shipped and
+//            stayed shipped. Strict mode fails on these.
+//   'engine' the engine failed or was unreachable — 5xx, network, or a 200
+//            with no SVG in it. NOT our bug, and not stable enough to gate a
+//            merge on: kroki.io renders a different subset of mermaid from one
+//            hour to the next. Strict mode reports these and moves on.
+//
+// Getting this split wrong in either direction is costly. Blocking on 'engine'
+// makes CI fail for reasons nobody in this repo can fix; ignoring 'source'
+// re-opens the hole this whole mechanism exists to close.
 const cacheMissingEntry = async (entry) => {
     const outputPath = path.join(cacheDir, entry.filename);
     if (fs.existsSync(outputPath)) {
-        return true;
+        return 'ok';
     }
 
     try {
         const response = await fetch(entry.url);
         if (!response.ok) {
             console.warn(`[examples:cache] ${response.status} ${response.statusText} for ${entry.url}`);
-            return false;
+            return response.status >= 400 && response.status < 500 ? 'source' : 'engine';
         }
 
         const svg = await response.text();
         if (!svg.includes('<svg')) {
             console.warn(`[examples:cache] Unexpected response body for ${entry.url}`);
-            return false;
+            return 'engine';
         }
 
         fs.writeFileSync(outputPath, svg);
-        return true;
+        return 'ok';
     } catch (error) {
         console.warn(`[examples:cache] Failed to fetch ${entry.url}: ${error.message}`);
-        return false;
+        return 'engine';
     }
 };
 
@@ -173,6 +189,28 @@ const runWithConcurrency = async (items, worker, workerCount) => {
 // that upstream later broke never re-surfaced.
 const strict = process.env.NEOLESK_CACHE_STRICT === '1';
 
+// Diagram types the TARGET ENGINE is known not to support, comma-separated.
+// Strict mode ignores failures for these and fails on everything else.
+//
+// This exists because the two deployments of this app use different engines,
+// and each should be gated against the one it actually calls:
+//
+//   * the public Cloudflare Pages site uses kroki.io, which cannot render
+//     `diagramsnet` at all (it answers 503 Connection refused for it, exactly
+//     as our own instance did before its companion service was added) — so CI
+//     runs with NEOLESK_CACHE_ALLOW_FAIL=diagramsnet;
+//   * the in-cluster image builds against our own kroki, which renders all 29
+//     types, and allows nothing.
+//
+// Keep this list as short as the engine forces it to be. It is an admission
+// that a feature is unavailable on a target, not a way to silence a real break.
+const allowFail = new Set(
+    (process.env.NEOLESK_CACHE_ALLOW_FAIL || '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+);
+
 const main = async () => {
     const examples = loadExamples();
     const entries = buildEntries(examples);
@@ -182,9 +220,9 @@ const main = async () => {
     const failures = [];
 
     await runWithConcurrency(entries, async (entry) => {
-        const cached = await cacheMissingEntry(entry);
-        if (!cached && !fs.existsSync(path.join(cacheDir, entry.filename))) {
-            failures.push(entry);
+        const outcome = await cacheMissingEntry(entry);
+        if (outcome !== 'ok' && !fs.existsSync(path.join(cacheDir, entry.filename))) {
+            failures.push({ ...entry, outcome });
         }
     }, concurrency);
 
@@ -195,14 +233,32 @@ const main = async () => {
         return;
     }
 
+    const broken = [];
+    const degraded = [];
+
     for (const entry of failures) {
-        console.warn(`[examples:cache] no render for ${entry.label}`);
+        if (allowFail.has(entry.diagramType)) {
+            console.warn(`[examples:cache] ${entry.label}: skipped, engine does not support this type`);
+        } else if (entry.outcome === 'source') {
+            console.warn(`[examples:cache] ${entry.label}: THE ENGINE REJECTED THE SOURCE — fix the example`);
+            broken.push(entry);
+        } else {
+            console.warn(`[examples:cache] ${entry.label}: engine failed or was unreachable`);
+            degraded.push(entry);
+        }
     }
 
-    if (strict) {
+    if (degraded.length > 0) {
+        console.warn(
+            `[examples:cache] ${degraded.length} example(s) failed because ${renderUrl} did not ` +
+            'answer properly. Not failing on that — it is not something this repo can fix.',
+        );
+    }
+
+    if (strict && broken.length > 0) {
         console.error(
-            `[examples:cache] ${failures.length} example(s) do not render against ${renderUrl}. ` +
-            'Fix the example or the engine — do not ship a diagram editor that cannot draw its own examples.',
+            `[examples:cache] ${broken.length} example(s) were REJECTED by ${renderUrl}. ` +
+            'Do not ship a diagram editor that cannot draw its own examples.',
         );
         process.exitCode = 1;
     }

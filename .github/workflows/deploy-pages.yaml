@@ -1,0 +1,98 @@
+name: Deploy to Cloudflare Pages
+
+# Replaces `npm run deploy` from a laptop with a static CLOUDFLARE_API_TOKEN.
+# The token is minted on demand by the OpenBao Cloudflare secrets engine, scoped
+# to "Pages Write" only, with a ~5 minute lease. Auth chain:
+#
+#   GitHub OIDC JWT (id-token: write)
+#     -> vault-action exchanges it at jwt-github-actions
+#     -> OpenBao role `neolesk-pages-deploy` (bound to this repo + main)
+#     -> read cloudflare-account/creds/pages-neolesk
+#     -> short-lived CF token
+#
+# Modelled on fourslide/claudeburner.com .github/workflows/deploy.yml. Role and
+# policy live in darren-iac/iac tofu/controlplane/openbao/cloudflare-pages-ci.tf.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# THIS IS workflow_dispatch ONLY, AND CANNOT SUCCEED YET. Two prerequisites are
+# outstanding, both tracked in darren-iac/iac:
+#
+#   1. The OpenBao roles do not exist yet. They are written but NOT applied —
+#      tofu/controlplane/openbao is Tier B and CLAUDE.md requires a scoped,
+#      reviewed plan before any apply. Until that lands, the mint step 403s.
+#
+#   2. There is no in-cluster runner that can serve THIS repo. OpenBao is
+#      tailnet-only, so a GitHub-hosted runner cannot reach it, and GitHub does
+#      not support user-account-level ARC scale sets — arc-runners-darrengruber
+#      is anchored to darrengruber/skills and only serves its anchor repo. A
+#      scale set anchored at this repo is needed.
+#
+# It is deliberately NOT push-triggered: a push-triggered job pointing at a
+# runner label that does not exist queues forever and shows as a pending check
+# on every commit. Deploys stay manual (`npm run deploy`) until both land, then
+# flip the trigger to `push: branches: [main]` and delete this notice.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+
+# id-token: write is what lets the job request a signed OIDC JWT.
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+env:
+  # In-cluster OpenBao. openbao-ACTIVE, not the round-robin Service: the
+  # standbys fail writes with "cannot write to readonly storage", and minting a
+  # credential is a write.
+  OPENBAO_ADDR: http://openbao-active.openbao.svc.cluster.local:8200
+  # Non-secret. The Cloudflare account that owns the neolesk Pages project.
+  CLOUDFLARE_ACCOUNT_ID: c6c0da6f79d5b4a62fe1d2eff2f108e5
+  NEOLESK_KROKI_ENGINE: https://kroki.io/
+  NEOLESK_CACHE_STRICT: "1"
+  NEOLESK_CACHE_ALLOW_FAIL: diagramsnet
+
+jobs:
+  deploy:
+    # See the notice above: this label has no runner set yet.
+    runs-on: arc-runners-neolesk
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      # Renders the example corpus, then builds. Strict, so a rejected example
+      # stops the deploy rather than shipping a broken thumbnail to production.
+      - run: npm run build
+
+      # Mint a scoped, short-lived Cloudflare token from OpenBao via GitHub OIDC.
+      # Exports CLOUDFLARE_API_TOKEN into the job env for the deploy step.
+      - name: Mint Cloudflare token (OpenBao)
+        uses: hashicorp/vault-action@4c06c5ccf5c0761b6029f56cfb1dcf5565918a3b # v3.4.0
+        with:
+          url: ${{ env.OPENBAO_ADDR }}
+          method: jwt
+          path: jwt-github-actions
+          role: neolesk-pages-deploy
+          # Must match bound_audiences on the OpenBao role. GitHub's default
+          # OIDC audience is the repository OWNER url, which for a personal
+          # account is https://github.com/<user>.
+          jwtGithubAudience: https://github.com/darrengruber
+          secrets: |
+            cloudflare-account/creds/pages-neolesk token_value | CLOUDFLARE_API_TOKEN
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=neolesk --branch=main
