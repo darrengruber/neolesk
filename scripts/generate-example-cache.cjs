@@ -6,7 +6,17 @@ const ts = require('typescript');
 const rootDir = path.resolve(__dirname, '..');
 const publicDir = path.join(rootDir, 'public');
 const cacheDir = path.join(publicDir, 'cache');
-const defaultRenderUrl = 'https://kroki.io/';
+
+// Our own self-hosted engine, over the tailnet, so a developer on the tailnet
+// gets thumbnails with no configuration.
+//
+// This used to default to https://kroki.io/, which meant an unset
+// NEOLESK_KROKI_ENGINE silently baked thumbnails from the PUBLIC engine — the
+// one that cannot draw diagramsnet and whose mermaid support varies hour to
+// hour. Thumbnails should only ever come from the engine we control. Override
+// with NEOLESK_KROKI_ENGINE (the in-cluster builds pass the Service address),
+// or set NEOLESK_CACHE_SKIP=1 where no engine is reachable.
+const defaultRenderUrl = 'https://kroki.tailbf5ac.ts.net/';
 
 // Load .env if present (Vite does this for the app, but this script runs via Node directly)
 const dotenvPath = path.join(rootDir, '.env');
@@ -100,6 +110,10 @@ const buildEntries = (examples) => {
             radical,
             filename,
             url: `${renderUrl}${radical}`,
+            diagramType: example.diagramType,
+            // Only for humans reading a failure. "plantuml / Network diagram"
+            // is findable in src/examples/catalog/; a content hash is not.
+            label: `${example.diagramType} / ${example.description || example.title}`,
         };
     });
 };
@@ -115,30 +129,45 @@ const syncExistingFiles = (entries) => {
     }
 };
 
+// Outcomes are classified rather than pass/fail, because WHOSE fault a failure
+// is decides whether CI should block on it:
+//
+//   'ok'     rendered (or already cached)
+//   'source' the engine rejected the diagram — 4xx. This is OUR bug: a broken
+//            example, exactly like the PlantUML nwdiag one that shipped and
+//            stayed shipped. Strict mode fails on these.
+//   'engine' the engine failed or was unreachable — 5xx, network, or a 200
+//            with no SVG in it. NOT our bug, and not stable enough to gate a
+//            merge on: kroki.io renders a different subset of mermaid from one
+//            hour to the next. Strict mode reports these and moves on.
+//
+// Getting this split wrong in either direction is costly. Blocking on 'engine'
+// makes CI fail for reasons nobody in this repo can fix; ignoring 'source'
+// re-opens the hole this whole mechanism exists to close.
 const cacheMissingEntry = async (entry) => {
     const outputPath = path.join(cacheDir, entry.filename);
     if (fs.existsSync(outputPath)) {
-        return true;
+        return 'ok';
     }
 
     try {
         const response = await fetch(entry.url);
         if (!response.ok) {
             console.warn(`[examples:cache] ${response.status} ${response.statusText} for ${entry.url}`);
-            return false;
+            return response.status >= 400 && response.status < 500 ? 'source' : 'engine';
         }
 
         const svg = await response.text();
         if (!svg.includes('<svg')) {
             console.warn(`[examples:cache] Unexpected response body for ${entry.url}`);
-            return false;
+            return 'engine';
         }
 
         fs.writeFileSync(outputPath, svg);
-        return true;
+        return 'ok';
     } catch (error) {
         console.warn(`[examples:cache] Failed to fetch ${entry.url}: ${error.message}`);
-        return false;
+        return 'engine';
     }
 };
 
@@ -156,25 +185,95 @@ const runWithConcurrency = async (items, worker, workerCount) => {
     await Promise.all(runners);
 };
 
+// Strict mode turns this script from best-effort into a gate.
+//
+// By default it stays best-effort on purpose: a developer offline, or building
+// against an engine that is briefly down, should still get a working dev server
+// — the app renders live and only loses the pre-baked example thumbnails.
+//
+// CI sets NEOLESK_CACHE_STRICT=1, and then a single example that will not
+// render fails the build. Without that, the previous behaviour was to warn into
+// a build log nobody reads and exit 0, which is how a broken PlantUML example
+// shipped to production and stayed there until someone rendered the corpus by
+// hand. An existing cache file also counted as success, so a once-good example
+// that upstream later broke never re-surfaced.
+const strict = process.env.NEOLESK_CACHE_STRICT === '1';
+
+// Skip the corpus entirely. For builds that have no Kroki engine to render
+// against — notably CI on GitHub-hosted runners, which cannot reach our
+// self-hosted engine because it is tailnet-only.
+//
+// We render ONLY against our own kroki. Rendering against public kroki.io was
+// tried and rejected: it cannot draw `diagramsnet` at all, it renders a
+// different subset of mermaid from one hour to the next, and gating anything on
+// a third party's uptime means failures nobody here can fix. So a build that
+// cannot reach our engine does not render a degraded corpus — it renders
+// nothing and says so.
+const skip = process.env.NEOLESK_CACHE_SKIP === '1';
+
 const main = async () => {
     const examples = loadExamples();
     const entries = buildEntries(examples);
 
+    if (skip) {
+        console.log(
+            `[examples:cache] NEOLESK_CACHE_SKIP=1 — not rendering any of the ${entries.length} examples. ` +
+            'The app renders live; only the pre-baked thumbnails are absent.',
+        );
+        return;
+    }
+
     syncExistingFiles(entries);
 
-    const readyEntries = [];
+    const failures = [];
 
     await runWithConcurrency(entries, async (entry) => {
-        const cached = await cacheMissingEntry(entry);
-        if (cached || fs.existsSync(path.join(cacheDir, entry.filename))) {
-            readyEntries.push(entry);
+        const outcome = await cacheMissingEntry(entry);
+        if (outcome !== 'ok' && !fs.existsSync(path.join(cacheDir, entry.filename))) {
+            failures.push({ ...entry, outcome });
         }
     }, concurrency);
 
-    console.log(`[examples:cache] ${readyEntries.length}/${entries.length} example renders available`);
+    const ready = entries.length - failures.length;
+    console.log(`[examples:cache] ${ready}/${entries.length} example renders available`);
+
+    if (failures.length === 0) {
+        return;
+    }
+
+    const broken = [];
+    const degraded = [];
+
+    for (const entry of failures) {
+        if (entry.outcome === 'source') {
+            console.warn(`[examples:cache] ${entry.label}: THE ENGINE REJECTED THE SOURCE — fix the example`);
+            broken.push(entry);
+        } else {
+            console.warn(`[examples:cache] ${entry.label}: engine failed or was unreachable`);
+            degraded.push(entry);
+        }
+    }
+
+    if (degraded.length > 0) {
+        console.warn(
+            `[examples:cache] ${degraded.length} example(s) failed because ${renderUrl} did not ` +
+            'answer properly. Not failing on that — a rolling restart of the engine looks exactly ' +
+            'like this, and it is not a defect in this repo.',
+        );
+    }
+
+    if (strict && broken.length > 0) {
+        console.error(
+            `[examples:cache] ${broken.length} example(s) were REJECTED by ${renderUrl}. ` +
+            'Do not ship a diagram editor that cannot draw its own examples.',
+        );
+        process.exitCode = 1;
+    }
 };
 
 main().catch((error) => {
-    console.warn(`[examples:cache] Unexpected failure: ${error.message}`);
-    process.exitCode = 0;
+    // An unexpected crash (bad catalog, unreadable cache dir) is a real defect.
+    // It used to be pinned to exit 0, so CI could not see it either.
+    console.error(`[examples:cache] Unexpected failure: ${error.stack || error.message}`);
+    process.exitCode = strict ? 1 : 0;
 });

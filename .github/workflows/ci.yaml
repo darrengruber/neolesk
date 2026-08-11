@@ -1,0 +1,89 @@
+name: CI
+
+# This repo had NO CI at all until 2026-08-11. Tests existed and were never run;
+# a broken PlantUML example shipped to production and stayed there because the
+# example-cache generator warned into a build log and exited 0.
+#
+# Runs on GitHub-hosted runners, which are free here because the repo is public.
+# The in-cluster ARC set cannot serve this repo: GitHub does not support
+# user-account-level scale sets, so arc-runners-darrengruber is anchored to
+# darrengruber/skills and only serves its anchor.
+#
+# WHAT THIS JOB DOES NOT DO: render the example corpus.
+#
+# We render ONLY against our own self-hosted kroki, which is tailnet-only and
+# therefore unreachable from a GitHub-hosted runner. Rendering against public
+# kroki.io was tried and rejected — it cannot draw `diagramsnet` at all, it
+# renders a different subset of mermaid from one hour to the next, and gating
+# merges on a third party's uptime means CI failing for reasons nobody here can
+# fix. So this job builds with NEOLESK_CACHE_SKIP=1 and the render gate lives
+# where our engine is reachable:
+#
+#   * darren-iac/iac .github/workflows/build-neolesk.yaml — the in-cluster image,
+#     strict against http://kroki-main.kroki.svc.cluster.local:8080
+#   * .github/workflows/deploy-pages.yaml — the public bundle, strict against the
+#     same engine from an in-cluster runner
+#
+# Both are strict and allow nothing. A broken example cannot reach either
+# deployment; it just is not this job that stops it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      # --ignore-scripts so installing does not trigger the example-cache
+      # prebuild, which needs an engine this runner cannot reach.
+      - run: npm ci --ignore-scripts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # No engine is reachable from here, so do not pretend to render. This is
+      # explicit rather than relying on the generator's tolerance for an
+      # unreachable engine — an empty corpus should be a decision, not an
+      # accident that looks the same as a broken one.
+      NEOLESK_CACHE_SKIP: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      - name: Build
+        run: npm run build
+
+      - name: Check the bundle is complete
+        run: |
+          test -s dist/index.html
+          test -d dist/assets
+          echo "bundle: $(du -sh dist | cut -f1)"

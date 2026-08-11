@@ -3,6 +3,7 @@ import MonacoEditor from '@monaco-editor/react';
 import type * as monacoEditor from 'monaco-editor';
 import { getCachedSvgUrl } from './examples/cache';
 import { decode } from './kroki/coder';
+import { loadRuntimeConfig } from './runtimeConfig';
 import {
     buildDiagramState,
     createInitialDiagramState,
@@ -144,16 +145,32 @@ function App(): JSX.Element {
     }), [wrapEnabled]);
 
     useEffect(() => {
-        fetch('/config.json')
-            .then((res) => res.ok ? res.json() : null)
-            .then((config) => {
-                if (config?.krokiEngineUrl) {
-                    const url = normalizeRenderUrl(config.krokiEngineUrl);
-                    setRuntimeRenderUrl(url);
-                    setRenderUrl(url);
-                }
-            })
-            .catch(() => {});
+        let cancelled = false;
+
+        loadRuntimeConfig().then((outcome) => {
+            if (cancelled) {
+                return;
+            }
+
+            // A config that is present but unusable used to be silent, which
+            // left the app rendering against the wrong engine and looking
+            // perfectly healthy. Say so. See src/runtimeConfig.ts for why the
+            // HTTP status alone cannot tell these cases apart.
+            if (outcome.status === 'invalid') {
+                console.error(`[neolesk] ignoring runtime config: ${outcome.reason}`);
+                return;
+            }
+
+            if (outcome.status === 'loaded' && outcome.config.krokiEngineUrl) {
+                const url = normalizeRenderUrl(outcome.config.krokiEngineUrl);
+                setRuntimeRenderUrl(url);
+                setRenderUrl(url);
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {
