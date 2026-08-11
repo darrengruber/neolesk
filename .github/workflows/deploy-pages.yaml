@@ -14,23 +14,26 @@ name: Deploy to Cloudflare Pages
 # policy live in darren-iac/iac tofu/controlplane/openbao/cloudflare-pages-ci.tf.
 #
 # ─────────────────────────────────────────────────────────────────────────────
-# THIS IS workflow_dispatch ONLY, AND CANNOT SUCCEED YET. Two prerequisites are
-# outstanding, both tracked in darren-iac/iac:
+# THIS IS workflow_dispatch ONLY, AND CANNOT SUCCEED YET — ONE prerequisite left.
 #
-#   1. The OpenBao roles do not exist yet. They are written but NOT applied —
-#      tofu/controlplane/openbao is Tier B and CLAUDE.md requires a scoped,
-#      reviewed plan before any apply. Until that lands, the mint step 403s.
+#   ✅ The OpenBao side is DONE (darren-iac/iac#2720 + #2724, applied
+#      2026-08-11). cloudflare-account/roles/pages-neolesk, the
+#      neolesk-pages-deploy policy, and this jwt role all exist. Verified by
+#      minting a real token: 300s lease, and it can list Pages projects (sees
+#      the neolesk project) while account members, Workers, KV and tokens all
+#      return 401/403 and it can see 0 zones. The scope is exactly Pages.
 #
-#   2. There is no in-cluster runner that can serve THIS repo. OpenBao is
+#   ❌ There is still no in-cluster runner that can serve THIS repo. OpenBao is
 #      tailnet-only, so a GitHub-hosted runner cannot reach it, and GitHub does
 #      not support user-account-level ARC scale sets — arc-runners-darrengruber
 #      is anchored to darrengruber/skills and only serves its anchor repo. A
-#      scale set anchored at this repo is needed.
+#      scale set anchored at this repo is what is missing.
 #
 # It is deliberately NOT push-triggered: a push-triggered job pointing at a
 # runner label that does not exist queues forever and shows as a pending check
-# on every commit. Deploys stay manual (`npm run deploy`) until both land, then
-# flip the trigger to `push: branches: [main]` and delete this notice.
+# on every commit. Deploys stay manual (`npm run deploy`) until the runner
+# lands, then flip the trigger to `push: branches: [main]` and delete this
+# notice.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
