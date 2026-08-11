@@ -6,7 +6,17 @@ const ts = require('typescript');
 const rootDir = path.resolve(__dirname, '..');
 const publicDir = path.join(rootDir, 'public');
 const cacheDir = path.join(publicDir, 'cache');
-const defaultRenderUrl = 'https://kroki.io/';
+
+// Our own self-hosted engine, over the tailnet, so a developer on the tailnet
+// gets thumbnails with no configuration.
+//
+// This used to default to https://kroki.io/, which meant an unset
+// NEOLESK_KROKI_ENGINE silently baked thumbnails from the PUBLIC engine — the
+// one that cannot draw diagramsnet and whose mermaid support varies hour to
+// hour. Thumbnails should only ever come from the engine we control. Override
+// with NEOLESK_KROKI_ENGINE (the in-cluster builds pass the Service address),
+// or set NEOLESK_CACHE_SKIP=1 where no engine is reachable.
+const defaultRenderUrl = 'https://kroki.tailbf5ac.ts.net/';
 
 // Load .env if present (Vite does this for the app, but this script runs via Node directly)
 const dotenvPath = path.join(rootDir, '.env');
@@ -189,31 +199,29 @@ const runWithConcurrency = async (items, worker, workerCount) => {
 // that upstream later broke never re-surfaced.
 const strict = process.env.NEOLESK_CACHE_STRICT === '1';
 
-// Diagram types the TARGET ENGINE is known not to support, comma-separated.
-// Strict mode ignores failures for these and fails on everything else.
+// Skip the corpus entirely. For builds that have no Kroki engine to render
+// against — notably CI on GitHub-hosted runners, which cannot reach our
+// self-hosted engine because it is tailnet-only.
 //
-// This exists because the two deployments of this app use different engines,
-// and each should be gated against the one it actually calls:
-//
-//   * the public Cloudflare Pages site uses kroki.io, which cannot render
-//     `diagramsnet` at all (it answers 503 Connection refused for it, exactly
-//     as our own instance did before its companion service was added) — so CI
-//     runs with NEOLESK_CACHE_ALLOW_FAIL=diagramsnet;
-//   * the in-cluster image builds against our own kroki, which renders all 29
-//     types, and allows nothing.
-//
-// Keep this list as short as the engine forces it to be. It is an admission
-// that a feature is unavailable on a target, not a way to silence a real break.
-const allowFail = new Set(
-    (process.env.NEOLESK_CACHE_ALLOW_FAIL || '')
-        .split(',')
-        .map((entry) => entry.trim())
-        .filter(Boolean),
-);
+// We render ONLY against our own kroki. Rendering against public kroki.io was
+// tried and rejected: it cannot draw `diagramsnet` at all, it renders a
+// different subset of mermaid from one hour to the next, and gating anything on
+// a third party's uptime means failures nobody here can fix. So a build that
+// cannot reach our engine does not render a degraded corpus — it renders
+// nothing and says so.
+const skip = process.env.NEOLESK_CACHE_SKIP === '1';
 
 const main = async () => {
     const examples = loadExamples();
     const entries = buildEntries(examples);
+
+    if (skip) {
+        console.log(
+            `[examples:cache] NEOLESK_CACHE_SKIP=1 — not rendering any of the ${entries.length} examples. ` +
+            'The app renders live; only the pre-baked thumbnails are absent.',
+        );
+        return;
+    }
 
     syncExistingFiles(entries);
 
@@ -237,9 +245,7 @@ const main = async () => {
     const degraded = [];
 
     for (const entry of failures) {
-        if (allowFail.has(entry.diagramType)) {
-            console.warn(`[examples:cache] ${entry.label}: skipped, engine does not support this type`);
-        } else if (entry.outcome === 'source') {
+        if (entry.outcome === 'source') {
             console.warn(`[examples:cache] ${entry.label}: THE ENGINE REJECTED THE SOURCE — fix the example`);
             broken.push(entry);
         } else {
@@ -251,7 +257,8 @@ const main = async () => {
     if (degraded.length > 0) {
         console.warn(
             `[examples:cache] ${degraded.length} example(s) failed because ${renderUrl} did not ` +
-            'answer properly. Not failing on that — it is not something this repo can fix.',
+            'answer properly. Not failing on that — a rolling restart of the engine looks exactly ' +
+            'like this, and it is not a defect in this repo.',
         );
     }
 

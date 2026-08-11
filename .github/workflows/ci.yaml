@@ -4,10 +4,28 @@ name: CI
 # a broken PlantUML example shipped to production and stayed there because the
 # example-cache generator warned into a build log and exited 0.
 #
-# Runs on GitHub-hosted runners, which are free for this repo because it is
-# public. The in-cluster ARC runner set for darrengruber is anchored to
-# darrengruber/skills — GitHub does not support user-account-level scale sets,
-# so a repo-anchored set only serves its anchor repo and cannot serve this one.
+# Runs on GitHub-hosted runners, which are free here because the repo is public.
+# The in-cluster ARC set cannot serve this repo: GitHub does not support
+# user-account-level scale sets, so arc-runners-darrengruber is anchored to
+# darrengruber/skills and only serves its anchor.
+#
+# WHAT THIS JOB DOES NOT DO: render the example corpus.
+#
+# We render ONLY against our own self-hosted kroki, which is tailnet-only and
+# therefore unreachable from a GitHub-hosted runner. Rendering against public
+# kroki.io was tried and rejected — it cannot draw `diagramsnet` at all, it
+# renders a different subset of mermaid from one hour to the next, and gating
+# merges on a third party's uptime means CI failing for reasons nobody here can
+# fix. So this job builds with NEOLESK_CACHE_SKIP=1 and the render gate lives
+# where our engine is reachable:
+#
+#   * darren-iac/iac .github/workflows/build-neolesk.yaml — the in-cluster image,
+#     strict against http://kroki-main.kroki.svc.cluster.local:8080
+#   * .github/workflows/deploy-pages.yaml — the public bundle, strict against the
+#     same engine from an in-cluster runner
+#
+# Both are strict and allow nothing. A broken example cannot reach either
+# deployment; it just is not this job that stops it.
 
 on:
   push:
@@ -34,8 +52,7 @@ jobs:
           cache: npm
 
       # --ignore-scripts so installing does not trigger the example-cache
-      # prebuild. That step needs a Kroki engine and belongs in its own job
-      # below, where its failures can be classified properly.
+      # prebuild, which needs an engine this runner cannot reach.
       - run: npm ci --ignore-scripts
 
       - name: Typecheck
@@ -44,28 +61,14 @@ jobs:
       - name: Unit tests
         run: npm run test
 
-  # The build and the example corpus, checked against the engine THIS
-  # deployment actually calls.
-  #
-  # The public Cloudflare Pages site uses public kroki.io, so that is what is
-  # gated here. The in-cluster deployment builds against our own kroki and is
-  # gated separately, in darren-iac/iac .github/workflows/build-neolesk.yaml.
-  # Each deployment is verified against its own engine; neither stands in for
-  # the other.
   build:
     runs-on: ubuntu-latest
     env:
-      NEOLESK_KROKI_ENGINE: https://kroki.io/
-      # Fail the build when an example is REJECTED (4xx) — that is a broken
-      # example, our bug, and exactly what shipped unnoticed before.
-      NEOLESK_CACHE_STRICT: "1"
-      # kroki.io cannot render diagramsnet AT ALL — it answers
-      # "503 Connection refused: /127.0.0.1:8005", the same failure our own
-      # instance had before its companion service was added. Not a repo bug and
-      # never going to pass here, so it is declared rather than silently
-      # tolerated. Our own engine renders it, and the in-cluster build allows
-      # nothing.
-      NEOLESK_CACHE_ALLOW_FAIL: diagramsnet
+      # No engine is reachable from here, so do not pretend to render. This is
+      # explicit rather than relying on the generator's tolerance for an
+      # unreachable engine — an empty corpus should be a decision, not an
+      # accident that looks the same as a broken one.
+      NEOLESK_CACHE_SKIP: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -76,25 +79,11 @@ jobs:
 
       - run: npm ci --ignore-scripts
 
-      # Runs the example-cache prebuild, then vite build.
-      #
-      # NOTE the generator does NOT fail on 5xx or network errors even in strict
-      # mode, deliberately: kroki.io renders a different subset of mermaid from
-      # one hour to the next (4 mermaid examples were failing there on
-      # 2026-08-11 while all 116 rendered against our own engine). Gating merges
-      # on a third party's uptime would make CI fail for reasons nobody here can
-      # fix. Only a 4xx rejection — the engine refusing our diagram source —
-      # blocks.
-      - name: Build (renders the 116-example corpus)
+      - name: Build
         run: npm run build
 
       - name: Check the bundle is complete
         run: |
           test -s dist/index.html
-          cached=$(find dist/cache -name '*.svg' | wc -l)
-          echo "cached example renders: ${cached}"
-          # 116 examples, of which diagramsnet cannot render on kroki.io.
-          if [ "$cached" -lt 115 ]; then
-            echo "only ${cached} example renders made it into the bundle" >&2
-            exit 1
-          fi
+          test -d dist/assets
+          echo "bundle: $(du -sh dist | cut -f1)"

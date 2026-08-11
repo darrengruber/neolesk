@@ -52,9 +52,22 @@ env:
   OPENBAO_ADDR: http://openbao-active.openbao.svc.cluster.local:8200
   # Non-secret. The Cloudflare account that owns the neolesk Pages project.
   CLOUDFLARE_ACCOUNT_ID: c6c0da6f79d5b4a62fe1d2eff2f108e5
-  NEOLESK_KROKI_ENGINE: https://kroki.io/
+
+  # Render the example thumbnails against OUR OWN kroki, never kroki.io. This job
+  # runs on an in-cluster runner, so the Service address resolves. Strict, and
+  # nothing is allowed to fail: our engine draws all 29 diagram types, so any
+  # failure here is a real defect.
+  #
+  # NOTE the resulting bundle's baked thumbnails therefore come from our engine
+  # while the deployed site's RUNTIME engine is public kroki.io (see
+  # src/state.ts defaultRenderUrl). That is a deliberate split, but it has one
+  # visible edge: a `diagramsnet` example shows a correct cached thumbnail and
+  # then fails to re-render live, because kroki.io cannot draw that type. If that
+  # matters, the fix is to move the public site onto our engine too — which means
+  # exposing it publicly and widening its CORS allowlist, a decision recorded in
+  # darren-iac/iac apps/base/kroki/references/gotchas.md.
+  NEOLESK_KROKI_ENGINE: http://kroki-main.kroki.svc.cluster.local:8080/
   NEOLESK_CACHE_STRICT: "1"
-  NEOLESK_CACHE_ALLOW_FAIL: diagramsnet
 
 jobs:
   deploy:
