@@ -1,150 +1,126 @@
-<div align="center">
-
 # neolesk
 
-**A modern diagram editor powered by [Kroki](https://kroki.io/)**
+neolesk is a local-first diagram workspace for people and coding agents. Write in
+one of 29 text diagram languages, render live, share an immutable snapshot, or
+open a live session where humans and MCP clients edit the same document.
 
-*Vibe coded reimagining of [niolesk](https://github.com/gissehel/niolesk)*
+The public editor lives at [diagrams.darrengruber.com](https://diagrams.darrengruber.com).
+No account is required.
 
-[![Live](https://img.shields.io/badge/neolesk.pages.dev-live-2563eb?style=for-the-badge)](https://neolesk.pages.dev)
-[![Version](https://img.shields.io/badge/v2.0.0-orange?style=for-the-badge)](#)
-[![License](https://img.shields.io/badge/MIT-green?style=for-the-badge)](LICENSE)
+## Why neolesk
 
-</div>
+- Local rendering is preferred and the preview identifies where each result was
+  produced.
+- Diagram source is never sent to a render service until the user makes an
+  explicit first-run choice. The choice remains editable in Settings.
+- Snapshot links contain an immutable diagram state. Session links point to a
+  live, expiring collaborative document; the UI keeps those concepts separate.
+- Every live session exposes its own Streamable HTTP MCP endpoint. An agent can
+  read, edit, render, export, inspect diagnostics, change view settings, create a
+  snapshot link, and undo its latest write.
+- CodeMirror 6 provides language-aware editing, completion, diagnostics, and
+  Loro-backed collaborative text.
+- The 116-example catalog is a committed golden-image regression suite.
 
----
+## Rendering and privacy
 
-<!-- TODO: add screenshot or demo GIF -->
-<!-- <p align="center">
-  <img src="assets/demo.gif" alt="neolesk demo" width="800">
-</p> -->
+The browser renders BPMN, Bytefield, D2, DBML, Graphviz, Mermaid, Nomnoml,
+Pikchr, PlantUML/C4, Svgbob, Vega/Vega-Lite, WaveDrom, and several related
+formats locally. Worker sessions also render Graphviz, PlantUML/C4, D2, Pikchr,
+and Svgbob locally. Languages without a compatible local engine fall back only
+to the render server the user selected.
 
-## What is neolesk?
+`SVG` export uses the current preview in the browser. `PNG`, `JPEG`, and `PDF`
+exports require the selected server. The default managed service uses neolesk's
+own private [Kroki](https://kroki.io/) deployment; Kroki remains the engine and
+ecosystem behind the server-rendered language set.
 
-Write diagrams as text, see them rendered live. Neolesk is a browser-based editor
-that supports 28 diagram languages through [Kroki](https://kroki.io/) -- PlantUML,
-Mermaid, Graphviz, D2, and many more. Everything runs client-side; no account needed.
+## Local development
 
-## Features
-
-- **28 diagram languages** -- PlantUML, Mermaid, Graphviz, D2, C4, Excalidraw, and more
-- **Monaco Editor** -- the engine behind VS Code, with syntax awareness
-- **Live preview** -- renders as you type
-- **Client-side export** -- SVG, PNG, JPEG, PDF with no server round-trip
-- **Shareable URLs** -- diagram state encoded in the URL hash
-- **Built-in cheat sheets** -- syntax reference for every diagram type
-- **Example gallery** -- searchable library with one-click import
-- **Resizable split panes** -- vertical, horizontal, or preview-only
-- **Mobile responsive** -- tab switching on small screens
-- **Self-hostable** -- Docker + Caddy, or Cloudflare Pages
-
-## Quick start
-
-Visit **[neolesk.pages.dev](https://neolesk.pages.dev)** -- no install needed.
-
-### Local development
+Requirements: Node.js 24 and npm.
 
 ```bash
-npm install
+npm ci
 npm start
 ```
 
-### Docker
+The editor starts at `http://localhost:5173`. Useful checks:
 
 ```bash
-docker compose up
+npm run typecheck
+npm test
+npm run build
+npm run test:corpus
 ```
 
-Dev server runs at `http://localhost:5173` with hot reload.
-
-## Tech stack
-
-<p align="center">
-
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
-![Cloudflare Pages](https://img.shields.io/badge/Cloudflare_Pages-F38020?style=for-the-badge&logo=cloudflarepages&logoColor=white)
-
-</p>
-
-## Supported diagrams
-
-<details>
-<summary>All 28 diagram types</summary>
-
-| Language | Description |
-|----------|-------------|
-| PlantUML | UML diagrams |
-| Mermaid | Flowcharts, sequence diagrams, Gantt charts |
-| Graphviz | Graph visualization |
-| D2 | Modern declarative diagrams |
-| C4 PlantUML | C4 architecture diagrams |
-| Excalidraw | Hand-drawn style diagrams |
-| BPMN | Business process models |
-| ERD | Entity-relationship diagrams |
-| DBML | Database markup language |
-| BlockDiag | Block diagrams |
-| SeqDiag | Sequence diagrams |
-| ActDiag | Activity diagrams |
-| NwDiag | Network diagrams |
-| PacketDiag | Packet diagrams |
-| RackDiag | Rack diagrams |
-| Nomnoml | UML with a nice syntax |
-| Svgbob | ASCII art to SVG |
-| UMlet | UML tool diagrams |
-| Vega | Visualization grammar |
-| Vega-Lite | High-level visualization grammar |
-| WaveDrom | Digital timing diagrams |
-| Ditaa | ASCII art diagrams |
-| Pikchr | PIC-like diagrams |
-| Structurizr | Architecture diagrams |
-| Bytefield | Byte field diagrams |
-| WireViz | Wiring harness diagrams |
-| Symbolator | HDL symbol diagrams |
-| TikZ | LaTeX graphics |
-
-</details>
-
-## Build & deploy
+The corpus test uses Playwright and a render service for the server-only
+examples. Point it at a compatible service when necessary:
 
 ```bash
-npm run build       # production build
-npm run preview     # preview locally
-npm run test        # run tests
-npm run typecheck   # type check
-npm run deploy      # deploy to Cloudflare Pages
+NEOLESK_KROKI_PROXY_TARGET=https://your-kroki.example/ npm run test:corpus
 ```
 
-### Docker production image
+Use `npm run test:corpus:update` only after reviewing an intentional rendering
+change; it rewrites the committed references.
+
+## Deployments
+
+The complete deployment is a celld module Worker with static assets, Durable
+Object sessions, WebSockets, alarms, and MCP routes:
+
+```bash
+npm run build
+npm run deploy
+```
+
+Deployment configuration is in `wrangler.jsonc`. celld reads credentials from
+the standard AWS credential chain; production uses a bucket-scoped RustFS key.
+At runtime `/config.json` advertises the public render and session endpoints.
+
+The Docker image is deliberately static-only:
 
 ```bash
 docker build -t neolesk .
+docker run --rm -p 8080:80 neolesk
 ```
 
-Set `NEOLESK_KROKI_ENGINE` build arg to use a custom Kroki server (defaults to `https://kroki.io/`).
+It keeps editing, local and consented remote rendering, snapshot links, and
+exports. It displays a clear notice that sessions are unavailable. Override the
+build-time render endpoint with `--build-arg NEOLESK_KROKI_ENGINE=...`, or serve
+this runtime file alongside the static assets:
 
-## Configuration
+```json
+{
+  "renderServerUrl": "https://diagrams.example/render/",
+  "sessionBackendUrl": "https://diagrams.example/"
+}
+```
 
-The app uses the public Kroki instance by default. To point at a private Kroki
-server, either set `NEOLESK_KROKI_ENGINE` at Docker build time or serve a
-`/config.js` file alongside the static assets.
+## Session API
 
-## Vibe coded
+Starting a session produces three unguessable URLs:
 
-This project was vibe coded -- built through rapid iteration with AI, moving
-fast and following the creative flow. The original
-[niolesk](https://github.com/gissehel/niolesk) by gissehel provided the
-foundation; neolesk is the modern reimagining.
+- `/s/<id>` — the live human editor
+- `/mcp/<id>` — the session-scoped Streamable HTTP MCP endpoint
+- `/api/sessions/<id>/connect` — the Loro/WebSocket transport
 
-## License
+Only source and language are shared CRDT state. View and renderer settings are
+participant-local. Sessions enforce request limits, document-size limits, idle
+expiry, and durable snapshots. The identifier is the access capability, so
+handle a session URL like a bearer secret.
+
+## Supported languages
+
+ActDiag, BlockDiag, BPMN, Bytefield, C4 PlantUML, D2, DBML, diagrams.net,
+Ditaa, Erd, Excalidraw, Graphviz, Mermaid, Nomnoml, NwDiag, PacketDiag, Pikchr,
+PlantUML, RackDiag, SeqDiag, Structurizr, Svgbob, Symbolator, TikZ, UMLet, Vega,
+Vega-Lite, WaveDrom, and WireViz.
+
+## Credits and license
+
+neolesk is a reimagining of [niolesk](https://github.com/gissehel/niolesk) by
+gissehel. It uses Kroki-compatible protocols and renderers, the MIT browser
+build of PlantUML, and the other open-source packages recorded in
+`package-lock.json`.
 
 [MIT](LICENSE)
-
----
-
-<div align="center">
-
-**[neolesk.pages.dev](https://neolesk.pages.dev)**
-
-</div>

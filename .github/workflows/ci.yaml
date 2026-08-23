@@ -1,31 +1,8 @@
 name: CI
 
-# This repo had NO CI at all until 2026-08-11. Tests existed and were never run;
-# a broken PlantUML example shipped to production and stayed there because the
-# example-cache generator warned into a build log and exited 0.
-#
 # Runs on GitHub-hosted runners, which are free here because the repo is public.
-# The in-cluster ARC set cannot serve this repo: GitHub does not support
-# user-account-level scale sets, so arc-runners-darrengruber is anchored to
-# darrengruber/skills and only serves its anchor.
-#
-# WHAT THIS JOB DOES NOT DO: render the example corpus.
-#
-# We render ONLY against our own self-hosted kroki, which is tailnet-only and
-# therefore unreachable from a GitHub-hosted runner. Rendering against public
-# kroki.io was tried and rejected — it cannot draw `diagramsnet` at all, it
-# renders a different subset of mermaid from one hour to the next, and gating
-# merges on a third party's uptime means CI failing for reasons nobody here can
-# fix. So this job builds with NEOLESK_CACHE_SKIP=1 and the render gate lives
-# where our engine is reachable:
-#
-#   * darren-iac/iac .github/workflows/build-neolesk.yaml — the in-cluster image,
-#     strict against http://kroki-main.kroki.svc.cluster.local:8080
-#   * .github/workflows/deploy-pages.yaml — the public bundle, strict against the
-#     same engine from an in-cluster runner
-#
-# Both are strict and allow nothing. A broken example cannot reach either
-# deployment; it just is not this job that stops it.
+# The visual job uses the public neolesk render proxy, which reaches the private
+# Kroki service without granting CI direct cluster access.
 
 on:
   push:
@@ -87,3 +64,31 @@ jobs:
           test -s dist/index.html
           test -d dist/assets
           echo "bundle: $(du -sh dist | cut -f1)"
+
+  corpus:
+    runs-on: ubuntu-latest
+    env:
+      NEOLESK_KROKI_PROXY_TARGET: https://diagrams.darrengruber.com/render/
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+
+      - name: Compare all 116 examples with committed images
+        run: npm run test:corpus
+
+      - name: Upload visual diffs and trace
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: diagram-corpus-diffs
+          path: |
+            test-results
+            playwright-report
+          if-no-files-found: ignore

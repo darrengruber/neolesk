@@ -10,7 +10,7 @@ import {
     Settings,
     Users,
 } from 'lucide-react';
-import CodeMirrorEditor from './editor/CodeMirrorEditor';
+import CodeMirrorEditor, { type CollaborationBinding } from './editor/CodeMirrorEditor';
 import type { DiagramValidationMarker } from './editor/languages/types';
 import cheatSheets from './data/cheatSheets';
 import { createRemoteExportAdapter, exportDiagram, type ExportFormat } from './export/export';
@@ -27,6 +27,12 @@ import {
     type RemoteRenderingChoice,
 } from './preferences/preferences';
 import { loadRuntimeConfig } from './runtimeConfig';
+import {
+    createSession,
+    createSessionClient,
+    getSessionIdFromPath,
+    type SessionLinks,
+} from './session/sessionClient';
 import {
     buildDiagramState,
     createInitialDiagramState,
@@ -183,7 +189,7 @@ function EditorApplication({
     preferences: Preferences;
     onPreferencesChange: (preferences: Preferences) => void;
 }) {
-    const baseUrl = useMemo(() => window.location.origin + window.location.pathname, []);
+    const baseUrl = useMemo(() => `${window.location.origin}/`, []);
     const initialState = useMemo(() => createInitialDiagramState(baseUrl, window.location.hash), [baseUrl]);
     const [language, setLanguage] = useState(initialState.diagramType);
     const [source, setSource] = useState(initialState.diagramText);
@@ -191,6 +197,10 @@ function EditorApplication({
     const [drafts, setDrafts] = useState<Record<string, string>>({ [initialState.diagramType]: initialState.diagramText });
     const [renderUrl, setRenderUrl] = useState(normalizeRenderUrl(__KROKI_ENGINE_URL__ || defaultRenderUrl));
     const [sessionBackendUrl, setSessionBackendUrl] = useState<string | null>(null);
+    const [sessionId, setSessionId] = useState<string | null>(() => getSessionIdFromPath(window.location.pathname));
+    const [activeSession, setActiveSession] = useState<SessionLinks | null>(null);
+    const [collaboration, setCollaboration] = useState<CollaborationBinding | null>(null);
+    const [presence, setPresence] = useState<'offline' | 'connected' | 'disconnected'>('offline');
     const [mobileSection, setMobileSection] = useState<MobileSection>('code');
     const [sidebar, setSidebar] = useState<'examples' | 'syntax'>('examples');
     const [exportOpen, setExportOpen] = useState(false);
@@ -239,6 +249,30 @@ function EditorApplication({
     }, []); // Runtime configuration is intentionally loaded once.
 
     useEffect(() => {
+        if (!sessionBackendUrl || !sessionId) return undefined;
+        const websocketUrl = new URL(`/api/sessions/${sessionId}/connect`, sessionBackendUrl);
+        websocketUrl.protocol = websocketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+        const client = createSessionClient({
+            websocketUrl: websocketUrl.href,
+            onBinding: setCollaboration,
+            onState: (state) => {
+                setLanguage(state.language);
+                setSource(state.source);
+                setPreviewSource(state.source);
+                setDrafts((current) => ({ ...current, [state.language]: state.source }));
+            },
+            onPresence: (event) => setPresence(event.state),
+        });
+        client.connect();
+        setPresence('connected');
+        return () => {
+            client.disconnect();
+            setCollaboration(null);
+        };
+    }, [sessionBackendUrl, sessionId]);
+
+    useEffect(() => {
+        if (sessionId) return;
         const state = buildDiagramState({
             baseUrl,
             diagramType: language,
@@ -248,7 +282,7 @@ function EditorApplication({
         });
         const nextHash = `#${state.diagramHash}`;
         if (window.location.hash !== nextHash) window.history.replaceState(null, '', nextHash);
-    }, [baseUrl, language, previewSource, renderUrl]);
+    }, [baseUrl, language, previewSource, renderUrl, sessionId]);
 
     useEffect(() => {
         const onHashChange = () => {
@@ -274,6 +308,11 @@ function EditorApplication({
         setLanguage(nextLanguage);
         setSource(nextSource);
         setPreviewSource(nextSource);
+        if (collaboration) {
+            collaboration.doc.getText('language').update(nextLanguage);
+            collaboration.doc.getText('source').update(nextSource);
+            collaboration.doc.commit({ origin: 'human', message: 'Changed diagram language' });
+        }
     };
 
     const selectExample = (example: ExampleRecord) => {
@@ -282,12 +321,38 @@ function EditorApplication({
         setSource(nextSource);
         setPreviewSource(nextSource);
         setDrafts((current) => ({ ...current, [example.diagramType]: nextSource }));
+        if (collaboration) {
+            collaboration.doc.getText('language').update(example.diagramType);
+            collaboration.doc.getText('source').update(nextSource);
+            collaboration.doc.commit({ origin: 'human', message: `Loaded ${example.title}` });
+        }
         setMobileSection('code');
     };
 
     const copySnapshot = async () => {
-        await navigator.clipboard?.writeText(window.location.href);
+        const snapshot = buildDiagramState({
+            baseUrl,
+            diagramType: language,
+            diagramText: source,
+            filetype: 'svg',
+            renderUrl,
+        });
+        await navigator.clipboard?.writeText(snapshot.editUrl);
         setStatusMessage('Snapshot link copied');
+    };
+
+    const startSession = async () => {
+        if (!sessionBackendUrl) return;
+        try {
+            const session = await createSession(sessionBackendUrl, { language, source });
+            setActiveSession(session);
+            setSessionId(session.id);
+            const path = new URL(session.sessionUrl).pathname;
+            window.history.pushState(null, '', path);
+            setStatusMessage('Live session started');
+        } catch (error) {
+            setStatusMessage(error instanceof Error ? error.message : String(error));
+        }
     };
 
     const download = async (format: ExportFormat) => {
@@ -323,6 +388,7 @@ function EditorApplication({
                 appearance={appearance}
                 markers={remoteMarkers}
                 onChange={updateSource}
+                collaboration={collaboration}
             />
         </section>
     );
@@ -369,7 +435,7 @@ function EditorApplication({
                 </div>
                 <div className="TopActions">
                     <button type="button" className="ToolbarButton" onClick={copySnapshot}><Link2 aria-hidden="true" /><span>Copy snapshot</span></button>
-                    <button type="button" className="ToolbarButton" disabled={!sessionBackendUrl}><Users aria-hidden="true" /><span>New session</span></button>
+                    <button type="button" className="ToolbarButton" disabled={!sessionBackendUrl || Boolean(sessionId)} onClick={startSession}><Users aria-hidden="true" /><span>New session</span></button>
                     <div className="ExportControl">
                         <button type="button" className="ToolbarButton Primary" onClick={() => setExportOpen((open) => !open)}>
                             <Download aria-hidden="true" /><span>Export</span>
@@ -388,6 +454,12 @@ function EditorApplication({
             </header>
 
             {!sessionBackendUrl && <div className="DeploymentNotice">Sessions unavailable in this deployment</div>}
+            {sessionId && (
+                <div className="SessionNotice">
+                    <span><span className={`PresenceDot ${presence}`} aria-hidden="true" />Live session</span>
+                    <button type="button" onClick={() => navigator.clipboard?.writeText(activeSession?.mcpUrl || `${window.location.origin}/mcp/${sessionId}`)}>Copy agent URL</button>
+                </div>
+            )}
             {statusMessage && <div className="StatusMessage" role="status">{statusMessage}</div>}
 
             {compact ? (

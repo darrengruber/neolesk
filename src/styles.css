@@ -304,7 +304,8 @@ button { -webkit-tap-highlight-color: transparent; }
 .ExportMenu small { color: var(--secondary-label); }
 
 .DeploymentNotice,
-.StatusMessage {
+.StatusMessage,
+.SessionNotice {
     flex: none;
     padding: 5px 12px;
     border-bottom: 1px solid var(--separator);
@@ -315,6 +316,19 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 
 .StatusMessage { background: color-mix(in srgb, var(--tint) 10%, var(--secondary-background)); }
+
+.SessionNotice {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: color-mix(in srgb, var(--green) 10%, var(--secondary-background));
+}
+
+.SessionNotice > span { display: inline-flex; align-items: center; gap: 6px; color: var(--label); font-weight: 650; }
+.SessionNotice button { padding: 1px 6px; border: 0; background: transparent; color: var(--tint); font-size: inherit; cursor: pointer; }
+.PresenceDot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+.PresenceDot.disconnected, .PresenceDot.offline { background: var(--orange); }
 
 .DesktopWorkspace {
     flex: 1;

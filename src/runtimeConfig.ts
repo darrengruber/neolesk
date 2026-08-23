@@ -2,9 +2,8 @@
  * Runtime configuration, read from /config.json after the app mounts.
  *
  * This exists so a deployment can point the app at a different Kroki engine
- * without a rebuild — the in-cluster deployment mounts a ConfigMap over this
- * path to select the self-hosted engine, while the public Cloudflare Pages
- * build ships no config.json at all and keeps the build-time default.
+ * without a rebuild — the static image can mount this file while celld serves
+ * it dynamically from the Worker entry point.
  *
  * THE STATUS CODE CANNOT TELL YOU WHETHER A CONFIG EXISTS. Every host that
  * serves this app has an SPA fallback, so a request for a file that is not
@@ -67,8 +66,8 @@ export const loadRuntimeConfig = async (
     }
 
     // The SPA fallback case: index.html served in place of the missing file.
-    // This is the normal "no config" path on Cloudflare Pages and on
-    // static-web-server, so it must NOT be reported as an error.
+    // This is the normal "no config" path on a host with an SPA fallback, so
+    // it must NOT be reported as an error.
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('json')) {
         return { status: 'absent' };

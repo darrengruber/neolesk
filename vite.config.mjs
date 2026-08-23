@@ -8,6 +8,13 @@ import wasm from 'vite-plugin-wasm';
 
 const require = createRequire(import.meta.url);
 const pkg = require('./package.json');
+const renderProxy = process.env.NEOLESK_KROKI_PROXY_TARGET ? {
+    '/render': {
+        target: process.env.NEOLESK_KROKI_PROXY_TARGET,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/render/, ''),
+    },
+} : undefined;
 
 const gitHash = (() => {
     try {
@@ -58,6 +65,8 @@ export default defineConfig({
     build: {
         target: 'esnext',
     },
+    server: renderProxy ? { proxy: renderProxy } : undefined,
+    preview: renderProxy ? { proxy: renderProxy } : undefined,
     resolve: {
         alias: {
             // Browser-native engine deps reference Node built-ins that are never
@@ -70,6 +79,7 @@ export default defineConfig({
         },
     },
     test: {
+        include: ['src/**/*.test.{ts,tsx}'],
         environment: 'jsdom',
         environmentOptions: {
             jsdom: { url: 'http://localhost/' },

@@ -3,13 +3,14 @@ import { basicSetup } from 'codemirror';
 import { linter } from '@codemirror/lint';
 import { Annotation, Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import type { EphemeralStore, LoroDoc, UndoManager } from 'loro-crdt';
+import type { EphemeralStore, LoroDoc, LoroText, UndoManager } from 'loro-crdt';
 import type { Appearance } from '../preferences/preferences';
 import { getCodeMirrorSupport, toCodeMirrorDiagnostics, validateDiagramText } from './codeMirrorLanguage';
 import type { DiagramValidationMarker } from './languages/types';
 
 export interface CollaborationBinding {
     doc: LoroDoc;
+    getText: (doc: LoroDoc) => LoroText;
     ephemeral: EphemeralStore;
     undoManager: UndoManager;
     user: {
@@ -178,6 +179,7 @@ function CodeMirrorEditor({
                     collaboration.doc,
                     { ephemeral: collaboration.ephemeral, user: collaboration.user },
                     collaboration.undoManager,
+                    collaboration.getText,
                 )),
             });
         });

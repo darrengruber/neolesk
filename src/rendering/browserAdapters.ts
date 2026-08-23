@@ -83,6 +83,52 @@ const loadPlantUml = async () => {
     return plantUmlReady;
 };
 
+type PlantUmlRender = (
+    lines: string[],
+    onSuccess: (svg: string) => void,
+    onError: (message: string) => void,
+) => void;
+
+export const renderPlantUmlToString = (
+    render: PlantUmlRender,
+    source: string,
+    timeoutMs = 30_000,
+): Promise<string> => new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (outcome: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        globalThis.removeEventListener?.('error', onGlobalError);
+        outcome();
+    };
+    const onGlobalError = (event: Event) => {
+        const errorEvent = event as ErrorEvent;
+        const error = errorEvent.error instanceof Error
+            ? errorEvent.error
+            : new Error(errorEvent.message || 'PlantUML failed asynchronously');
+        const origin = `${errorEvent.filename || ''}\n${error.stack || ''}`.toLowerCase();
+        if (!origin.includes('plantuml')) return;
+        errorEvent.preventDefault?.();
+        finish(() => reject(error));
+    };
+    const timeout = setTimeout(
+        () => finish(() => reject(new Error(`PlantUML render timed out after ${timeoutMs}ms`))),
+        timeoutMs,
+    );
+
+    globalThis.addEventListener?.('error', onGlobalError);
+    try {
+        render(
+            source.split(/\r?\n/),
+            (svg) => finish(() => resolve(svg)),
+            (message) => finish(() => reject(new Error(message))),
+        );
+    } catch (error) {
+        finish(() => reject(error instanceof Error ? error : new Error(String(error))));
+    }
+});
+
 const plantUmlRenderer: RendererAdapter = {
     id: 'plantuml-browser',
     label: 'PlantUML MIT browser renderer',
@@ -93,9 +139,7 @@ const plantUmlRenderer: RendererAdapter = {
     load: async () => { await loadPlantUml(); },
     async render({ source }) {
         const { renderToString } = await loadPlantUml();
-        return new Promise<string>((resolve, reject) => {
-            renderToString(source.split(/\r?\n/), resolve, (message) => reject(new Error(message)));
-        });
+        return renderPlantUmlToString(renderToString, source);
     },
 };
 

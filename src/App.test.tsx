@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
@@ -61,5 +61,44 @@ describe('neolesk editor shell', () => {
             'Examples',
             'Settings',
         ]);
+    });
+
+    it('starts a live session when runtime discovery exposes the backend', async () => {
+        const id = 'a'.repeat(64);
+        class FakeWebSocket {
+            static readonly OPEN = 1;
+            readyState = 1;
+            onopen: (() => void) | null = null;
+            onmessage = null;
+            onclose = null;
+            send() { /* no-op */ }
+            close() { /* no-op */ }
+        }
+        vi.stubGlobal('WebSocket', FakeWebSocket);
+        vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+            const path = new URL(String(input), window.location.origin).pathname;
+            if (path === '/config.json') {
+                return new Response(JSON.stringify({
+                    renderServerUrl: 'https://diagrams.example/render/',
+                    sessionBackendUrl: 'https://diagrams.example',
+                }), { headers: { 'content-type': 'application/json' } });
+            }
+            return new Response(JSON.stringify({
+                id,
+                sessionUrl: `https://diagrams.example/s/${id}`,
+                websocketUrl: `wss://diagrams.example/api/sessions/${id}/connect`,
+                mcpUrl: `https://diagrams.example/mcp/${id}`,
+            }), { status: 201, headers: { 'content-type': 'application/json' } });
+        }));
+
+        render(<App />);
+        fireEvent.click(screen.getByRole('button', { name: 'Render locally only' }));
+        const newSession = await screen.findByRole('button', { name: 'New session' });
+        await waitFor(() => expect(newSession).toBeEnabled());
+        fireEvent.click(newSession);
+
+        expect(await screen.findByText('Live session')).toBeInTheDocument();
+        expect(window.location.pathname).toBe(`/s/${id}`);
+        expect(screen.getByRole('button', { name: 'Copy agent URL' })).toBeInTheDocument();
     });
 });

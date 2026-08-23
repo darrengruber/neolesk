@@ -20,11 +20,11 @@ RUN --mount=type=cache,id=neolesk-example-cache,target=/app/public/cache \
     fi && \
     npm run build
 
-# Runtime stage
-FROM caddy:latest
+# Static fallback image. Collaborative sessions and the MCP endpoint require
+# the celld deployment; this image intentionally serves only the editor.
+FROM caddy:2.10.2-alpine
 
 ENV XDG_CONFIG_HOME=/tmp \
     XDG_DATA_HOME=/tmp
 
-COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=builder /app/dist /usr/share/caddy
