@@ -46,6 +46,7 @@ const plantUmlRenderer: RendererAdapter = {
     environments: ['worker'],
     languages: ['plantuml', 'c4plantuml'],
     formats: ['svg'],
+    remoteOnError: true,
     async render({ source }) {
         const { installWorkerPlantUmlPlatform, loadWorkerViz } = await import('./workerRuntimes');
         await loadWorkerViz();

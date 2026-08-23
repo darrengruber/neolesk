@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { LoroDoc } from 'loro-crdt/bundler';
+import { bytesToBase64 } from './base64';
 import { createSessionCell, type SessionCellStorage } from './sessionCell';
 
 class MemoryStorage implements SessionCellStorage {
@@ -42,6 +44,58 @@ describe('session cell HTTP surface', () => {
         const undo = await cell.fetch(new Request('https://cell/undo', { method: 'POST' }));
         expect(undo.status).toBe(200);
         expect(await undo.json()).toEqual(expect.objectContaining({ source: '@startuml\n@enduml' }));
+    });
+
+    it('undoes consecutive agent diagram-source writes through persisted cell state', async () => {
+        const cell = createSessionCell(storage, { now: () => now });
+        await cell.fetch(new Request('https://cell/initialize', {
+            method: 'POST', body: JSON.stringify({ language: 'graphviz', source: 'digraph { AAAA }' }),
+        }));
+        for (const source of ['digraph { BBBB }', 'digraph { CCCC }']) {
+            now += 1;
+            await cell.fetch(new Request('https://cell/mutate', {
+                method: 'POST', body: JSON.stringify({ source, actor: 'agent', actorId: 'mcp' }),
+            }));
+        }
+        const state = await (await cell.fetch(new Request('https://cell/state'))).json() as {
+            history: Array<Record<string, unknown>>;
+        };
+        const latestHistory = state.history[state.history.length - 1];
+        expect(latestHistory).not.toHaveProperty('before');
+        expect(latestHistory).not.toHaveProperty('after');
+
+        expect(await (await cell.fetch(new Request('https://cell/undo', { method: 'POST' }))).json())
+            .toEqual(expect.objectContaining({ source: 'digraph { BBBB }' }));
+        expect(await (await cell.fetch(new Request('https://cell/undo', { method: 'POST' }))).json())
+            .toEqual(expect.objectContaining({ source: 'digraph { AAAA }' }));
+    });
+
+    it('preserves a later human edit while undoing consecutive agent writes', async () => {
+        const cell = createSessionCell(storage, { now: () => now });
+        await cell.fetch(new Request('https://cell/initialize', {
+            method: 'POST', body: JSON.stringify({ language: 'd2', source: 'AAAA' }),
+        }));
+        for (const source of ['BBBB', 'CCCC']) {
+            now += 1;
+            await cell.fetch(new Request('https://cell/mutate', {
+                method: 'POST', body: JSON.stringify({ source, actor: 'agent', actorId: 'mcp' }),
+            }));
+        }
+
+        const snapshot = new Uint8Array(await (await cell.fetch(new Request('https://cell/snapshot'))).arrayBuffer());
+        const human = LoroDoc.fromSnapshot(snapshot);
+        human.getText('source').insert(human.getText('source').length, ' HUMAN');
+        human.commit({ origin: 'human' });
+        await cell.fetch(new Request('https://cell/crdt', {
+            method: 'POST', body: JSON.stringify({
+                actorId: 'browser', update: bytesToBase64(human.export({ mode: 'snapshot' })),
+            }),
+        }));
+
+        expect(await (await cell.fetch(new Request('https://cell/undo', { method: 'POST' }))).json())
+            .toEqual(expect.objectContaining({ source: 'BBBB HUMAN' }));
+        expect(await (await cell.fetch(new Request('https://cell/undo', { method: 'POST' }))).json())
+            .toEqual(expect.objectContaining({ source: 'AAAA HUMAN' }));
     });
 
     it('reuses the capped document audit instead of duplicating inverse snapshots', async () => {

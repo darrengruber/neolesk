@@ -41,6 +41,7 @@ export interface SessionCellOptions {
 export interface SessionRenderInput extends SessionSnapshot {
     format: string;
     options: Record<string, string>;
+    renderServerUrl: string;
 }
 
 export interface SessionExportInput extends SessionSnapshot {
@@ -426,7 +427,13 @@ export const createSessionCell = (
                 ) || {};
                 rendersInFlight += 1;
                 try {
-                    return json(await options.render({ ...document.sharedState(), format, options: rendererOptions }));
+                    const publicOrigin = request.headers.get('x-neolesk-public-origin') || new URL(request.url).origin;
+                    return json(await options.render({
+                        ...document.sharedState(),
+                        format,
+                        options: rendererOptions,
+                        renderServerUrl: new URL('/render/', publicOrigin).href,
+                    }));
                 } finally {
                     rendersInFlight -= 1;
                 }

@@ -1,4 +1,4 @@
-import { LoroDoc, UndoManager } from 'loro-crdt/bundler';
+import { LoroDoc, UndoManager, type Frontiers } from 'loro-crdt/bundler';
 
 export interface SessionSnapshot {
     language: string;
@@ -30,6 +30,8 @@ export interface SessionHistoryEntry extends SessionWriteActor {
 
 export interface StoredHistoryEntry extends SessionHistoryEntry {
     undo?: Uint8Array;
+    before?: Frontiers;
+    after?: Frontiers;
 }
 
 export interface PersistedSessionDocument {
@@ -95,6 +97,8 @@ export class SessionDocument {
             ...entry,
             fields: [...entry.fields],
             undo: entry.undo ? new Uint8Array(entry.undo) : undefined,
+            before: entry.before?.map((frontier) => ({ ...frontier })),
+            after: entry.after?.map((frontier) => ({ ...frontier })),
         })));
         session.trimAudit(persisted.snapshot);
         return session;
@@ -119,10 +123,12 @@ export class SessionDocument {
 
         const before = this.exportSnapshot();
         const candidate = LoroDoc.fromSnapshot(before);
+        const beforeFrontiers = candidate.frontiers();
         const undoManager = actor.actor === 'agent' ? new UndoManager(candidate, {}) : null;
         fields.forEach((field) => candidate.getText(field).update(changes[field] as string));
         candidate.commit({ origin: actor.actor, message: `${actor.actorId}: ${fields.join(', ')}` });
         const nextSnapshot = candidate.export({ mode: 'snapshot' });
+        const afterFrontiers = candidate.frontiers();
         this.assertWithinLimit(nextSnapshot);
 
         let undo: Uint8Array | undefined;
@@ -133,7 +139,13 @@ export class SessionDocument {
             undo = candidate.export({ mode: 'update', from: afterVersion });
         }
 
-        const entry: StoredHistoryEntry = { ...actor, at, fields: [...fields], undo };
+        const entry: StoredHistoryEntry = {
+            ...actor,
+            at,
+            fields: [...fields],
+            undo,
+            ...(actor.actor === 'agent' ? { before: beforeFrontiers, after: afterFrontiers } : {}),
+        };
         this.audit.push(entry);
         try {
             this.trimAudit(nextSnapshot, entry);
@@ -174,12 +186,19 @@ export class SessionDocument {
                 ...entry,
                 fields: [...entry.fields],
                 undo: entry.undo ? new Uint8Array(entry.undo) : undefined,
+                before: entry.before?.map((frontier) => ({ ...frontier })),
+                after: entry.after?.map((frontier) => ({ ...frontier })),
             })),
         };
     }
 
     history(): SessionHistoryEntry[] {
-        return this.audit.map(({ undo: _undo, ...entry }) => ({ ...entry, fields: [...entry.fields] }));
+        return this.audit.map(({
+            undo: _undo,
+            before: _before,
+            after: _after,
+            ...entry
+        }) => ({ ...entry, fields: [...entry.fields] }));
     }
 
     latestAgentUndoUpdate(): Uint8Array | null {
@@ -202,7 +221,11 @@ export class SessionDocument {
         const undo = undoUpdate || latest?.undo;
         if (!undo) return false;
         const candidate = LoroDoc.fromSnapshot(this.exportSnapshot());
-        candidate.import(undo);
+        if (latest?.before && latest.after) {
+            candidate.applyDiff(candidate.diff(latest.after, latest.before, false));
+        } else {
+            candidate.import(undo);
+        }
         candidate.commit({ origin: 'human', message: 'Undo latest agent write' });
         const nextSnapshot = candidate.export({ mode: 'snapshot' });
         if (latest) {

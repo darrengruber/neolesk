@@ -77,6 +77,7 @@ export class SessionCell {
         const inClusterRenderer = createKrokiRemoteRenderer({
             id: 'neolesk', label: 'neolesk Kroki', url: krokiOrigin,
         });
+        inClusterRenderer.transportUrl = krokiOrigin;
         this.core = createSessionCell(state.storage, {
             idleTtlMs: SESSION_IDLE_TTL_MS,
             onChange: (change) => {
@@ -94,12 +95,12 @@ export class SessionCell {
                 if (!capability) throw new Error(`Unsupported diagram language ${language}`);
                 return validateRendererOptions(capability.optionDefinitions, options);
             },
-            render: ({ language, source, format, options }) => rendering.render({
+            render: ({ language, source, format, options, renderServerUrl }) => rendering.render({
                 language,
                 source,
                 format,
                 options,
-                remote: inClusterRenderer,
+                remote: { ...inClusterRenderer, url: renderServerUrl },
             }),
             maxExportBytes: MAX_BINARY_EXPORT_BYTES,
             exportBinary: async ({ language, source, format, options, rendererId, maxBytes }) => {

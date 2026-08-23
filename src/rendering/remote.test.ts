@@ -49,6 +49,26 @@ describe('Kroki-compatible remote adapter', () => {
         });
     });
 
+    it('turns an SVG render-server error into a concise diagnostic', async () => {
+        const render = createKrokiRemoteAdapter(async () => new Response(
+            '<svg><text><tspan>Syntax error</tspan><tspan>at line 4, column 7</tspan></text></svg>',
+            { status: 400, headers: { 'content-type': 'image/svg+xml' } },
+        ));
+
+        await expect(render({
+            language: 'graphviz',
+            source: 'digraph {',
+            format: 'svg',
+            options: {},
+            serverUrl: 'https://example.test/',
+        })).rejects.toMatchObject({
+            message: 'Syntax error at line 4, column 7',
+            status: 400,
+            line: 4,
+            column: 7,
+        });
+    });
+
     it('encodes hostile language and format values as path segments', async () => {
         let requestedUrl = '';
         const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {

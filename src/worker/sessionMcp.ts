@@ -87,8 +87,15 @@ const postJson = (value?: unknown): RequestInit => ({
     body: value === undefined ? undefined : JSON.stringify(value),
 });
 
-const cellToolResult = async (cell: McpSessionCell, path: string, init: RequestInit) => {
-    const response = await cell.fetch(new Request(new URL(path, 'https://session.internal'), init));
+const cellToolResult = async (
+    cell: McpSessionCell,
+    path: string,
+    init: RequestInit,
+    publicOrigin?: string,
+) => {
+    const headers = new Headers(init.headers);
+    if (publicOrigin) headers.set('x-neolesk-public-origin', publicOrigin);
+    const response = await cell.fetch(new Request(new URL(path, 'https://session.internal'), { ...init, headers }));
     const payload = await response.json().catch(() => ({ error: `HTTP ${response.status}` })) as Record<string, unknown>;
     return textResult(payload, !response.ok);
 };
@@ -124,6 +131,40 @@ const stringRecord = (value: unknown): Record<string, string> => {
     const entries = Object.entries(value);
     if (!entries.every(([, entry]) => typeof entry === 'string')) throw new Error('renderer option values must be strings');
     return Object.fromEntries(entries) as Record<string, string>;
+};
+
+const viewSettings = (value: Record<string, unknown>): Record<string, unknown> => {
+    const allowed = new Set([
+        'panel', 'sidebar', 'theme', 'zoom', 'splitPercent',
+        'scrollTop', 'scrollLeft', 'previewScrollTop', 'previewScrollLeft',
+    ]);
+    for (const key of Object.keys(value)) {
+        if (!allowed.has(key)) throw new Error(`Unsupported view setting ${key}`);
+    }
+    const enumSetting = (key: string, values: string[]) => {
+        if (value[key] !== undefined && !values.includes(String(value[key]))) {
+            throw new Error(`${key} must be one of ${values.join(', ')}`);
+        }
+    };
+    const boundedNumber = (key: string, minimum: number, maximum?: number) => {
+        if (value[key] === undefined) return;
+        const number = value[key];
+        if (typeof number !== 'number' || !Number.isFinite(number)
+            || number < minimum || (maximum !== undefined && number > maximum)) {
+            throw new Error(maximum === undefined
+                ? `${key} must be at least ${minimum}`
+                : `${key} must be between ${minimum} and ${maximum}`);
+        }
+    };
+    enumSetting('panel', ['code', 'preview', 'examples', 'settings']);
+    enumSetting('sidebar', ['examples', 'syntax']);
+    enumSetting('theme', ['auto', 'light', 'dark']);
+    boundedNumber('zoom', 0.25, 4);
+    boundedNumber('splitPercent', 20, 80);
+    for (const key of ['scrollTop', 'scrollLeft', 'previewScrollTop', 'previewScrollLeft']) {
+        boundedNumber(key, 0);
+    }
+    return value;
 };
 
 const tools = [
@@ -221,11 +262,18 @@ const executeTool = async (
         return textResult({ settings: await cellJson<Record<string, unknown>>(dependencies.cell, '/view/agent') });
     }
     if (name === 'set_view_settings') {
-        return textResult({ settings: await cellJson<Record<string, unknown>>(dependencies.cell, '/view/agent', putJson(args)) });
+        return textResult({ settings: await cellJson<Record<string, unknown>>(
+            dependencies.cell, '/view/agent', putJson(viewSettings(args)),
+        ) });
     }
     if (name === 'render') {
         if (args.format !== undefined && args.format !== 'svg') throw new Error('format must be svg');
-        return cellToolResult(dependencies.cell, '/render', postJson({ participantId: 'agent', format: 'svg' }));
+        return cellToolResult(
+            dependencies.cell,
+            '/render',
+            postJson({ participantId: 'agent', format: 'svg' }),
+            new URL(dependencies.snapshotBaseUrl).origin,
+        );
     }
     if (name === 'export') {
         const format = requiredString(args.format, 'format');

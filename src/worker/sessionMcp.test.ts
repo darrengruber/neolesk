@@ -198,6 +198,23 @@ describe('session-scoped HTTP MCP', () => {
         }));
     });
 
+    it('rejects view settings outside the tool schema instead of clamping them', async () => {
+        const handler = createSessionMcpHandler({
+            sessionId: 'session', cell, snapshotBaseUrl: 'https://diagrams.example/',
+        });
+
+        const changed = await rpc(handler.fetch, 'tools/call', {
+            name: 'set_view_settings', arguments: { zoom: 99 },
+        });
+
+        expect(changed.result).toEqual(expect.objectContaining({ isError: true }));
+        expect(changed.result.content[0].text).toContain('zoom must be between 0.25 and 4');
+        const read = await rpc(handler.fetch, 'tools/call', {
+            name: 'get_view_settings', arguments: {},
+        });
+        expect(read.result.structuredContent).toEqual({ settings: {} });
+    });
+
     it('renders through the session cell and preserves structured failures', async () => {
         const handler = createSessionMcpHandler({
             sessionId: 'session',
@@ -211,7 +228,9 @@ describe('session-scoped HTTP MCP', () => {
             data: '<svg/>',
             provenance: expect.objectContaining({ rendererId: 'd2-worker' }),
         }));
-        expect(renderDiagram).toHaveBeenCalledOnce();
+        expect(renderDiagram).toHaveBeenCalledWith(expect.objectContaining({
+            renderServerUrl: 'https://diagrams.example/render/',
+        }));
 
         const failing = createSessionCell(new MemoryStorage(), {
             render: async () => {

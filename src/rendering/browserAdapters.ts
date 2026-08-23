@@ -163,6 +163,7 @@ const plantUmlRenderer: RendererAdapter = {
     languages: ['plantuml', 'c4plantuml'],
     formats: ['svg'],
     remoteWhileLoading: true,
+    remoteOnError: true,
     load: async () => { await loadPlantUml(); },
     async render({ source }) {
         const { renderToString } = await loadPlantUml();

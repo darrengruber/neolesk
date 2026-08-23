@@ -43,6 +43,31 @@ export class RemoteResponseTooLargeError extends Error {
     }
 }
 
+const xmlEntities: Record<string, string> = {
+    amp: '&', lt: '<', gt: '>', quot: '"', apos: "'",
+};
+
+const decodeXmlText = (value: string): string => value
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+    .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
+    .replace(/&(amp|lt|gt|quot|apos);/g, (_match, entity) => xmlEntities[String(entity)]);
+
+const remoteErrorMessage = (response: Response, body: string): string => {
+    const trimmed = body.trim();
+    const isSvg = response.headers.get('content-type')?.includes('image/svg+xml') || /<svg\b/i.test(trimmed);
+    if (isSvg) {
+        const tspans = Array.from(trimmed.matchAll(/<tspan\b[^>]*>([\s\S]*?)<\/tspan>/gi));
+        const elements = tspans.length > 0
+            ? tspans.map((match) => match[1])
+            : Array.from(trimmed.matchAll(/<text\b[^>]*>([\s\S]*?)<\/text>/gi)).map((match) => match[1]);
+        const message = decodeXmlText(elements.join(' ').replace(/<[^>]*>/g, ' '))
+            .replace(/\s+/g, ' ')
+            .trim();
+        if (message) return message;
+    }
+    return trimmed || `Render server returned HTTP ${response.status}`;
+};
+
 export const readResponseBytes = async (response: Response, maxBytes: number): Promise<Uint8Array> => {
     const declaredLength = Number(response.headers.get('content-length'));
     if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
@@ -121,7 +146,7 @@ export const createKrokiRemoteAdapter = (
         const body = new TextDecoder().decode(await readResponseBytes(response, maxResponseBytes));
 
         if (!response.ok) {
-            throw new RemoteRenderError(body.trim() || `Render server returned HTTP ${response.status}`, response.status);
+            throw new RemoteRenderError(remoteErrorMessage(response, body), response.status);
         }
         if (format === 'svg' && !body.includes('<svg')) {
             throw new RemoteRenderError('Render server did not return SVG', response.status);

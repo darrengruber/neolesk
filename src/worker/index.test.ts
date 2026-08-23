@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SessionCellStorage } from '../session/sessionCell';
 import { SessionCell } from './index';
 
@@ -33,7 +33,31 @@ const createHarness = (socketCount = 1) => {
     return { cell, socket, state };
 };
 
+afterEach(() => vi.unstubAllGlobals());
+
 describe('session Worker WebSocket ingress', () => {
+    it('reports the public render server while routing a remote render privately', async () => {
+        const remoteFetch = vi.fn(async (_input: RequestInfo | URL) => new Response('<svg/>', {
+            headers: { 'content-type': 'image/svg+xml' },
+        }));
+        vi.stubGlobal('fetch', remoteFetch);
+        const { cell } = createHarness();
+        await cell.fetch(new Request('https://diagrams.example/initialize', {
+            method: 'POST', body: JSON.stringify({ language: 'mermaid', source: 'flowchart LR\nA --> B' }),
+        }));
+
+        const rendered = await cell.fetch(new Request('https://diagrams.example/render', {
+            method: 'POST', body: JSON.stringify({ participantId: 'agent', format: 'svg' }),
+        }));
+
+        expect(await rendered.json()).toEqual(expect.objectContaining({
+            provenance: expect.objectContaining({
+                kind: 'remote', serverUrl: 'https://diagrams.example/render/',
+            }),
+        }));
+        expect(new URL(String(remoteFetch.mock.calls[0][0])).origin).toBe('http://kroki.internal');
+    });
+
     it('rejects oversized frames before decoding or parsing them', async () => {
         const { cell, socket } = createHarness();
 

@@ -25,6 +25,8 @@ export interface RendererAdapter {
     optionDefinitions?: Record<string, RendererOptionDefinition>;
     /** Use a consented server for the first render while a large local runtime downloads. */
     remoteWhileLoading?: boolean;
+    /** Use a consented server when this renderer rejects or cannot execute the diagram source. */
+    remoteOnError?: boolean;
     /** Optional warm-up hook. Capability checks never invoke it. */
     load?: () => Promise<void>;
     render: (input: RendererInput) => Promise<string>;
@@ -39,7 +41,10 @@ export type RendererOptionDefinition =
 export interface RemoteRenderer {
     id: string;
     label: string;
+    /** Public render-server identity shown in provenance. */
     url: string;
+    /** Optional private route used only to perform the remote render. */
+    transportUrl?: string;
     capabilities: Record<string, {
         formats: string[];
         optionDefinitions: Record<string, RendererOptionDefinition>;
@@ -234,13 +239,7 @@ export const createRenderingModule = ({
             const diagnostics: RenderDiagnostic[] = [];
             let options = requestedOptions;
             if (localRenderer) {
-                try {
-                    options = catalog.validateOptions(request.language, environment, requestedOptions);
-                } catch (error) {
-                    if (!request.remote) throw error;
-                    diagnostics.push(diagnosticFrom(localRenderer.id, error));
-                    localRenderer = undefined;
-                }
+                options = catalog.validateOptions(request.language, environment, requestedOptions);
             }
 
             if (localRenderer && localRenderer.remoteWhileLoading && request.remote && !loaded.has(localRenderer)) {
@@ -268,7 +267,7 @@ export const createRenderingModule = ({
                     };
                 } catch (error) {
                     diagnostics.push(diagnosticFrom(localRenderer.id, error));
-                    if (!request.remote) {
+                    if (!request.remote || !localRenderer.remoteOnError) {
                         throw new RenderingError(
                             'LOCAL_RENDER_FAILED',
                             request.language,
@@ -300,7 +299,7 @@ export const createRenderingModule = ({
                     source: request.source,
                     format: request.format,
                     options,
-                    serverUrl: request.remote.url,
+                    serverUrl: request.remote.transportUrl || request.remote.url,
                 });
                 return {
                     data,
