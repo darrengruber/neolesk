@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Code2,
+    ChevronDown,
     Download,
     Eye,
     FileText,
@@ -9,17 +10,25 @@ import {
     Monitor,
     Settings,
     Users,
+    ZoomIn,
+    ZoomOut,
 } from 'lucide-react';
 import CodeMirrorEditor, { type CollaborationBinding } from './editor/CodeMirrorEditor';
 import type { DiagramValidationMarker } from './editor/languages/types';
 import cheatSheets from './data/cheatSheets';
-import { createRemoteExportAdapter, exportDiagram, type ExportFormat } from './export/export';
+import {
+    createManagedCellExportAdapter,
+    createRemoteExportAdapter,
+    createSessionExportAdapter,
+    exportDiagram,
+    type ExportFormat,
+} from './export/export';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { getBrowserRenderCapabilities, useDiagramRender } from './hooks/useDiagramRender';
 import { useWindowWidth } from './hooks/useWindowWidth';
 import { decode } from './kroki/coder';
 import {
-    defaultPreferences,
+    consentServerForChoice,
     getConsentedRemoteRenderer,
     loadPreferences,
     savePreferences,
@@ -29,6 +38,7 @@ import {
 import { loadRuntimeConfig } from './runtimeConfig';
 import {
     createSession,
+    createSessionAvailabilityProbe,
     createSessionClient,
     getSessionIdFromPath,
     type SessionLinks,
@@ -47,6 +57,18 @@ import './styles.css';
 
 type MobileSection = 'code' | 'preview' | 'examples' | 'settings';
 
+interface ParticipantViewModel {
+    panel: MobileSection;
+    sidebar: 'examples' | 'syntax';
+    theme: Preferences['appearance'];
+    splitPercent: number;
+    zoom: number;
+    scrollTop: number;
+    scrollLeft: number;
+    previewScrollTop: number;
+    previewScrollLeft: number;
+}
+
 const mobileSections: Array<{
     id: MobileSection;
     label: string;
@@ -62,7 +84,8 @@ const getSystemAppearance = (): 'light' | 'dark' => (
     window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 );
 
-const ConsentInterstitial = ({ onChoose }: {
+const ConsentInterstitial = ({ renderServerUrl, onChoose }: {
+    renderServerUrl: string;
     onChoose: (choice: RemoteRenderingChoice) => void;
 }) => (
     <main className="ConsentScreen">
@@ -77,11 +100,11 @@ const ConsentInterstitial = ({ onChoose }: {
             <div className="ConsentChoices">
                 <button type="button" className="ChoiceButton ChoiceButtonPrimary" aria-label="Render locally only" onClick={() => onChoose('local-only')}>
                     <Monitor aria-hidden="true" />
-                    <span><strong>Render locally only</strong><small>Never send diagram source over the network</small></span>
+                    <span><strong>Render locally only</strong><small>Never send diagram source to a rendering service</small></span>
                 </button>
                 <button type="button" className="ChoiceButton" onClick={() => onChoose('neolesk')}>
                     <Users aria-hidden="true" />
-                    <span><strong>Use neolesk services</strong><small>Allow fallback rendering and collaboration</small></span>
+                    <span><strong>Use neolesk services</strong><small>Allow fallback rendering at {new URL(renderServerUrl).host} and collaboration</small></span>
                 </button>
                 <button type="button" className="ChoiceButton" onClick={() => onChoose('kroki-io')}>
                     <Link2 aria-hidden="true" />
@@ -93,8 +116,9 @@ const ConsentInterstitial = ({ onChoose }: {
     </main>
 );
 
-const SettingsView = ({ preferences, onChange }: {
+const SettingsView = ({ preferences, renderServerUrl, onChange }: {
     preferences: Preferences;
+    renderServerUrl: string;
     onChange: (next: Preferences) => void;
 }) => (
     <section className="SettingsView" aria-labelledby="settings-heading">
@@ -121,6 +145,10 @@ const SettingsView = ({ preferences, onChange }: {
                     onChange={(event) => onChange({
                         ...preferences,
                         remoteRendering: event.target.value as RemoteRenderingChoice,
+                        consentedRenderServer: consentServerForChoice(
+                            event.target.value as RemoteRenderingChoice,
+                            renderServerUrl,
+                        ),
                     })}
                 >
                     <option value="local-only">Local only</option>
@@ -151,9 +179,10 @@ const SettingsView = ({ preferences, onChange }: {
     </section>
 );
 
-const ExamplesView = ({ examples, onSelect }: {
+const ExamplesView = ({ examples, onSelect, disabled = false }: {
     examples: ExampleRecord[];
     onSelect: (example: ExampleRecord) => void;
+    disabled?: boolean;
 }) => {
     const [query, setQuery] = useState('');
     const filtered = useMemo(() => filterExamples(examples, query), [examples, query]);
@@ -171,7 +200,7 @@ const ExamplesView = ({ examples, onSelect }: {
             </header>
             <div className="ExampleGrid">
                 {filtered.map((example) => (
-                    <button type="button" key={example.id} onClick={() => onSelect(example)}>
+                    <button type="button" key={example.id} disabled={disabled} onClick={() => onSelect(example)}>
                         <strong>{example.title}</strong>
                         <span>{diagramTypes[example.diagramType]?.name || example.diagramType}</span>
                         <small>{example.description}</small>
@@ -184,9 +213,13 @@ const ExamplesView = ({ examples, onSelect }: {
 
 function EditorApplication({
     preferences,
+    renderUrl,
+    sessionBackendUrl,
     onPreferencesChange,
 }: {
     preferences: Preferences;
+    renderUrl: string;
+    sessionBackendUrl: string | null;
     onPreferencesChange: (preferences: Preferences) => void;
 }) {
     const baseUrl = useMemo(() => `${window.location.origin}/`, []);
@@ -195,27 +228,44 @@ function EditorApplication({
     const [source, setSource] = useState(initialState.diagramText);
     const [previewSource, setPreviewSource] = useState(initialState.diagramText);
     const [drafts, setDrafts] = useState<Record<string, string>>({ [initialState.diagramType]: initialState.diagramText });
-    const [renderUrl, setRenderUrl] = useState(normalizeRenderUrl(__KROKI_ENGINE_URL__ || defaultRenderUrl));
-    const [sessionBackendUrl, setSessionBackendUrl] = useState<string | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(() => getSessionIdFromPath(window.location.pathname));
     const [activeSession, setActiveSession] = useState<SessionLinks | null>(null);
     const [collaboration, setCollaboration] = useState<CollaborationBinding | null>(null);
+    const [sessionParticipantId, setSessionParticipantId] = useState<string | null>(null);
     const [presence, setPresence] = useState<'offline' | 'connected' | 'disconnected'>('offline');
-    const [mobileSection, setMobileSection] = useState<MobileSection>('code');
-    const [sidebar, setSidebar] = useState<'examples' | 'syntax'>('examples');
+    const [agentPresence, setAgentPresence] = useState<'offline' | 'connected' | 'disconnected'>('offline');
+    const [agentActivity, setAgentActivity] = useState<string | null>(null);
+    const exportDragStart = useRef<number | null>(null);
+    const previewRef = useRef<HTMLElement | null>(null);
+    const [view, setView] = useState<ParticipantViewModel>({
+        panel: 'code',
+        sidebar: 'examples',
+        theme: preferences.appearance,
+        splitPercent: 50,
+        zoom: 1,
+        scrollTop: 0,
+        scrollLeft: 0,
+        previewScrollTop: 0,
+        previewScrollLeft: 0,
+    });
     const [exportOpen, setExportOpen] = useState(false);
+    const [exportDetent, setExportDetent] = useState<'compact' | 'expanded'>('compact');
+    const [viewHydrated, setViewHydrated] = useState(false);
     const [statusMessage, setStatusMessage] = useState<string | null>(null);
     const width = useWindowWidth();
-    const compact = width < 760;
+    const compact = width < 1100;
+    const mobileSection = view.panel;
+    const sidebar = view.sidebar;
     const examples = useMemo(() => buildExamples(), []);
     const debouncedSource = useDebouncedValue(source, 350);
-    const appearance = preferences.appearance === 'auto' ? getSystemAppearance() : preferences.appearance;
+    const appearance = view.theme === 'auto' ? getSystemAppearance() : view.theme;
     const remote = useMemo(
-        () => getConsentedRemoteRenderer(preferences.remoteRendering, renderUrl),
-        [preferences.remoteRendering, renderUrl],
+        () => getConsentedRemoteRenderer(preferences.remoteRendering, preferences.consentedRenderServer, renderUrl),
+        [preferences.remoteRendering, preferences.consentedRenderServer, renderUrl],
     );
     const renderState = useDiagramRender({ language, source: previewSource, remote });
     const capabilities = useMemo(() => getBrowserRenderCapabilities(language), [language]);
+    const sessionReady = !sessionId || Boolean(collaboration);
 
     const remoteMarkers = useMemo<DiagramValidationMarker[]>(() => renderState.diagnostics.map((diagnostic) => ({
         message: diagnostic.message,
@@ -233,43 +283,137 @@ function EditorApplication({
     useEffect(() => setPreviewSource(debouncedSource), [debouncedSource]);
 
     useEffect(() => {
-        let active = true;
-        loadRuntimeConfig().then((outcome) => {
-            if (!active) return;
-            if (outcome.status === 'invalid') {
-                console.error(`[neolesk] ignoring runtime config: ${outcome.reason}`);
-                return;
-            }
-            if (outcome.status === 'loaded') {
-                setRenderUrl(normalizeRenderUrl(outcome.config.renderServerUrl || outcome.config.krokiEngineUrl || renderUrl));
-                setSessionBackendUrl(outcome.config.sessionBackendUrl || null);
-            }
-        });
-        return () => { active = false; };
-    }, []); // Runtime configuration is intentionally loaded once.
+        setView((current) => current.theme === preferences.appearance
+            ? current
+            : { ...current, theme: preferences.appearance });
+    }, [preferences.appearance]);
+
+    useEffect(() => {
+        const previewElement = previewRef.current;
+        if (!previewElement) return;
+        if (Math.abs(previewElement.scrollTop - view.previewScrollTop) > 1) {
+            previewElement.scrollTop = view.previewScrollTop;
+        }
+        if (Math.abs(previewElement.scrollLeft - view.previewScrollLeft) > 1) {
+            previewElement.scrollLeft = view.previewScrollLeft;
+        }
+    }, [view.previewScrollLeft, view.previewScrollTop]);
 
     useEffect(() => {
         if (!sessionBackendUrl || !sessionId) return undefined;
-        const websocketUrl = new URL(`/api/sessions/${sessionId}/connect`, sessionBackendUrl);
-        websocketUrl.protocol = websocketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-        const client = createSessionClient({
-            websocketUrl: websocketUrl.href,
-            onBinding: setCollaboration,
-            onState: (state) => {
-                setLanguage(state.language);
-                setSource(state.source);
-                setPreviewSource(state.source);
-                setDrafts((current) => ({ ...current, [state.language]: state.source }));
-            },
-            onPresence: (event) => setPresence(event.state),
-        });
-        client.connect();
-        setPresence('connected');
-        return () => {
-            client.disconnect();
+        let active = true;
+        let client: ReturnType<typeof createSessionClient> | null = null;
+        const leaveSession = (message: string) => {
+            if (!active) return;
+            setActiveSession(null);
+            setSessionId(null);
             setCollaboration(null);
+            setSessionParticipantId(null);
+            setPresence('offline');
+            setAgentPresence('offline');
+            setAgentActivity(null);
+            window.history.replaceState(null, '', '/');
+            setStatusMessage(message);
+        };
+        const connect = async () => {
+            const stateUrl = new URL(`/api/sessions/${sessionId}/state`, sessionBackendUrl).href;
+            const canReconnect = createSessionAvailabilityProbe(sessionBackendUrl, sessionId);
+            try {
+                const response = await fetch(stateUrl, { headers: { accept: 'application/json' } });
+                if (!active) return;
+                if (response.status === 404 || response.status === 410) {
+                    leaveSession('Session expired. Continuing as a local snapshot.');
+                    return;
+                }
+            } catch {
+                // The WebSocket reconnect loop handles temporary network failures.
+            }
+            if (!active) return;
+            const websocketUrl = new URL(`/api/sessions/${sessionId}/connect`, sessionBackendUrl);
+            websocketUrl.protocol = websocketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+            client = createSessionClient({
+                websocketUrl: websocketUrl.href,
+                onBinding: setCollaboration,
+                onState: (state) => {
+                    setLanguage(state.language);
+                    setSource(state.source);
+                    setPreviewSource(state.source);
+                    setDrafts((current) => ({ ...current, [state.language]: state.source }));
+                },
+                onPresence: (event) => {
+                    if (event.state !== 'connected' && event.state !== 'disconnected') return;
+                    if (event.actor === 'agent') setAgentPresence(event.state);
+                    else setPresence(event.state);
+                },
+                onActivity: (activity) => {
+                    if (activity.actor !== 'agent') return;
+                    setAgentActivity(activity.fields.length > 0
+                        ? `Agent changed ${activity.fields.join(' and ')}`
+                        : 'Agent active');
+                },
+                onError: setStatusMessage,
+                onClosed: (reason) => leaveSession(reason === 'expired'
+                    ? 'Session expired. Continuing as a local snapshot.'
+                    : 'Session closed. Continuing as a local snapshot.'),
+                canReconnect,
+            });
+            client.connect();
+            setSessionParticipantId(client.participantId());
+            setPresence('disconnected');
+        };
+        void connect();
+        return () => {
+            active = false;
+            client?.disconnect();
+            setCollaboration(null);
+            setSessionParticipantId(null);
+            setAgentPresence('offline');
         };
     }, [sessionBackendUrl, sessionId]);
+
+    useEffect(() => {
+        if (!sessionBackendUrl || !sessionId || !sessionParticipantId) return undefined;
+        let active = true;
+        setViewHydrated(false);
+        const endpoint = new URL(
+            `/api/sessions/${sessionId}/view/${encodeURIComponent(sessionParticipantId)}`,
+            sessionBackendUrl,
+        ).href;
+        fetch(endpoint).then(async (response) => {
+            if (!active || !response.ok) return;
+            const stored = await response.json() as Partial<ParticipantViewModel>;
+            setView((current) => ({
+                ...current,
+                ...(stored.panel ? { panel: stored.panel } : {}),
+                ...(stored.sidebar ? { sidebar: stored.sidebar } : {}),
+                ...(stored.theme ? { theme: stored.theme } : {}),
+                ...(typeof stored.splitPercent === 'number' ? { splitPercent: stored.splitPercent } : {}),
+                ...(typeof stored.zoom === 'number' ? { zoom: stored.zoom } : {}),
+                ...(typeof stored.scrollTop === 'number' ? { scrollTop: stored.scrollTop } : {}),
+                ...(typeof stored.scrollLeft === 'number' ? { scrollLeft: stored.scrollLeft } : {}),
+                ...(typeof stored.previewScrollTop === 'number' ? { previewScrollTop: stored.previewScrollTop } : {}),
+                ...(typeof stored.previewScrollLeft === 'number' ? { previewScrollLeft: stored.previewScrollLeft } : {}),
+            }));
+        }).catch(() => { /* the reconnecting document remains usable */ }).finally(() => {
+            if (active) setViewHydrated(true);
+        });
+        return () => { active = false; };
+    }, [sessionBackendUrl, sessionId, sessionParticipantId]);
+
+    useEffect(() => {
+        if (!sessionBackendUrl || !sessionId || !sessionParticipantId || !viewHydrated) return undefined;
+        const timeout = setTimeout(() => {
+            void fetch(new URL(
+                `/api/sessions/${sessionId}/view/${encodeURIComponent(sessionParticipantId)}`,
+                sessionBackendUrl,
+            ), {
+                method: 'PUT',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(view),
+            });
+        }, 350);
+        return () => clearTimeout(timeout);
+    }, [sessionBackendUrl, sessionId, sessionParticipantId, view, viewHydrated]);
 
     useEffect(() => {
         if (sessionId) return;
@@ -302,31 +446,29 @@ function EditorApplication({
         setDrafts((current) => ({ ...current, [language]: nextSource }));
     };
 
-    const changeLanguage = (nextLanguage: string) => {
-        setDrafts((current) => ({ ...current, [language]: source }));
-        const nextSource = drafts[nextLanguage] || decode(diagramTypes[nextLanguage].example);
+    const replaceDocument = (nextLanguage: string, nextSource: string, message: string) => {
+        collaboration?.replaceDocument?.({ language: nextLanguage, source: nextSource }, message);
+        if (collaboration && !collaboration.replaceDocument) {
+            setStatusMessage('The live session is still connecting');
+            return false;
+        }
         setLanguage(nextLanguage);
         setSource(nextSource);
         setPreviewSource(nextSource);
-        if (collaboration) {
-            collaboration.doc.getText('language').update(nextLanguage);
-            collaboration.doc.getText('source').update(nextSource);
-            collaboration.doc.commit({ origin: 'human', message: 'Changed diagram language' });
-        }
+        return true;
+    };
+
+    const changeLanguage = (nextLanguage: string) => {
+        setDrafts((current) => ({ ...current, [language]: source }));
+        const nextSource = drafts[nextLanguage] || decode(diagramTypes[nextLanguage].example);
+        replaceDocument(nextLanguage, nextSource, 'Changed diagram language');
     };
 
     const selectExample = (example: ExampleRecord) => {
         const nextSource = decode(example.example);
-        setLanguage(example.diagramType);
-        setSource(nextSource);
-        setPreviewSource(nextSource);
+        if (!replaceDocument(example.diagramType, nextSource, `Loaded ${example.title}`)) return;
         setDrafts((current) => ({ ...current, [example.diagramType]: nextSource }));
-        if (collaboration) {
-            collaboration.doc.getText('language').update(example.diagramType);
-            collaboration.doc.getText('source').update(nextSource);
-            collaboration.doc.commit({ origin: 'human', message: `Loaded ${example.title}` });
-        }
-        setMobileSection('code');
+        setView((current) => ({ ...current, panel: 'code' }));
     };
 
     const copySnapshot = async () => {
@@ -359,13 +501,27 @@ function EditorApplication({
         setExportOpen(false);
         if (!renderState.svgText) return;
         try {
+            if (sessionId && (!sessionBackendUrl || !sessionParticipantId)) {
+                throw new Error('The live session is still connecting');
+            }
+            const rendererId = remote?.id === 'kroki-io' ? 'kroki-io' : 'neolesk';
+            const remoteExport = sessionId && sessionBackendUrl && sessionParticipantId && remote
+                ? createSessionExportAdapter({
+                    backendUrl: sessionBackendUrl,
+                    sessionId,
+                    participantId: sessionParticipantId,
+                    rendererId,
+                })
+                : sessionBackendUrl && remote
+                    ? createManagedCellExportAdapter({ backendUrl: sessionBackendUrl, rendererId })
+                    : createRemoteExportAdapter();
             const blob = await exportDiagram({
                 format,
                 svg: renderState.svgText,
                 language,
                 source,
                 remote,
-                remoteExport: createRemoteExportAdapter(),
+                remoteExport,
             });
             const url = URL.createObjectURL(blob);
             const anchor = document.createElement('a');
@@ -388,23 +544,50 @@ function EditorApplication({
                 appearance={appearance}
                 markers={remoteMarkers}
                 onChange={updateSource}
+                scrollTop={view.scrollTop}
+                scrollLeft={view.scrollLeft}
+                onScroll={(position) => setView((current) => ({ ...current, ...position }))}
                 collaboration={collaboration}
+                editable={sessionReady}
             />
         </section>
     );
 
     const preview = (
-        <section className="PreviewPanel" aria-label="Diagram preview">
+        <section
+            ref={previewRef}
+            className="PreviewPanel"
+            aria-label="Diagram preview"
+            data-zoom={view.zoom}
+            onScroll={(event) => setView((current) => ({
+                ...current,
+                previewScrollTop: event.currentTarget.scrollTop,
+                previewScrollLeft: event.currentTarget.scrollLeft,
+            }))}
+        >
+            <div className="PreviewZoom" aria-label="Preview zoom controls">
+                <button type="button" aria-label="Zoom out" onClick={() => setView((current) => ({ ...current, zoom: Math.max(.25, current.zoom - .25) }))}><ZoomOut aria-hidden="true" /></button>
+                <output aria-live="polite">{Math.round(view.zoom * 100)}%</output>
+                <button type="button" aria-label="Zoom in" onClick={() => setView((current) => ({ ...current, zoom: Math.min(4, current.zoom + .25) }))}><ZoomIn aria-hidden="true" /></button>
+            </div>
             {renderState.loading && <div className="PreviewState">Rendering…</div>}
             {!renderState.loading && renderState.blobUrl && (
-                <img src={renderState.blobUrl} alt="Rendered diagram" />
+                <img
+                    src={renderState.blobUrl}
+                    alt="Rendered diagram"
+                    style={{ transform: `scale(${view.zoom})` }}
+                />
             )}
             {!renderState.loading && renderState.error && (
                 <div className="PreviewError" role="alert">
                     <strong>{renderState.consentRequired ? 'Remote rendering is off' : 'Could not render this diagram'}</strong>
                     <p>{renderState.error.message}</p>
                     {renderState.consentRequired && (
-                        <button type="button" onClick={() => onPreferencesChange({ ...preferences, remoteRendering: 'neolesk' })}>
+                        <button type="button" onClick={() => onPreferencesChange({
+                            ...preferences,
+                            remoteRendering: 'neolesk',
+                            consentedRenderServer: consentServerForChoice('neolesk', renderUrl),
+                        })}>
                             Allow neolesk services
                         </button>
                     )}
@@ -415,20 +598,57 @@ function EditorApplication({
 
     const syntax = cheatSheets[language];
 
+    const moveSplitter = (event: React.PointerEvent<HTMLButtonElement>) => {
+        if (event.buttons !== 1 || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+        const bounds = event.currentTarget.parentElement?.getBoundingClientRect();
+        if (!bounds) return;
+        const splitPercent = Math.min(80, Math.max(20, ((event.clientX - bounds.left) / bounds.width) * 100));
+        setView((current) => ({ ...current, splitPercent }));
+    };
+
+    const settingsPreferences = { ...preferences, appearance: view.theme };
+    const updateSettings = (next: Preferences) => {
+        setView((current) => ({ ...current, theme: next.appearance }));
+        onPreferencesChange(next);
+    };
+
     return (
         <div
             className="App"
-            data-appearance={preferences.appearance}
+            data-appearance={view.theme}
             style={{ '--window-opacity': String(preferences.transparency) } as React.CSSProperties}
         >
+            <svg className="LiquidGlassFilter" aria-hidden="true">
+                <filter id="neolesk-liquid-glass" x="-20%" y="-20%" width="140%" height="140%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="1" seed="8" result="noise" />
+                    <feDisplacementMap in="SourceGraphic" in2="noise" scale="7" xChannelSelector="R" yChannelSelector="B" />
+                </filter>
+            </svg>
             <header className="TopBar">
                 <a className="Brand" href="/" aria-label="neolesk home"><span>neo</span>lesk</a>
                 <div className="DocumentControls">
-                    <select aria-label="Diagram language" value={language} onChange={(event) => changeLanguage(event.target.value)}>
-                        {Object.entries(diagramTypes).map(([id, definition]) => (
-                            <option key={id} value={id}>{definition.name}</option>
-                        ))}
-                    </select>
+                    <details className="LanguagePicker">
+                        <summary role="button" aria-label={`Diagram language: ${diagramTypes[language].name}`}>
+                            <span>{diagramTypes[language].name}</span><ChevronDown aria-hidden="true" />
+                        </summary>
+                        <div className="LanguageMenu" role="listbox" aria-label="Diagram language">
+                            {Object.entries(diagramTypes).map(([id, definition]) => (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={id === language}
+                                    disabled={!sessionReady}
+                                    onClick={(event) => {
+                                        changeLanguage(id);
+                                        event.currentTarget.closest('details')?.removeAttribute('open');
+                                    }}
+                                >
+                                    {definition.name}
+                                </button>
+                            ))}
+                        </div>
+                    </details>
                     <span className={`Provenance ${renderState.provenance?.kind === 'remote' ? 'remote' : ''}`}>
                         <span aria-hidden="true" />{provenanceLabel}
                     </span>
@@ -437,11 +657,37 @@ function EditorApplication({
                     <button type="button" className="ToolbarButton" onClick={copySnapshot}><Link2 aria-hidden="true" /><span>Copy snapshot</span></button>
                     <button type="button" className="ToolbarButton" disabled={!sessionBackendUrl || Boolean(sessionId)} onClick={startSession}><Users aria-hidden="true" /><span>New session</span></button>
                     <div className="ExportControl">
-                        <button type="button" className="ToolbarButton Primary" onClick={() => setExportOpen((open) => !open)}>
+                        <button type="button" className="ToolbarButton Primary" onClick={() => setExportOpen((open) => {
+                            if (!open) setExportDetent('compact');
+                            return !open;
+                        })}>
                             <Download aria-hidden="true" /><span>Export</span>
                         </button>
                         {exportOpen && (
-                            <div className="ExportMenu">
+                            <div className="ExportMenu" role="dialog" aria-label="Export diagram" data-detent={exportDetent}>
+                                <button
+                                    type="button"
+                                    className="SheetHandle"
+                                    aria-label={exportDetent === 'compact' ? 'Expand export options' : 'Collapse export options'}
+                                    onClick={() => {
+                                        if (Number.isNaN(exportDragStart.current)) {
+                                            exportDragStart.current = null;
+                                            return;
+                                        }
+                                        setExportDetent((detent) => detent === 'compact' ? 'expanded' : 'compact');
+                                    }}
+                                    onPointerDown={(event) => {
+                                        exportDragStart.current = event.clientY;
+                                        event.currentTarget.setPointerCapture(event.pointerId);
+                                    }}
+                                    onPointerUp={(event) => {
+                                        if (exportDragStart.current === null) return;
+                                        const distance = event.clientY - exportDragStart.current;
+                                        if (distance < -24) setExportDetent('expanded');
+                                        if (distance > 24) setExportDetent('compact');
+                                        exportDragStart.current = Math.abs(distance) > 24 ? Number.NaN : null;
+                                    }}
+                                ><span aria-hidden="true" /></button>
                                 {(['svg', 'png', 'jpeg', 'pdf'] as const).map((format) => (
                                     <button type="button" key={format} onClick={() => download(format)}>
                                         {format.toUpperCase()}{format !== 'svg' && !remote ? <small>Requires server</small> : null}
@@ -457,6 +703,8 @@ function EditorApplication({
             {sessionId && (
                 <div className="SessionNotice">
                     <span><span className={`PresenceDot ${presence}`} aria-hidden="true" />Live session</span>
+                    <span><span className={`PresenceDot ${agentPresence}`} aria-hidden="true" />{agentPresence === 'connected' ? 'Agent connected' : 'Agent offline'}</span>
+                    {agentActivity && <span className="AgentActivity">{agentActivity}</span>}
                     <button type="button" onClick={() => navigator.clipboard?.writeText(activeSession?.mcpUrl || `${window.location.origin}/mcp/${sessionId}`)}>Copy agent URL</button>
                 </div>
             )}
@@ -465,10 +713,15 @@ function EditorApplication({
             {compact ? (
                 <main className="CompactWorkspace">
                     <div className="CompactContent">
-                        {mobileSection === 'code' && editor}
-                        {mobileSection === 'preview' && preview}
-                        {mobileSection === 'examples' && <ExamplesView examples={examples} onSelect={selectExample} />}
-                        {mobileSection === 'settings' && <SettingsView preferences={preferences} onChange={onPreferencesChange} />}
+                        <section className="CompactPage" key={mobileSection} aria-labelledby={`mobile-${mobileSection}-title`}>
+                            <h1 id={`mobile-${mobileSection}-title`}>{mobileSections.find((section) => section.id === mobileSection)?.label}</h1>
+                            <div className="CompactPageContent">
+                                {mobileSection === 'code' && editor}
+                                {mobileSection === 'preview' && preview}
+                                {mobileSection === 'examples' && <ExamplesView examples={examples} onSelect={selectExample} disabled={!sessionReady} />}
+                                {mobileSection === 'settings' && <SettingsView preferences={settingsPreferences} renderServerUrl={renderUrl} onChange={updateSettings} />}
+                            </div>
+                        </section>
                     </div>
                     <nav className="MobileTabs" role="tablist" aria-label="Editor sections">
                         {mobileSections.map(({ id, label, Icon }) => (
@@ -477,7 +730,7 @@ function EditorApplication({
                                 type="button"
                                 role="tab"
                                 aria-selected={mobileSection === id}
-                                onClick={() => setMobileSection(id)}
+                                onClick={() => setView((current) => ({ ...current, panel: id }))}
                             >
                                 <Icon aria-hidden="true" /><span>{label}</span>
                             </button>
@@ -488,13 +741,13 @@ function EditorApplication({
                 <main className="DesktopWorkspace">
                     <aside className="Sidebar">
                         <div className="SidebarSwitcher" role="tablist" aria-label="Reference browser">
-                            <button type="button" role="tab" aria-selected={sidebar === 'examples'} onClick={() => setSidebar('examples')}>Examples</button>
-                            <button type="button" role="tab" aria-selected={sidebar === 'syntax'} onClick={() => setSidebar('syntax')}>Syntax</button>
+                            <button type="button" role="tab" aria-selected={sidebar === 'examples'} onClick={() => setView((current) => ({ ...current, sidebar: 'examples' }))}>Examples</button>
+                            <button type="button" role="tab" aria-selected={sidebar === 'syntax'} onClick={() => setView((current) => ({ ...current, sidebar: 'syntax' }))}>Syntax</button>
                         </div>
                         {sidebar === 'examples' ? (
                             <div className="SidebarList">
                                 {examples.filter((example) => example.diagramType === language).map((example) => (
-                                    <button type="button" key={example.id} onClick={() => selectExample(example)}>
+                                    <button type="button" key={example.id} disabled={!sessionReady} onClick={() => selectExample(example)}>
                                         <span className="DocumentIcon"><FileText aria-hidden="true" /></span>
                                         <span><strong>{example.title}</strong><small>{example.description}</small></span>
                                     </button>
@@ -512,18 +765,41 @@ function EditorApplication({
                             </div>
                         )}
                     </aside>
-                    <section className="CanvasSplit">
+                    <section
+                        className="CanvasSplit"
+                        style={{ '--source-pane': `${view.splitPercent}%` } as React.CSSProperties}
+                    >
                         <div className="Pane">
                             <header><span>Source</span><small>{source === previewSource ? 'Up to date' : 'Editing…'}</small></header>
                             {editor}
                         </div>
+                        <button
+                            type="button"
+                            className="PaneSplitter"
+                            role="separator"
+                            aria-label="Resize source and preview panes"
+                            aria-orientation="vertical"
+                            aria-valuemin={20}
+                            aria-valuemax={80}
+                            aria-valuenow={Math.round(view.splitPercent)}
+                            onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+                            onPointerMove={moveSplitter}
+                            onKeyDown={(event) => {
+                                if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+                                event.preventDefault();
+                                setView((current) => ({
+                                    ...current,
+                                    splitPercent: Math.min(80, Math.max(20, current.splitPercent + (event.key === 'ArrowLeft' ? -2 : 2))),
+                                }));
+                            }}
+                        />
                         <div className="Pane PreviewPane">
                             <header><span>Preview</span><small>{renderState.dimensions ? `${renderState.dimensions.width} × ${renderState.dimensions.height}` : 'Live preview'}</small></header>
                             {preview}
                         </div>
                     </section>
                     <aside className="DesktopSettings">
-                        <SettingsView preferences={preferences} onChange={onPreferencesChange} />
+                        <SettingsView preferences={settingsPreferences} renderServerUrl={renderUrl} onChange={updateSettings} />
                     </aside>
                 </main>
             )}
@@ -533,17 +809,53 @@ function EditorApplication({
 
 function App() {
     const [preferences, setPreferences] = useState<Preferences>(() => loadPreferences(window.localStorage));
+    const [runtime, setRuntime] = useState<{ renderUrl: string; sessionBackendUrl: string | null } | null>(null);
+
+    useEffect(() => {
+        let active = true;
+        const fallbackRenderUrl = normalizeRenderUrl(__KROKI_ENGINE_URL__ || defaultRenderUrl);
+        loadRuntimeConfig().then((outcome) => {
+            if (!active) return;
+            if (outcome.status === 'invalid') console.error(`[neolesk] ignoring runtime config: ${outcome.reason}`);
+            setRuntime({
+                renderUrl: outcome.status === 'loaded'
+                    ? normalizeRenderUrl(outcome.config.renderServerUrl || outcome.config.krokiEngineUrl || fallbackRenderUrl)
+                    : fallbackRenderUrl,
+                sessionBackendUrl: outcome.status === 'loaded' ? outcome.config.sessionBackendUrl || null : null,
+            });
+        });
+        return () => { active = false; };
+    }, []);
 
     const updatePreferences = (next: Preferences) => {
         setPreferences(next);
         savePreferences(window.localStorage, next);
     };
 
-    if (!preferences.remoteRendering) {
-        return <ConsentInterstitial onChoose={(remoteRendering) => updatePreferences({ ...defaultPreferences, remoteRendering })} />;
+    if (!runtime) return <main className="ConsentScreen" aria-label="Loading neolesk" />;
+
+    const consentIsCurrent = preferences.remoteRendering === 'local-only'
+        || Boolean(getConsentedRemoteRenderer(
+            preferences.remoteRendering,
+            preferences.consentedRenderServer,
+            runtime.renderUrl,
+        ));
+    if (!preferences.remoteRendering || !consentIsCurrent) {
+        return <ConsentInterstitial renderServerUrl={runtime.renderUrl} onChoose={(remoteRendering) => updatePreferences({
+            ...preferences,
+            remoteRendering,
+            consentedRenderServer: consentServerForChoice(remoteRendering, runtime.renderUrl),
+        })} />;
     }
 
-    return <EditorApplication preferences={preferences} onPreferencesChange={updatePreferences} />;
+    return (
+        <EditorApplication
+            preferences={preferences}
+            renderUrl={runtime.renderUrl}
+            sessionBackendUrl={runtime.sessionBackendUrl}
+            onPreferencesChange={updatePreferences}
+        />
+    );
 }
 
 export default App;

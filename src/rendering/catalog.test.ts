@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { browserRendererCatalog, workerRendererCatalog } from './catalog';
+import { browserRendererCatalog } from './catalog';
+import { workerRendererCatalog } from './workerCatalog';
+import { createKrokiRemoteRenderer } from './remote';
 
 const browserLanguages = [
     'bpmn',
@@ -49,5 +51,17 @@ describe('renderer catalog', () => {
             .toEqual(['vega-browser']);
         expect(browserRendererCatalog.capabilities('vegalite', 'browser').rendererIds)
             .toEqual(['vega-browser']);
+    });
+
+    it('shares Graphviz and D2 option contracts across every runtime', () => {
+        const remote = createKrokiRemoteRenderer({ id: 'kroki', label: 'Kroki', url: 'https://kroki.example/' });
+
+        for (const language of ['graphviz', 'd2']) {
+            const remoteDefinitions = remote.capabilities[language].optionDefinitions;
+            expect(browserRendererCatalog.find(language, 'browser', 'svg')?.optionDefinitions)
+                .toBe(remoteDefinitions);
+            expect(workerRendererCatalog.find(language, 'worker', 'svg')?.optionDefinitions)
+                .toBe(remoteDefinitions);
+        }
     });
 });

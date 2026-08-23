@@ -1,5 +1,11 @@
 import type { BrowserRenderer } from '../engines/contract';
 import type { RendererAdapter, RendererInput } from './rendering';
+import {
+    D2_LAYOUTS,
+    D2_OPTION_DEFINITIONS,
+    GRAPHVIZ_LAYOUTS,
+    GRAPHVIZ_OPTION_DEFINITIONS,
+} from './rendererOptions';
 
 type LegacyLoader = () => Promise<BrowserRenderer>;
 
@@ -62,22 +68,43 @@ const booleanOption = (options: Record<string, string>, key: string): boolean | 
 const graphvizRenderer: RendererAdapter = {
     id: 'graphviz-browser',
     label: 'Graphviz browser renderer',
-    environments: ['browser', 'worker'],
+    environments: ['browser'],
     languages: ['graphviz'],
     formats: ['svg'],
+    optionDefinitions: GRAPHVIZ_OPTION_DEFINITIONS,
     async render({ source, options }) {
         const { Graphviz } = await import('@hpcc-js/wasm-graphviz');
         const graphviz = await Graphviz.load();
-        const layout = stringOption(options, 'layout', ['dot', 'circo', 'fdp', 'neato', 'osage', 'patchwork', 'sfdp', 'twopi']);
+        const layout = stringOption(options, 'layout', GRAPHVIZ_LAYOUTS);
         return graphviz.layout(source, 'svg', (layout || 'dot') as Parameters<typeof graphviz.layout>[2]);
     },
 };
 
 let plantUmlReady: Promise<typeof import('@plantuml/core')> | null = null;
 
+const loadClassicScript = (url: string): Promise<void> => new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[data-neolesk-src="${url}"]`);
+    if (existing?.dataset.loaded === 'true') {
+        resolve();
+        return;
+    }
+    const script = existing || document.createElement('script');
+    script.dataset.neoleskSrc = url;
+    script.src = url;
+    script.async = true;
+    script.addEventListener('load', () => {
+        script.dataset.loaded = 'true';
+        resolve();
+    }, { once: true });
+    script.addEventListener('error', () => reject(new Error('PlantUML Graphviz runtime failed to load')), { once: true });
+    if (!existing) document.head.append(script);
+});
+
 const loadPlantUml = async () => {
     if (!plantUmlReady) {
-        plantUmlReady = import('@plantuml/core/viz-global.js')
+        plantUmlReady = (typeof document === 'undefined'
+            ? import('@plantuml/core/viz-global.js').then(() => undefined)
+            : loadClassicScript(__PLANTUML_VIZ_URL__))
             .then(() => import('@plantuml/core'));
     }
     return plantUmlReady;
@@ -132,7 +159,7 @@ export const renderPlantUmlToString = (
 const plantUmlRenderer: RendererAdapter = {
     id: 'plantuml-browser',
     label: 'PlantUML MIT browser renderer',
-    environments: ['browser', 'worker'],
+    environments: ['browser'],
     languages: ['plantuml', 'c4plantuml'],
     formats: ['svg'],
     remoteWhileLoading: true,
@@ -148,9 +175,10 @@ let d2Instance: Promise<InstanceType<typeof import('@terrastruct/d2')['D2']>> | 
 const d2Renderer: RendererAdapter = {
     id: 'd2-browser',
     label: 'D2 browser renderer',
-    environments: ['browser', 'worker'],
+    environments: ['browser'],
     languages: ['d2'],
     formats: ['svg'],
+    optionDefinitions: D2_OPTION_DEFINITIONS,
     remoteWhileLoading: true,
     load: async () => {
         if (!d2Instance) {
@@ -166,7 +194,7 @@ const d2Renderer: RendererAdapter = {
             fs: { 'index.d2': source },
             inputPath: 'index.d2',
             options: {
-                layout: stringOption(options, 'layout', ['dagre', 'elk']) as 'dagre' | 'elk' | undefined,
+                layout: stringOption(options, 'layout', D2_LAYOUTS) as 'dagre' | undefined,
                 sketch: booleanOption(options, 'sketch'),
                 themeID: numberOption(options, 'theme'),
                 darkThemeID: numberOption(options, 'darkTheme'),
@@ -181,7 +209,7 @@ const d2Renderer: RendererAdapter = {
 const pikchrRenderer: RendererAdapter = {
     id: 'pikchr-browser',
     label: 'Pikchr browser renderer',
-    environments: ['browser', 'worker'],
+    environments: ['browser'],
     languages: ['pikchr'],
     formats: ['svg'],
     async render({ source }) {
@@ -194,7 +222,7 @@ const pikchrRenderer: RendererAdapter = {
 const svgbobRenderer: RendererAdapter = {
     id: 'svgbob-browser',
     label: 'Svgbob browser renderer',
-    environments: ['browser', 'worker'],
+    environments: ['browser'],
     languages: ['svgbob'],
     formats: ['svg'],
     async render({ source }) {
@@ -248,9 +276,5 @@ export const browserRendererAdapters: RendererAdapter[] = [
     vegaRenderer,
     legacy('wavedrom-browser', 'WaveDrom browser renderer', 'wavedrom', () => import('../engines/wavedrom').then((module) => module.load())),
 ];
-
-export const workerRendererAdapters = browserRendererAdapters.filter((renderer) => (
-    renderer.environments.includes('worker')
-));
 
 export const renderWithAdapter = (adapter: RendererAdapter, input: RendererInput) => adapter.render(input);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LoroDoc } from 'loro-crdt';
+import { LoroDoc } from 'loro-crdt/bundler';
 import {
     SessionDocument,
     SessionLimitError,
@@ -44,6 +44,39 @@ describe('SessionDocument', () => {
 
         expect(session.undoLastAgentWrite()).toBe(true);
         expect(session.sharedState()).toEqual(initial);
+    });
+
+    it('undoes the latest agent operation while preserving later human CRDT edits', () => {
+        const session = SessionDocument.create({ language: 'd2', source: 'a' });
+        session.replace({ source: 'a -> b' }, { actor: 'agent', actorId: 'codex' });
+
+        const human = LoroDoc.fromSnapshot(session.exportSnapshot());
+        human.getText('source').insert(human.getText('source').length, ' HUMAN');
+        human.commit({ origin: 'human' });
+        session.importUpdate(human.export({ mode: 'snapshot' }), { actor: 'human', actorId: 'browser' });
+
+        expect(session.undoLastAgentWrite()).toBe(true);
+        expect(session.sharedState().source).toBe('a HUMAN');
+
+        const connectedReplica = LoroDoc.fromSnapshot(human.export({ mode: 'snapshot' }));
+        connectedReplica.import(session.exportSnapshot());
+        expect(connectedReplica.getText('source').toString()).toBe('a HUMAN');
+    });
+
+    it('bounds persisted audit and undo data inside the session size cap', () => {
+        const session = SessionDocument.create({ language: 'd2', source: 'a' }, { maxDocumentBytes: 64 * 1024 });
+        for (let index = 0; index < 200; index += 1) {
+            session.replace({ source: `a${index}` }, { actor: 'agent', actorId: 'codex' }, index);
+        }
+
+        const persisted = session.exportPersisted();
+        const bytes = persisted.snapshot.byteLength + persisted.audit.reduce(
+            (total, entry) => total + (entry.undo?.byteLength || 0) + JSON.stringify({ ...entry, undo: undefined }).length,
+            0,
+        );
+        expect(bytes).toBeLessThanOrEqual(64 * 1024);
+        expect(session.history().length).toBeLessThan(200);
+        expect(session.undoLastAgentWrite()).toBe(true);
     });
 
     it('rejects a document before its serialized state crosses the size cap', () => {

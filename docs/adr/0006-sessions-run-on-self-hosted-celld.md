@@ -38,7 +38,8 @@ link.
   immutable hashed wasm bundles — roughly 40MB for D2 and PlantUML together —
   are served from the edge rather than a home uplink. Cloudflare is not removed
   from the picture by this move; it stops being the origin.
-- `wrangler.toml` stays relevant — celld consumes wrangler configuration — but
+- Wrangler configuration stays relevant — celld consumes the checked-in
+  `wrangler.jsonc` (celld rejects TOML configuration) — but
   `pages_build_output_dir` and the Pages deploy workflow do not. The existing
   Pages project stays deployed as a frozen build so old snapshot links keep
   working.

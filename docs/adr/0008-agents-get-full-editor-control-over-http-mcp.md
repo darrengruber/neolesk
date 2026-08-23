@@ -9,7 +9,7 @@ with structured render diagnostics so an agent can iterate without a human.
 Renders for an agent happen inside the session cell. celld cells run V8 with no
 DOM, which is enough for Graphviz, PlantUML, D2, Pikchr and Svgbob — the same
 code the browser runs, not a second implementation. Mermaid and bpmn-js need a
-DOM, so those and the 14 unported languages fall through to the in-cluster Kroki,
+DOM, so those and the 15 unported languages fall through to the in-cluster Kroki,
 which already draws all 29. No headless browser anywhere.
 
 ## Consequences

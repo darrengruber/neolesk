@@ -1,8 +1,8 @@
 name: CI
 
 # Runs on GitHub-hosted runners, which are free here because the repo is public.
-# The visual job uses the public neolesk render proxy, which reaches the private
-# Kroki service without granting CI direct cluster access.
+# The visual job runs the same pinned Kroki release as production. The browser
+# half of the corpus is forced to stay local-only.
 
 on:
   push:
@@ -59,6 +59,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Bundle the Worker entrypoint
+        run: npm run bundle:worker
+
+      - name: Start Worker and create a session
+        run: npm run test:worker
+
       - name: Check the bundle is complete
         run: |
           test -s dist/index.html
@@ -68,7 +74,19 @@ jobs:
   corpus:
     runs-on: ubuntu-latest
     env:
-      NEOLESK_KROKI_PROXY_TARGET: https://diagrams.darrengruber.com/render/
+      NEOLESK_KROKI_PROXY_TARGET: http://127.0.0.1:8000/
+    services:
+      kroki:
+        image: yuzutech/kroki:0.32.1@sha256:6980bfb218b48b74ea14b888d9c7e8c032d1cb6325f3292277abdf62483abd9d
+        env:
+          KROKI_EXCALIDRAW_HOST: excalidraw
+          KROKI_DIAGRAMSNET_HOST: diagramsnet
+        ports:
+          - 8000:8000
+      excalidraw:
+        image: yuzutech/kroki-excalidraw:0.32.1@sha256:214f13c1cd3c3f79a18a83631a900fedbed71b2f39d3a0c5630ac5fa5ad40046
+      diagramsnet:
+        image: yuzutech/kroki-diagramsnet:0.32.1@sha256:71e7082f736ec003fb33b5cd1c5c40af54c9bfb6351d50fbe73b56fe8f1bd5eb
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -79,6 +97,16 @@ jobs:
 
       - run: npm ci --ignore-scripts
       - run: npx playwright install --with-deps chromium
+
+      - name: Wait for Kroki
+        run: |
+          for _ in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
 
       - name: Compare all 116 examples with committed images
         run: npm run test:corpus

@@ -18,6 +18,7 @@
     --orange: #ff9500;
     --red: #ff3b30;
     --shadow: 0 18px 55px rgba(0, 0, 0, 0.12);
+    --spring: linear(0, .006, .025 2.3%, .101 4.8%, .539 12.6%, .749 17.2%, .849 20.9%, .921 25.2%, .968 30.3%, .997 36.4%, 1.013 43.5%, 1.017 52.7%, 1.006 75.8%, 1);
     --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
 }
@@ -83,6 +84,12 @@
 
 * { box-sizing: border-box; }
 
+@property --source-pane {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 50%;
+}
+
 html,
 body,
 #root { min-height: 100%; height: 100%; }
@@ -105,6 +112,8 @@ select,
 input { color: inherit; }
 
 button { -webkit-tap-highlight-color: transparent; }
+
+.LiquidGlassFilter { position: absolute; width: 0; height: 0; pointer-events: none; }
 
 .App {
     height: 100dvh;
@@ -224,6 +233,67 @@ button { -webkit-tap-highlight-color: transparent; }
 .DocumentControls, .TopActions { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .TopActions { justify-content: flex-end; }
 
+.LanguagePicker { position: relative; min-width: 0; }
+.LanguagePicker summary {
+    min-width: 112px;
+    max-width: 210px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 8px 0 10px;
+    border: 1px solid var(--separator);
+    border-radius: 9px;
+    background: var(--secondary-fill);
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+    list-style: none;
+}
+.LanguagePicker summary::-webkit-details-marker { display: none; }
+.LanguagePicker summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.LanguagePicker summary svg { width: 14px; height: 14px; flex: none; transition: transform 280ms var(--spring); }
+.LanguagePicker[open] summary svg { transform: rotate(180deg); }
+.LanguageMenu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: min(280px, calc(100vw - 24px));
+    max-height: min(65vh, 480px);
+    overflow: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px;
+    padding: 7px;
+    border: 1px solid var(--separator);
+    border-radius: 13px;
+    background: var(--elevated-background);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(30px) saturate(160%);
+    -webkit-backdrop-filter: blur(30px) saturate(160%);
+    animation: menu-in 260ms var(--spring);
+    z-index: 40;
+}
+.LanguageMenu button {
+    min-width: 0;
+    padding: 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--label);
+    font-size: 11px;
+    text-align: left;
+    cursor: pointer;
+}
+.LanguageMenu button:hover { background: var(--fill); }
+.LanguageMenu button[aria-selected="true"] { background: var(--selection); color: var(--tint); font-weight: 700; }
+
+@keyframes menu-in {
+    from { opacity: 0; transform: translateY(-5px) scale(.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .DocumentControls select,
 .SettingsGroup select,
 .SettingsGroup input[type="range"] {
@@ -285,8 +355,11 @@ button { -webkit-tap-highlight-color: transparent; }
     background: var(--elevated-background);
     box-shadow: var(--shadow);
     backdrop-filter: blur(30px) saturate(160%);
+    animation: menu-in 280ms var(--spring);
     z-index: 30;
 }
+
+.SheetHandle { display: none !important; }
 
 .ExportMenu button {
     width: 100%;
@@ -403,9 +476,36 @@ button { -webkit-tap-highlight-color: transparent; }
 .SyntaxReference h3 { margin: 18px 0 7px; font-size: 11px; }
 .SyntaxReference pre { margin: 0; overflow: auto; padding: 9px; border-radius: 8px; background: var(--secondary-fill); color: var(--secondary-label); font: 10px/1.55 var(--font-mono); }
 
-.CanvasSplit { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr); }
+.CanvasSplit {
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(260px, var(--source-pane)) 8px minmax(260px, 1fr);
+    transition: --source-pane 300ms var(--spring);
+}
+.CanvasSplit:has(.PaneSplitter:active) { transition-duration: 0ms; }
 .Pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--secondary-background); }
-.Pane + .Pane { border-left: 1px solid var(--separator); }
+.PreviewPane { border-left: 1px solid var(--separator); }
+.PaneSplitter {
+    position: relative;
+    z-index: 2;
+    width: 8px;
+    padding: 0;
+    border: 0;
+    background: var(--tertiary-background);
+    cursor: col-resize;
+    touch-action: none;
+}
+.PaneSplitter::after {
+    content: "";
+    position: absolute;
+    inset: 0 3px;
+    background: var(--separator);
+    transition: inset 240ms var(--spring), background 240ms ease;
+}
+.PaneSplitter:hover::after,
+.PaneSplitter:focus-visible::after { inset: 0 2px; background: var(--tint); }
+.PaneSplitter:focus-visible { outline: 3px solid color-mix(in srgb, var(--tint) 28%, transparent); outline-offset: -3px; }
 .Pane > header { height: 34px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 11px; border-bottom: 1px solid var(--separator); color: var(--secondary-label); font-size: 11px; }
 .Pane > header span { color: var(--label); font-weight: 650; }
 .EditorPanel, .PreviewPanel { flex: 1; min-height: 0; overflow: hidden; }
@@ -433,7 +533,36 @@ button { -webkit-tap-highlight-color: transparent; }
     border-radius: 13px;
     background: white;
     box-shadow: 0 12px 35px rgba(0, 0, 0, .10);
+    transform-origin: center;
+    transition: transform 320ms var(--spring);
 }
+
+.PreviewZoom {
+    position: sticky;
+    top: 0;
+    left: 50%;
+    z-index: 3;
+    width: max-content;
+    display: flex;
+    align-items: center;
+    align-self: start;
+    gap: 3px;
+    padding: 4px;
+    border: 1px solid var(--separator);
+    border-radius: 10px;
+    background: var(--elevated-background);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .08);
+    backdrop-filter: blur(18px);
+    grid-area: 1 / 1;
+    justify-self: center;
+}
+.PreviewPanel > img,
+.PreviewPanel > .PreviewState,
+.PreviewPanel > .PreviewError { grid-area: 1 / 1; }
+.PreviewZoom button { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 7px; background: transparent; cursor: pointer; }
+.PreviewZoom button:hover { background: var(--fill); }
+.PreviewZoom svg { width: 15px; height: 15px; }
+.PreviewZoom output { min-width: 42px; color: var(--secondary-label); font-size: 10px; font-weight: 650; text-align: center; }
 
 .PreviewState { color: var(--secondary-label); font-size: 12px; }
 .PreviewError { width: min(440px, 100%); padding: 20px; border: 1px solid color-mix(in srgb, var(--red) 28%, var(--separator)); border-radius: 13px; background: var(--secondary-background); }
@@ -455,9 +584,18 @@ button { -webkit-tap-highlight-color: transparent; }
 .CompactWorkspace { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .CompactContent { flex: 1; min-height: 0; display: flex; }
 .CompactContent > * { flex: 1; min-width: 0; }
+.CompactPage { min-height: 0; display: flex; flex-direction: column; overflow: hidden; animation: compact-page-in 340ms var(--spring); }
+.CompactPage > h1 { flex: none; margin: 0; padding: 16px 16px 10px; font-size: 34px; line-height: 1.05; letter-spacing: -.045em; }
+.CompactPageContent { flex: 1; min-height: 0; display: flex; }
+.CompactPageContent > * { flex: 1; min-width: 0; }
+@keyframes compact-page-in {
+    from { opacity: 0; transform: translateX(18px) scale(.985); }
+    to { opacity: 1; transform: translateX(0) scale(1); }
+}
 .MobileTabs { min-height: 58px; display: grid; grid-template-columns: repeat(4, 1fr); padding: 4px max(4px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left)); border-top: 1px solid var(--separator); background: var(--elevated-background); backdrop-filter: blur(28px) saturate(160%); }
-.MobileTabs button { min-width: 0; display: grid; place-items: center; gap: 1px; padding: 3px; border: 0; background: transparent; color: var(--secondary-label); font-size: 10px; cursor: pointer; }
+.MobileTabs button { min-width: 0; display: grid; place-items: center; gap: 1px; padding: 3px; border: 0; border-radius: 10px; background: transparent; color: var(--secondary-label); font-size: 10px; cursor: pointer; transition: color 220ms ease, transform 280ms var(--spring), background 220ms ease; }
 .MobileTabs button[aria-selected="true"] { color: var(--tint); }
+.MobileTabs button:active { transform: scale(.92); }
 .MobileTabs svg { width: 19px; height: 19px; }
 
 .ExamplesView { min-height: 0; overflow: auto; }
@@ -474,19 +612,52 @@ button { -webkit-tap-highlight-color: transparent; }
     .DesktopSettings { display: none; }
     .TopBar { grid-template-columns: 100px minmax(240px, 1fr) auto; }
     .ToolbarButton span { display: none; }
+    .LanguagePicker summary { max-width: 180px; }
 }
 
 @media (max-width: 759px) {
-    .TopBar { min-height: 48px; grid-template-columns: auto minmax(0, 1fr) auto; gap: 7px; padding: max(7px, env(safe-area-inset-top)) 8px 7px; }
+    .TopBar { min-height: 88px; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: 36px 36px; gap: 4px 7px; padding: max(7px, env(safe-area-inset-top)) 8px 7px; }
     .Brand { font-size: 17px; }
     .DocumentControls { justify-content: flex-end; }
-    .DocumentControls select { width: min(42vw, 160px); }
-    .Provenance { display: none; }
-    .TopActions .ToolbarButton:not(.Primary), .TopActions .ToolbarButton:disabled { display: none; }
+    .LanguagePicker summary { width: min(40vw, 160px); min-width: 96px; }
+    .Provenance { max-width: 115px; overflow: hidden; text-overflow: ellipsis; }
+    .TopActions { grid-column: 1 / -1; justify-content: stretch; }
+    .TopActions > .ToolbarButton,
+    .TopActions > .ExportControl { flex: 1; }
+    .TopActions .ToolbarButton { width: 100%; }
+    .TopActions .ToolbarButton span { display: inline; }
+    .ExportMenu {
+        position: fixed;
+        inset: auto 8px max(72px, calc(64px + env(safe-area-inset-bottom))) 8px;
+        width: auto;
+        max-height: min(70dvh, 540px);
+        overflow: hidden;
+        padding: 4px 7px max(10px, env(safe-area-inset-bottom));
+        border-radius: 22px;
+        transition: transform 360ms var(--spring), max-height 360ms var(--spring);
+        animation: sheet-in 420ms var(--spring);
+    }
+    .ExportMenu[data-detent="compact"] { max-height: 164px; }
+    .ExportMenu[data-detent="expanded"] { max-height: min(70dvh, 540px); }
+    .SheetHandle { width: 100% !important; min-height: 25px !important; display: grid !important; place-items: center; padding: 0 !important; touch-action: none; }
+    .SheetHandle span { width: 38px; height: 5px; border-radius: 9px; background: var(--opaque-separator); }
+    .ExportMenu button { min-height: 42px; padding-inline: 13px; }
+    @keyframes sheet-in {
+        from { opacity: 0; transform: translateY(38px) scale(.97); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
     .DeploymentNotice { font-size: 10px; }
     .EditorPanel, .PreviewPanel { height: 100%; }
+    .PreviewPanel { padding-top: 8px; }
     .SettingsView, .ExamplesView { padding: 22px 16px 32px; }
     .ConsentCard { padding: 28px 20px; border-radius: 23px; }
+}
+
+@supports ((backdrop-filter: url("#neolesk-liquid-glass")) or (-webkit-backdrop-filter: url("#neolesk-liquid-glass"))) {
+    .ConsentCard, .TopBar, .SidebarSwitcher, .DesktopSettings, .MobileTabs, .ExportMenu, .LanguageMenu {
+        backdrop-filter: url("#neolesk-liquid-glass") blur(24px) saturate(170%);
+        -webkit-backdrop-filter: url("#neolesk-liquid-glass") blur(24px) saturate(170%);
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -494,5 +665,5 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .ConsentCard, .TopBar, .Sidebar, .DesktopSettings, .MobileTabs, .ExportMenu { background: var(--secondary-background); }
+    .ConsentCard, .TopBar, .Sidebar, .DesktopSettings, .MobileTabs, .ExportMenu, .LanguageMenu { background: var(--secondary-background); }
 }

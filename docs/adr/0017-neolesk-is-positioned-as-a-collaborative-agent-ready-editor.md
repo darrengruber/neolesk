@@ -5,7 +5,7 @@ most diagrams never reach Kroki, and the product gains shared sessions and agent
 control. We decided to lead with collaboration and agent control, and to describe
 local rendering as how it works rather than what it is for.
 
-Kroki remains credited as the component that draws the 14 languages with no
+Kroki remains credited as the component that draws the 15 languages with no
 browser renderer, and as the fallback for the rest.
 
 ## Consequences

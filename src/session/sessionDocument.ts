@@ -1,4 +1,4 @@
-import { LoroDoc } from 'loro-crdt';
+import { LoroDoc, UndoManager } from 'loro-crdt/bundler';
 
 export interface SessionSnapshot {
     language: string;
@@ -7,10 +7,14 @@ export interface SessionSnapshot {
 
 export interface SessionViewSettings {
     panel?: 'code' | 'preview' | 'examples' | 'settings';
+    sidebar?: 'examples' | 'syntax';
     theme?: 'auto' | 'light' | 'dark';
     zoom?: number;
+    splitPercent?: number;
     scrollTop?: number;
     scrollLeft?: number;
+    previewScrollTop?: number;
+    previewScrollLeft?: number;
 }
 
 export interface SessionWriteActor {
@@ -21,10 +25,11 @@ export interface SessionWriteActor {
 export interface SessionHistoryEntry extends SessionWriteActor {
     at: number;
     fields: Array<keyof SessionSnapshot>;
+    undone?: boolean;
 }
 
-interface StoredHistoryEntry extends SessionHistoryEntry {
-    before: Uint8Array;
+export interface StoredHistoryEntry extends SessionHistoryEntry {
+    undo?: Uint8Array;
 }
 
 export interface PersistedSessionDocument {
@@ -41,6 +46,7 @@ export class SessionLimitError extends Error {
 
 export class SessionDocument {
     static readonly DEFAULT_MAX_DOCUMENT_BYTES = 256 * 1024;
+    static readonly MAX_HISTORY_ENTRIES = 64;
 
     private document: LoroDoc;
     private readonly maxDocumentBytes: number;
@@ -88,8 +94,9 @@ export class SessionDocument {
         session.audit.push(...persisted.audit.map((entry) => ({
             ...entry,
             fields: [...entry.fields],
-            before: new Uint8Array(entry.before),
+            undo: entry.undo ? new Uint8Array(entry.undo) : undefined,
         })));
+        session.trimAudit(persisted.snapshot);
         return session;
     }
 
@@ -104,20 +111,38 @@ export class SessionDocument {
         changes: Partial<SessionSnapshot>,
         actor: SessionWriteActor,
         at = Date.now(),
-    ): void {
+    ): Array<keyof SessionSnapshot> {
         const fields = (['source', 'language'] as const).filter((field) => (
             changes[field] !== undefined && changes[field] !== this.sharedState()[field]
         ));
-        if (fields.length === 0) return;
+        if (fields.length === 0) return [];
 
         const before = this.exportSnapshot();
         const candidate = LoroDoc.fromSnapshot(before);
+        const undoManager = actor.actor === 'agent' ? new UndoManager(candidate, {}) : null;
         fields.forEach((field) => candidate.getText(field).update(changes[field] as string));
         candidate.commit({ origin: actor.actor, message: `${actor.actorId}: ${fields.join(', ')}` });
-        this.assertWithinLimit(candidate.export({ mode: 'snapshot' }));
+        const nextSnapshot = candidate.export({ mode: 'snapshot' });
+        this.assertWithinLimit(nextSnapshot);
 
-        this.document = candidate;
-        this.audit.push({ ...actor, at, fields: [...fields], before });
+        let undo: Uint8Array | undefined;
+        if (undoManager) {
+            const afterVersion = candidate.version();
+            if (!undoManager.undo()) throw new Error('Could not record an undo operation for the agent write');
+            candidate.commit({ origin: 'session:prepare-undo' });
+            undo = candidate.export({ mode: 'update', from: afterVersion });
+        }
+
+        const entry: StoredHistoryEntry = { ...actor, at, fields: [...fields], undo };
+        this.audit.push(entry);
+        try {
+            this.trimAudit(nextSnapshot, entry);
+        } catch (error) {
+            this.audit.pop();
+            throw error;
+        }
+        this.document = LoroDoc.fromSnapshot(nextSnapshot);
+        return fields;
     }
 
     importUpdate(update: Uint8Array, actor: SessionWriteActor, at = Date.now()): void {
@@ -125,9 +150,17 @@ export class SessionDocument {
         const candidate = LoroDoc.fromSnapshot(before);
         candidate.import(update);
         candidate.commit({ origin: actor.actor, message: `${actor.actorId}: CRDT update` });
-        this.assertWithinLimit(candidate.export({ mode: 'snapshot' }));
+        const nextSnapshot = candidate.export({ mode: 'snapshot' });
+        this.assertWithinLimit(nextSnapshot);
+        const entry: StoredHistoryEntry = { ...actor, at, fields: ['source', 'language'] };
+        this.audit.push(entry);
+        try {
+            this.trimAudit(nextSnapshot);
+        } catch (error) {
+            this.audit.pop();
+            throw error;
+        }
         this.document = candidate;
-        this.audit.push({ ...actor, at, fields: ['source', 'language'], before });
     }
 
     exportSnapshot(): Uint8Array {
@@ -140,20 +173,44 @@ export class SessionDocument {
             audit: this.audit.map((entry) => ({
                 ...entry,
                 fields: [...entry.fields],
-                before: new Uint8Array(entry.before),
+                undo: entry.undo ? new Uint8Array(entry.undo) : undefined,
             })),
         };
     }
 
     history(): SessionHistoryEntry[] {
-        return this.audit.map(({ before: _before, ...entry }) => ({ ...entry, fields: [...entry.fields] }));
+        return this.audit.map(({ undo: _undo, ...entry }) => ({ ...entry, fields: [...entry.fields] }));
     }
 
-    undoLastAgentWrite(): boolean {
-        const latest = this.audit[this.audit.length - 1];
-        if (!latest || latest.actor !== 'agent') return false;
-        this.document = LoroDoc.fromSnapshot(latest.before);
-        this.audit.pop();
+    latestAgentUndoUpdate(): Uint8Array | null {
+        for (let index = this.audit.length - 1; index >= 0; index -= 1) {
+            const entry = this.audit[index];
+            if (entry.actor === 'agent' && !entry.undone && entry.undo) return new Uint8Array(entry.undo);
+        }
+        return null;
+    }
+
+    undoLastAgentWrite(undoUpdate?: Uint8Array): boolean {
+        let latest: StoredHistoryEntry | undefined;
+        for (let index = this.audit.length - 1; index >= 0; index -= 1) {
+            const entry = this.audit[index];
+            if (entry.actor === 'agent' && !entry.undone && entry.undo) {
+                latest = entry;
+                break;
+            }
+        }
+        const undo = undoUpdate || latest?.undo;
+        if (!undo) return false;
+        const candidate = LoroDoc.fromSnapshot(this.exportSnapshot());
+        candidate.import(undo);
+        candidate.commit({ origin: 'human', message: 'Undo latest agent write' });
+        const nextSnapshot = candidate.export({ mode: 'snapshot' });
+        if (latest) {
+            latest.undone = true;
+            latest.undo = undefined;
+        }
+        this.trimAudit(nextSnapshot);
+        this.document = candidate;
         return true;
     }
 
@@ -180,5 +237,30 @@ export class SessionDocument {
         if (snapshot.byteLength > this.maxDocumentBytes) {
             throw new SessionLimitError(snapshot.byteLength, this.maxDocumentBytes);
         }
+    }
+
+    private persistedBytes(snapshot: Uint8Array): number {
+        return snapshot.byteLength + this.audit.reduce((total, entry) => (
+            total
+            + (entry.undo?.byteLength || 0)
+            + JSON.stringify({ ...entry, undo: undefined }).length
+        ), 0);
+    }
+
+    private trimAudit(snapshot: Uint8Array, protectedEntry?: StoredHistoryEntry): void {
+        while (this.audit.length > SessionDocument.MAX_HISTORY_ENTRIES) {
+            const withoutLiveUndo = this.audit.findIndex((entry) => !entry.undo || entry.undone);
+            this.audit.splice(withoutLiveUndo >= 0 ? withoutLiveUndo : 0, 1);
+        }
+        while (this.persistedBytes(snapshot) > this.maxDocumentBytes && this.audit.length > 0) {
+            let removable = this.audit.findIndex((entry) => (
+                entry !== protectedEntry && (!entry.undo || entry.undone)
+            ));
+            if (removable < 0) removable = this.audit.findIndex((entry) => entry !== protectedEntry);
+            if (removable < 0) break;
+            this.audit.splice(removable, 1);
+        }
+        const total = this.persistedBytes(snapshot);
+        if (total > this.maxDocumentBytes) throw new SessionLimitError(total, this.maxDocumentBytes);
     }
 }

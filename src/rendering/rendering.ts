@@ -22,6 +22,7 @@ export interface RendererAdapter {
     environments: RenderEnvironment[];
     languages: string[];
     formats: string[];
+    optionDefinitions?: Record<string, RendererOptionDefinition>;
     /** Use a consented server for the first render while a large local runtime downloads. */
     remoteWhileLoading?: boolean;
     /** Optional warm-up hook. Capability checks never invoke it. */
@@ -29,10 +30,20 @@ export interface RendererAdapter {
     render: (input: RendererInput) => Promise<string>;
 }
 
+export type RendererOptionDefinition =
+    | { type: 'enum'; values: readonly string[] }
+    | { type: 'boolean' }
+    | { type: 'number'; minimum?: number; maximum?: number }
+    | { type: 'string'; maxLength?: number };
+
 export interface RemoteRenderer {
     id: string;
     label: string;
     url: string;
+    capabilities: Record<string, {
+        formats: string[];
+        optionDefinitions: Record<string, RendererOptionDefinition>;
+    }>;
 }
 
 export interface RemoteRenderInput extends RendererInput {
@@ -73,6 +84,7 @@ export interface RenderCapabilities {
     local: boolean;
     rendererIds: string[];
     formats: string[];
+    optionDefinitions: Record<string, RendererOptionDefinition>;
 }
 
 export class RenderingError extends Error {
@@ -97,7 +109,47 @@ export class RenderingError extends Error {
 export interface RendererCatalog {
     find(language: string, environment: RenderEnvironment, format: string, rendererId?: string): RendererAdapter | undefined;
     capabilities(language: string, environment: RenderEnvironment): RenderCapabilities;
+    validateOptions(language: string, environment: RenderEnvironment, options: Record<string, string>): Record<string, string>;
 }
+
+export const validateRendererOptions = (
+    definitions: Record<string, RendererOptionDefinition>,
+    options: Record<string, string>,
+): Record<string, string> => Object.fromEntries(Object.entries(options).map(([key, value]) => {
+    const definition = definitions[key];
+    if (!definition) throw new Error(`Unsupported renderer option ${key}`);
+    if (definition.type === 'enum' && !definition.values.includes(value)) {
+        throw new Error(`Unsupported value for renderer option ${key}`);
+    }
+    if (definition.type === 'boolean' && !['true', 'false'].includes(value)) {
+        throw new Error(`Unsupported value for renderer option ${key}`);
+    }
+    if (definition.type === 'number') {
+        const number = Number(value);
+        if (!Number.isFinite(number)
+            || (definition.minimum !== undefined && number < definition.minimum)
+            || (definition.maximum !== undefined && number > definition.maximum)) {
+            throw new Error(`Unsupported value for renderer option ${key}`);
+        }
+    }
+    if (definition.type === 'string' && value.length > (definition.maxLength ?? 128)) {
+        throw new Error(`Unsupported value for renderer option ${key}`);
+    }
+    return [key, value];
+}));
+
+export const validateRemoteRendererRequest = (
+    remote: RemoteRenderer,
+    language: string,
+    format: string,
+    options: Record<string, string>,
+): Record<string, string> => {
+    const capability = remote.capabilities[language];
+    if (!capability?.formats.includes(format)) {
+        throw new Error(`${remote.label} does not support ${language} as ${format}`);
+    }
+    return validateRendererOptions(capability.optionDefinitions, options);
+};
 
 export const createRendererCatalog = (renderers: RendererAdapter[]): RendererCatalog => {
     const byId = new Map(renderers.map((renderer) => [renderer.id, renderer]));
@@ -121,7 +173,12 @@ export const createRendererCatalog = (renderers: RendererAdapter[]): RendererCat
                 local: matches.length > 0,
                 rendererIds: matches.map((renderer) => renderer.id),
                 formats: Array.from(new Set(matches.flatMap((renderer) => renderer.formats))),
+                optionDefinitions: Object.assign({}, ...matches.map((renderer) => renderer.optionDefinitions || {})),
             };
+        },
+        validateOptions(language, environment, options) {
+            const definitions = this.capabilities(language, environment).optionDefinitions;
+            return validateRendererOptions(definitions, options);
         },
     };
 };
@@ -167,14 +224,24 @@ export const createRenderingModule = ({
         },
 
         async render(request: RenderRequest): Promise<RenderResult> {
-            const options = request.options || {};
-            const localRenderer = catalog.find(
+            const requestedOptions = request.options || {};
+            let localRenderer = catalog.find(
                 request.language,
                 environment,
                 request.format,
                 request.rendererId,
             );
             const diagnostics: RenderDiagnostic[] = [];
+            let options = requestedOptions;
+            if (localRenderer) {
+                try {
+                    options = catalog.validateOptions(request.language, environment, requestedOptions);
+                } catch (error) {
+                    if (!request.remote) throw error;
+                    diagnostics.push(diagnosticFrom(localRenderer.id, error));
+                    localRenderer = undefined;
+                }
+            }
 
             if (localRenderer && localRenderer.remoteWhileLoading && request.remote && !loaded.has(localRenderer)) {
                 void ensureLoaded(localRenderer).catch(() => {
@@ -222,6 +289,12 @@ export const createRenderingModule = ({
             }
 
             try {
+                options = validateRemoteRendererRequest(
+                    request.remote,
+                    request.language,
+                    request.format,
+                    requestedOptions,
+                );
                 const data = await remoteRender({
                     language: request.language,
                     source: request.source,

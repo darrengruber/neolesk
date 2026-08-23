@@ -26,6 +26,7 @@ describe('preferences', () => {
             appearance: 'auto',
             editorWrapping: true,
             remoteRendering: null,
+            consentedRenderServer: null,
             transparency: 0.72,
         });
     });
@@ -35,6 +36,7 @@ describe('preferences', () => {
             appearance: 'dark',
             editorWrapping: false,
             remoteRendering: 'local-only',
+            consentedRenderServer: null,
             transparency: 0.5,
         });
 
@@ -43,6 +45,7 @@ describe('preferences', () => {
             appearance: 'dark',
             editorWrapping: false,
             remoteRendering: 'local-only',
+            consentedRenderServer: null,
             transparency: 0.5,
         });
     });
@@ -56,17 +59,23 @@ describe('preferences', () => {
     });
 
     it('maps the first-run choice to the exact consented server', () => {
-        expect(getConsentedRemoteRenderer('local-only', 'https://diagrams.darrengruber.com/render/')).toBeNull();
-        expect(getConsentedRemoteRenderer('neolesk', 'https://diagrams.darrengruber.com/render/')).toEqual({
+        expect(getConsentedRemoteRenderer('local-only', null, 'https://diagrams.darrengruber.com/render/')).toBeNull();
+        expect(getConsentedRemoteRenderer('neolesk', 'https://diagrams.darrengruber.com/render/', 'https://diagrams.darrengruber.com/render/')).toMatchObject({
             id: 'neolesk',
             label: "neolesk's renderer",
             url: 'https://diagrams.darrengruber.com/render/',
         });
-        expect(getConsentedRemoteRenderer('kroki-io', 'https://diagrams.darrengruber.com/render/')).toEqual({
+        expect(getConsentedRemoteRenderer('kroki-io', 'https://kroki.io/', 'https://diagrams.darrengruber.com/render/')).toMatchObject({
             id: 'kroki-io',
             label: 'kroki.io',
             url: 'https://kroki.io/',
         });
-        expect(getConsentedRemoteRenderer(null, 'https://diagrams.darrengruber.com/render/')).toBeNull();
+        expect(getConsentedRemoteRenderer(
+            'neolesk',
+            'https://diagrams.darrengruber.com/render/',
+            'https://diagrams.darrengruber.com/render/',
+        )?.capabilities.d2.optionDefinitions.layout).toEqual({ type: 'enum', values: ['dagre'] });
+        expect(getConsentedRemoteRenderer('neolesk', 'https://old.example/render/', 'https://diagrams.darrengruber.com/render/')).toBeNull();
+        expect(getConsentedRemoteRenderer(null, null, 'https://diagrams.darrengruber.com/render/')).toBeNull();
     });
 });

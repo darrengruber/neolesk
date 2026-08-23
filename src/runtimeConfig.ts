@@ -88,6 +88,7 @@ export const loadRuntimeConfig = async (
     }
 
     const config = parsed as Record<string, unknown>;
+    const normalized = new Map<string, string>();
     for (const key of ['krokiEngineUrl', 'renderServerUrl', 'sessionBackendUrl'] as const) {
         const value = config[key];
         if (value !== undefined && typeof value !== 'string') {
@@ -96,11 +97,27 @@ export const loadRuntimeConfig = async (
         if (typeof value === 'string' && value.trim() === '') {
             return { status: 'invalid', reason: `${path}: ${key} is empty` };
         }
+        if (typeof value === 'string') {
+            try {
+                const url = new URL(value.trim());
+                if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('unsupported protocol');
+                if (url.username || url.password || url.search || url.hash) throw new Error('unsupported URL components');
+                if (key === 'sessionBackendUrl') {
+                    if (url.pathname !== '/') throw new Error('session backend must be an origin');
+                    normalized.set(key, url.origin);
+                } else {
+                    url.pathname = url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`;
+                    normalized.set(key, url.href);
+                }
+            } catch {
+                return { status: 'invalid', reason: `${path}: ${key} must be a canonical HTTP(S) deployment URL` };
+            }
+        }
     }
 
     const runtimeConfig: RuntimeConfig = {};
-    if (typeof config.krokiEngineUrl === 'string') runtimeConfig.krokiEngineUrl = config.krokiEngineUrl;
-    if (typeof config.renderServerUrl === 'string') runtimeConfig.renderServerUrl = config.renderServerUrl;
-    if (typeof config.sessionBackendUrl === 'string') runtimeConfig.sessionBackendUrl = config.sessionBackendUrl;
+    if (normalized.has('krokiEngineUrl')) runtimeConfig.krokiEngineUrl = normalized.get('krokiEngineUrl');
+    if (normalized.has('renderServerUrl')) runtimeConfig.renderServerUrl = normalized.get('renderServerUrl');
+    if (normalized.has('sessionBackendUrl')) runtimeConfig.sessionBackendUrl = normalized.get('sessionBackendUrl');
     return { status: 'loaded', config: runtimeConfig };
 };

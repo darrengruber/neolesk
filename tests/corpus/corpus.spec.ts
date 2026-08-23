@@ -25,6 +25,7 @@ const installPreference = (page: Page, remoteRendering: 'local-only' | 'neolesk'
         appearance: 'light',
         editorWrapping: true,
         remoteRendering: choice,
+        consentedRenderServer: choice === 'neolesk' ? 'http://127.0.0.1:4173/render/' : null,
         transparency: 1,
     })),
     { key: PREFERENCES_KEY, choice: remoteRendering },
@@ -51,10 +52,9 @@ const captureCorpus = async (page: Page, corpus: ExampleDefinition[]) => {
 };
 
 test('browser-rendered example corpus matches committed images', async ({ page }) => {
-    // Consent enables the ADR 0014 server-on-failure path for valid sources
-    // rejected by the thinly exercised PlantUML TeaVM build. All other local
-    // adapters remain authoritative once loaded.
-    await installPreference(page, 'neolesk');
+    // The browser corpus is deliberately local-only. This catches accidental
+    // regressions where a nominally local adapter silently delegates to Kroki.
+    await installPreference(page, 'local-only');
     await captureCorpus(page, localExamples);
 });
 

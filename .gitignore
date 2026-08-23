@@ -17,6 +17,8 @@
 /coverage
 /playwright-report
 /test-results
+/.wrangler
+/src/worker/generated/
 
 # production
 /build

@@ -1,4 +1,4 @@
-const diagramMetadata: Record<string, { language?: string; filetypes: string[] }> = {
+export const diagramMetadata: Record<string, { language?: string; filetypes: string[] }> = {
     actdiag: { filetypes: ['svg', 'png', 'pdf'] },
     blockdiag: { filetypes: ['svg', 'png', 'pdf'] },
     bpmn: { language: 'xml', filetypes: ['svg'] },

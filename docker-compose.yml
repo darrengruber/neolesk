@@ -5,4 +5,4 @@ services:
       args:
         NEOLESK_KROKI_ENGINE: ${NEOLESK_KROKI_ENGINE:-https://diagrams.darrengruber.com/render/}
     ports:
-      - "8080:8080"
+      - "8080:80"

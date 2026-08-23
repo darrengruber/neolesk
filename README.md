@@ -91,8 +91,7 @@ this runtime file alongside the static assets:
 
 ```json
 {
-  "renderServerUrl": "https://diagrams.example/render/",
-  "sessionBackendUrl": "https://diagrams.example/"
+  "renderServerUrl": "https://diagrams.example/render/"
 }
 ```
 

@@ -2,8 +2,8 @@
 
 neolesk renders 7 of its 29 diagram languages in the browser today: Bytefield,
 DBML, Mermaid, Nomnoml, Vega, Vega-Lite and WaveDrom. We surveyed npm for the
-other 22 and decided to adopt six more renderers now, covering eight further
-languages and taking local coverage to 15 of 29 — including the three most-used
+other 22 and decided to adopt six more renderers now, covering seven further
+languages and taking local coverage to 14 of 29 — including the three most-used
 ones.
 
 ## Adopted
@@ -28,5 +28,5 @@ Every one is lazy-loaded, so nobody pays for a renderer they do not open.
 - **ditaa, umlet** — Java. Only reachable through CheerpJ.
 - **erd, structurizr, diagramsnet** — no usable JavaScript parser exists.
 
-These 14 stay on the render server under ADR 0001. This list is the explicit
+These 15 stay on the render server under ADR 0001. This list is the explicit
 scope boundary: adding one of them is a new decision, not an oversight.

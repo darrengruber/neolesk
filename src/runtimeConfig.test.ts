@@ -36,7 +36,22 @@ describe('loadRuntimeConfig', () => {
             status: 'loaded',
             config: {
                 renderServerUrl: 'https://diagrams.example/render/',
-                sessionBackendUrl: 'https://diagrams.example/',
+                sessionBackendUrl: 'https://diagrams.example',
+            },
+        });
+    });
+
+    it('trims and canonicalizes deployment URLs', async () => {
+        const outcome = await loadRuntimeConfig(fetchReturning(respond(JSON.stringify({
+            renderServerUrl: '  https://diagrams.example/render  ',
+            sessionBackendUrl: ' https://diagrams.example/ ',
+        }), { contentType: 'application/json' })));
+
+        expect(outcome).toEqual({
+            status: 'loaded',
+            config: {
+                renderServerUrl: 'https://diagrams.example/render/',
+                sessionBackendUrl: 'https://diagrams.example',
             },
         });
     });
@@ -47,6 +62,31 @@ describe('loadRuntimeConfig', () => {
         }), { contentType: 'application/json' })));
 
         expect(outcome.status).toBe('invalid');
+    });
+
+    it.each([
+        ['not a url', 'renderServerUrl'],
+        ['file:///etc/passwd', 'renderServerUrl'],
+        ['javascript:alert(1)', 'sessionBackendUrl'],
+    ])('rejects unsafe or malformed runtime URL %s', async (value, key) => {
+        const outcome = await loadRuntimeConfig(fetchReturning(respond(JSON.stringify({
+            [key]: value,
+        }), { contentType: 'application/json' })));
+
+        expect(outcome).toEqual(expect.objectContaining({ status: 'invalid' }));
+    });
+
+    it.each([
+        'https://user:secret@diagrams.example/',
+        'https://diagrams.example/base/',
+        'https://diagrams.example/?tenant=x',
+        'https://diagrams.example/#fragment',
+    ])('rejects a session backend that is not a plain origin: %s', async (sessionBackendUrl) => {
+        const outcome = await loadRuntimeConfig(fetchReturning(respond(JSON.stringify({
+            sessionBackendUrl,
+        }), { contentType: 'application/json' })));
+
+        expect(outcome).toEqual(expect.objectContaining({ status: 'invalid' }));
     });
 
     // The regression this module exists for. Every host serving this app has an

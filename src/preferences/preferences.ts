@@ -1,4 +1,5 @@
 import type { RemoteRenderer } from '../rendering/rendering';
+import { createKrokiRemoteRenderer } from '../rendering/remote';
 
 export type Appearance = 'auto' | 'light' | 'dark';
 export type RemoteRenderingChoice = 'local-only' | 'neolesk' | 'kroki-io';
@@ -7,6 +8,7 @@ export interface Preferences {
     appearance: Appearance;
     editorWrapping: boolean;
     remoteRendering: RemoteRenderingChoice | null;
+    consentedRenderServer: string | null;
     transparency: number;
 }
 
@@ -16,6 +18,7 @@ export const defaultPreferences: Preferences = {
     appearance: 'auto',
     editorWrapping: true,
     remoteRendering: null,
+    consentedRenderServer: null,
     transparency: 0.72,
 };
 
@@ -38,6 +41,9 @@ export const loadPreferences = (storage: Pick<Storage, 'getItem'>): Preferences 
             remoteRendering: typeof value.remoteRendering === 'string'
                 && remoteChoices.has(value.remoteRendering as RemoteRenderingChoice)
                 ? value.remoteRendering as RemoteRenderingChoice
+                : null,
+            consentedRenderServer: typeof value.consentedRenderServer === 'string'
+                ? value.consentedRenderServer
                 : null,
             transparency: typeof value.transparency === 'number'
                 && Number.isFinite(value.transparency)
@@ -62,21 +68,41 @@ export const savePreferences = (
 
 export const getConsentedRemoteRenderer = (
     choice: RemoteRenderingChoice | null,
+    consentedRenderServer: string | null,
     neoleskRenderUrl: string,
 ): RemoteRenderer | null => {
-    if (choice === 'neolesk') {
-        return {
+    const canonical = (value: string): string | null => {
+        try {
+            const url = new URL(value);
+            if (!['http:', 'https:'].includes(url.protocol)) return null;
+            return url.href;
+        } catch {
+            return null;
+        }
+    };
+    if (choice === 'neolesk'
+        && canonical(consentedRenderServer || '') === canonical(neoleskRenderUrl)) {
+        return createKrokiRemoteRenderer({
             id: 'neolesk',
             label: "neolesk's renderer",
             url: neoleskRenderUrl,
-        };
+        });
     }
-    if (choice === 'kroki-io') {
-        return {
+    if (choice === 'kroki-io' && canonical(consentedRenderServer || '') === 'https://kroki.io/') {
+        return createKrokiRemoteRenderer({
             id: 'kroki-io',
             label: 'kroki.io',
             url: 'https://kroki.io/',
-        };
+        });
     }
+    return null;
+};
+
+export const consentServerForChoice = (
+    choice: RemoteRenderingChoice,
+    neoleskRenderUrl: string,
+): string | null => {
+    if (choice === 'neolesk') return new URL(neoleskRenderUrl).href;
+    if (choice === 'kroki-io') return 'https://kroki.io/';
     return null;
 };
