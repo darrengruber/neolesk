@@ -1,10 +1,19 @@
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+if (process.platform === 'win32') {
+    throw new Error('test:worker requires POSIX process-group signaling and is not supported on Windows.');
+}
 
 const port = 8800 + Math.floor(Math.random() * 400);
 const origin = `http://127.0.0.1:${port}`;
-const command = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const worker = spawn(command, ['exec', '--', 'wrangler', 'dev', '--local', '--port', String(port)], {
+const wrangler = fileURLToPath(new URL('../node_modules/wrangler/bin/wrangler.js', import.meta.url));
+const worker = spawn(process.execPath, [wrangler, 'dev', '--local', '--port', String(port)], {
     cwd: process.cwd(),
+    // Wrangler -> workerd is a process tree. Giving it its own POSIX process
+    // group lets CI stop every descendant instead of leaving workerd holding
+    // stdout/stderr open after Wrangler exits.
+    detached: true,
     env: { ...process.env, NO_COLOR: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -18,6 +27,17 @@ worker.stderr.on('data', capture);
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const deadline = Date.now() + 30_000;
+const terminateWorkerTree = (signal) => {
+    try {
+        if (worker.pid) process.kill(-worker.pid, signal);
+        else worker.kill(signal);
+    } catch (error) {
+        if (!(error instanceof Error) || !('code' in error) || error.code !== 'ESRCH') {
+            return error instanceof Error ? error : new Error(String(error));
+        }
+    }
+    return null;
+};
 
 try {
     let configuration;
@@ -101,9 +121,22 @@ try {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n${output}\n`);
     process.exitCode = 1;
 } finally {
-    worker.kill('SIGTERM');
+    const exited = worker.exitCode !== null || worker.signalCode !== null
+        ? Promise.resolve()
+        : new Promise((resolve) => worker.once('exit', resolve));
+    const cleanupError = terminateWorkerTree('SIGTERM');
     await Promise.race([
-        new Promise((resolve) => worker.once('exit', resolve)),
-        wait(3_000).then(() => worker.kill('SIGKILL')),
+        exited,
+        wait(3_000),
     ]);
+    // The Wrangler leader can exit before workerd. Address the process group again,
+    // then release the inherited pipes so an orphan cannot keep Node alive.
+    const finalCleanupError = terminateWorkerTree('SIGKILL');
+    worker.stdout.destroy();
+    worker.stderr.destroy();
+    worker.unref();
+    if (cleanupError || finalCleanupError) {
+        process.stderr.write(`${cleanupError?.message ?? finalCleanupError?.message}\n`);
+        process.exitCode = 1;
+    }
 }
