@@ -33,6 +33,7 @@ const installPreference = (page: Page, remoteRendering: 'local-only' | 'neolesk'
 
 const captureCorpus = async (page: Page, corpus: ExampleDefinition[]) => {
     const preview = page.getByLabel('Diagram preview');
+    const zoomControls = page.getByLabel('Preview zoom controls');
     const image = preview.getByRole('img', { name: 'Rendered diagram' });
     for (let index = 0; index < corpus.length; index += 1) {
         const example = corpus[index];
@@ -43,6 +44,12 @@ const captureCorpus = async (page: Page, corpus: ExampleDefinition[]) => {
             // accidentally restart the preceding render.
             await page.goto(`/?corpus=${index}#${radical}`);
             await expect(image).toBeVisible({ timeout: 120_000 });
+            // The corpus covers rendered diagrams, not sticky editor chrome.
+            // Excluding the controls also prevents their scroll position from
+            // making otherwise identical output platform-dependent.
+            await zoomControls.evaluate((element) => {
+                element.style.visibility = 'hidden';
+            });
             await expect(preview).toHaveScreenshot(
                 getExampleCacheFilename(example).replace(/\.svg$/, '.png'),
                 { animations: 'disabled', maxDiffPixelRatio: 0.001 },
