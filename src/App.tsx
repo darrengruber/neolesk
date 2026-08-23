@@ -1,655 +1,477 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import MonacoEditor from '@monaco-editor/react';
-import type * as monacoEditor from 'monaco-editor';
-import { getCachedSvgUrl } from './examples/cache';
+import { useEffect, useMemo, useState } from 'react';
+import {
+    Code2,
+    Download,
+    Eye,
+    FileText,
+    Library,
+    Link2,
+    Monitor,
+    Settings,
+    Users,
+} from 'lucide-react';
+import CodeMirrorEditor from './editor/CodeMirrorEditor';
+import type { DiagramValidationMarker } from './editor/languages/types';
+import cheatSheets from './data/cheatSheets';
+import { createRemoteExportAdapter, exportDiagram, type ExportFormat } from './export/export';
+import { useDebouncedValue } from './hooks/useDebouncedValue';
+import { getBrowserRenderCapabilities, useDiagramRender } from './hooks/useDiagramRender';
+import { useWindowWidth } from './hooks/useWindowWidth';
 import { decode } from './kroki/coder';
+import {
+    defaultPreferences,
+    getConsentedRemoteRenderer,
+    loadPreferences,
+    savePreferences,
+    type Preferences,
+    type RemoteRenderingChoice,
+} from './preferences/preferences';
 import { loadRuntimeConfig } from './runtimeConfig';
 import {
     buildDiagramState,
     createInitialDiagramState,
     defaultRenderUrl,
     diagramTypes,
-    getValidFiletype,
     normalizeRenderUrl,
     parseDiagramUrl,
 } from './state';
-import type {
-    ExampleRecord,
-    LayoutMode,
-    MobileTab,
-} from './types';
-import './styles.css';
-import PreviewPane from './components/PreviewPane';
-import Modal from './components/Modal';
-import ExampleImage from './components/ExampleImage';
-import EditorDrawer from './components/EditorDrawer';
-import { useDebouncedValue } from './hooks/useDebouncedValue';
-import { useSvgRender } from './hooks/useSvgRender';
-import { useWindowWidth } from './hooks/useWindowWidth';
+import type { ExampleRecord } from './types';
 import { buildExamples, filterExamples } from './utils/examples';
-import {
-    configureDiagramLanguages,
-    getEditorLanguageId,
-    getEditorModelPath,
-    validateDiagramText,
-} from './editor/diagramLanguageRegistry';
+import './styles.css';
 
-const layoutModes: LayoutMode[] = ['vertical', 'horizontal', 'preview'];
+type MobileSection = 'code' | 'preview' | 'examples' | 'settings';
 
-const monacoOptions = {
-    theme: 'vs' as const,
-    automaticLayout: true,
-    folding: true,
-    minimap: { enabled: false },
-    fontSize: 14,
-    lineHeight: 22,
-    padding: { top: 18, bottom: 18 },
-    quickSuggestions: { other: true, comments: false, strings: true },
-    scrollBeyondLastLine: false,
-    snippetSuggestions: 'top' as const,
-    suggestOnTriggerCharacters: true,
-    smoothScrolling: true,
-    tabCompletion: 'on' as const,
-    wrappingIndent: 'indent' as const,
+const mobileSections: Array<{
+    id: MobileSection;
+    label: string;
+    Icon: typeof Code2;
+}> = [
+    { id: 'code', label: 'Code', Icon: Code2 },
+    { id: 'preview', label: 'Preview', Icon: Eye },
+    { id: 'examples', label: 'Examples', Icon: Library },
+    { id: 'settings', label: 'Settings', Icon: Settings },
+];
+
+const getSystemAppearance = (): 'light' | 'dark' => (
+    window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+);
+
+const ConsentInterstitial = ({ onChoose }: {
+    onChoose: (choice: RemoteRenderingChoice) => void;
+}) => (
+    <main className="ConsentScreen">
+        <section className="ConsentCard" aria-labelledby="consent-title">
+            <div className="ConsentSymbol"><FileText aria-hidden="true" /></div>
+            <p className="Eyebrow">Welcome to neolesk</p>
+            <h1 id="consent-title">Keep diagrams where you expect</h1>
+            <p className="ConsentIntro">
+                Most diagrams can render in this browser. Some languages and file exports need a server,
+                so neolesk asks before sending diagram source anywhere.
+            </p>
+            <div className="ConsentChoices">
+                <button type="button" className="ChoiceButton ChoiceButtonPrimary" aria-label="Render locally only" onClick={() => onChoose('local-only')}>
+                    <Monitor aria-hidden="true" />
+                    <span><strong>Render locally only</strong><small>Never send diagram source over the network</small></span>
+                </button>
+                <button type="button" className="ChoiceButton" onClick={() => onChoose('neolesk')}>
+                    <Users aria-hidden="true" />
+                    <span><strong>Use neolesk services</strong><small>Allow fallback rendering and collaboration</small></span>
+                </button>
+                <button type="button" className="ChoiceButton" onClick={() => onChoose('kroki-io')}>
+                    <Link2 aria-hidden="true" />
+                    <span><strong>Use kroki.io</strong><small>Send unsupported diagrams to the public Kroki service</small></span>
+                </button>
+            </div>
+            <p className="ConsentFootnote">You can change this choice in Settings at any time.</p>
+        </section>
+    </main>
+);
+
+const SettingsView = ({ preferences, onChange }: {
+    preferences: Preferences;
+    onChange: (next: Preferences) => void;
+}) => (
+    <section className="SettingsView" aria-labelledby="settings-heading">
+        <header>
+            <p className="Eyebrow">Workspace</p>
+            <h2 id="settings-heading">Settings</h2>
+        </header>
+        <div className="SettingsGroup">
+            <label>
+                <span>Appearance</span>
+                <select
+                    value={preferences.appearance}
+                    onChange={(event) => onChange({ ...preferences, appearance: event.target.value as Preferences['appearance'] })}
+                >
+                    <option value="auto">Automatic</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                </select>
+            </label>
+            <label>
+                <span>Remote rendering</span>
+                <select
+                    value={preferences.remoteRendering || 'local-only'}
+                    onChange={(event) => onChange({
+                        ...preferences,
+                        remoteRendering: event.target.value as RemoteRenderingChoice,
+                    })}
+                >
+                    <option value="local-only">Local only</option>
+                    <option value="neolesk">neolesk services</option>
+                    <option value="kroki-io">kroki.io</option>
+                </select>
+            </label>
+            <label className="ToggleSetting">
+                <span><strong>Wrap long lines</strong><small>Keep source visible without horizontal scrolling</small></span>
+                <input
+                    type="checkbox"
+                    checked={preferences.editorWrapping}
+                    onChange={(event) => onChange({ ...preferences, editorWrapping: event.target.checked })}
+                />
+            </label>
+            <label>
+                <span>Window transparency</span>
+                <input
+                    type="range"
+                    min="0.55"
+                    max="1"
+                    step="0.05"
+                    value={preferences.transparency}
+                    onChange={(event) => onChange({ ...preferences, transparency: Number(event.target.value) })}
+                />
+            </label>
+        </div>
+    </section>
+);
+
+const ExamplesView = ({ examples, onSelect }: {
+    examples: ExampleRecord[];
+    onSelect: (example: ExampleRecord) => void;
+}) => {
+    const [query, setQuery] = useState('');
+    const filtered = useMemo(() => filterExamples(examples, query), [examples, query]);
+    return (
+        <section className="ExamplesView" aria-labelledby="examples-heading">
+            <header>
+                <div><p className="Eyebrow">Starting points</p><h2 id="examples-heading">Examples</h2></div>
+                <input
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Search examples"
+                    aria-label="Search examples"
+                />
+            </header>
+            <div className="ExampleGrid">
+                {filtered.map((example) => (
+                    <button type="button" key={example.id} onClick={() => onSelect(example)}>
+                        <strong>{example.title}</strong>
+                        <span>{diagramTypes[example.diagramType]?.name || example.diagramType}</span>
+                        <small>{example.description}</small>
+                    </button>
+                ))}
+            </div>
+        </section>
+    );
 };
 
-function App() {
+function EditorApplication({
+    preferences,
+    onPreferencesChange,
+}: {
+    preferences: Preferences;
+    onPreferencesChange: (preferences: Preferences) => void;
+}) {
     const baseUrl = useMemo(() => window.location.origin + window.location.pathname, []);
-    const [runtimeRenderUrl, setRuntimeRenderUrl] = useState<string | null>(null);
-    const initialRenderUrl = normalizeRenderUrl(runtimeRenderUrl || __KROKI_ENGINE_URL__ || defaultRenderUrl);
-    const initialDiagramState = useMemo(() => {
-        const state = createInitialDiagramState(baseUrl, window.location.hash);
-        return state.renderUrl === initialRenderUrl ? state : buildDiagramState({ ...state, renderUrl: initialRenderUrl });
-    }, [baseUrl, initialRenderUrl]);
+    const initialState = useMemo(() => createInitialDiagramState(baseUrl, window.location.hash), [baseUrl]);
+    const [language, setLanguage] = useState(initialState.diagramType);
+    const [source, setSource] = useState(initialState.diagramText);
+    const [previewSource, setPreviewSource] = useState(initialState.diagramText);
+    const [drafts, setDrafts] = useState<Record<string, string>>({ [initialState.diagramType]: initialState.diagramText });
+    const [renderUrl, setRenderUrl] = useState(normalizeRenderUrl(__KROKI_ENGINE_URL__ || defaultRenderUrl));
+    const [sessionBackendUrl, setSessionBackendUrl] = useState<string | null>(null);
+    const [mobileSection, setMobileSection] = useState<MobileSection>('code');
+    const [sidebar, setSidebar] = useState<'examples' | 'syntax'>('examples');
+    const [exportOpen, setExportOpen] = useState(false);
+    const [statusMessage, setStatusMessage] = useState<string | null>(null);
+    const width = useWindowWidth();
+    const compact = width < 760;
     const examples = useMemo(() => buildExamples(), []);
-
-    const [diagramType, setDiagramType] = useState(initialDiagramState.diagramType);
-    const [filetype, setFiletype] = useState(initialDiagramState.filetype);
-    const [renderUrl, setRenderUrl] = useState(initialDiagramState.renderUrl);
-    const [editorValue, setEditorValue] = useState(initialDiagramState.diagramText);
-    const [previewText, setPreviewText] = useState(initialDiagramState.diagramText);
-    const [draftsByDiagramType, setDraftsByDiagramType] = useState<Record<string, string>>({
-        [initialDiagramState.diagramType]: initialDiagramState.diagramText,
-    });
-    const [layoutMode, setLayoutMode] = useState<LayoutMode>('vertical');
-    const [wrapEnabled, setWrapEnabled] = useState(true);
-    const [editorDrawerOpen, setEditorDrawerOpen] = useState(false);
-    const [editorWidth, setEditorWidth] = useState(44);
-    const [isDragging, setIsDragging] = useState(false);
-    const [mobileTab, setMobileTab] = useState<MobileTab>('code');
-    const [examplesMode, setExamplesMode] = useState<'grid' | 'detail' | null>(null);
-    const [selectedExampleId, setSelectedExampleId] = useState(0);
-    const [examplesSearch, setExamplesSearch] = useState('');
-    const [importUrlOpen, setImportUrlOpen] = useState(false);
-    const [importUrl, setImportUrl] = useState('');
-    const [lastLoadedText, setLastLoadedText] = useState(initialDiagramState.diagramText);
-    const workspaceRef = useRef<HTMLDivElement | null>(null);
-    const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
-    const monacoRef = useRef<typeof monacoEditor | null>(null);
-
-    const debouncedEditorValue = useDebouncedValue(editorValue, 500);
-    const windowWidth = useWindowWidth();
-    const isCompact = windowWidth < 980;
-    const editorDirty = editorValue !== lastLoadedText;
-
-    const currentState = useMemo(() => buildDiagramState({
-        baseUrl,
-        diagramType,
-        diagramText: editorValue,
-        filetype,
-        renderUrl,
-    }), [baseUrl, diagramType, editorValue, filetype, renderUrl]);
-    const previewState = useMemo(() => buildDiagramState({
-        baseUrl,
-        diagramType,
-        diagramText: previewText,
-        filetype,
-        renderUrl,
-    }), [baseUrl, diagramType, filetype, previewText, renderUrl]);
-    const filteredExamples = useMemo(() => filterExamples(examples, examplesSearch), [examples, examplesSearch]);
-    const currentTypeExamples = useMemo(() => examples.filter((e) => e.diagramType === diagramType), [examples, diagramType]);
-    const selectedExample = examples[selectedExampleId] || examples[0];
-    const supportedFiletypes = ['svg', 'png', 'jpeg', 'pdf'];
-    const previewSvgUrl = useMemo(
-        () => getCachedSvgUrl(previewState.diagramType, previewState.diagramText, previewState.renderUrl) || previewState.svgUrl,
-        [previewState.diagramText, previewState.diagramType, previewState.svgUrl, previewState.renderUrl],
+    const debouncedSource = useDebouncedValue(source, 350);
+    const appearance = preferences.appearance === 'auto' ? getSystemAppearance() : preferences.appearance;
+    const remote = useMemo(
+        () => getConsentedRemoteRenderer(preferences.remoteRendering, renderUrl),
+        [preferences.remoteRendering, renderUrl],
     );
-    const svg = useSvgRender(diagramType, previewText, previewSvgUrl);
-    const editorLanguageId = useMemo(
-        () => getEditorLanguageId(diagramType, currentState.language),
-        [currentState.language, diagramType],
-    );
-    const editorModelPath = useMemo(() => getEditorModelPath(diagramType), [diagramType]);
-    const localValidationMarkers = useMemo(
-        () => validateDiagramText(diagramType, editorValue),
-        [diagramType, editorValue],
-    );
-    const remoteValidationMarkers = useMemo(() => {
-        if (!svg.error || svg.local || previewText !== editorValue) {
-            return [];
-        }
+    const renderState = useDiagramRender({ language, source: previewSource, remote });
+    const capabilities = useMemo(() => getBrowserRenderCapabilities(language), [language]);
 
-        return [{
-            message: svg.error.message,
-            startLineNumber: svg.error.line || 1,
-            startColumn: svg.error.column || 1,
-            endLineNumber: svg.error.line || 1,
-            endColumn: (svg.error.column || 1) + 1,
-            severity: 'error' as const,
-        }];
-    }, [editorValue, previewText, svg.error, svg.local]);
+    const remoteMarkers = useMemo<DiagramValidationMarker[]>(() => renderState.diagnostics.map((diagnostic) => ({
+        message: diagnostic.message,
+        startLineNumber: diagnostic.line || 1,
+        startColumn: diagnostic.column || 1,
+        endLineNumber: diagnostic.line || 1,
+        endColumn: (diagnostic.column || 1) + 1,
+        severity: diagnostic.kind === 'render' ? 'error' : 'warning',
+    })), [renderState.diagnostics]);
 
-    const editorOptions = useMemo(() => ({
-        ...monacoOptions,
-        wordWrap: wrapEnabled ? 'on' as const : 'off' as const,
-    }), [wrapEnabled]);
+    const provenanceLabel = renderState.provenance?.kind === 'remote'
+        ? renderState.provenance.rendererLabel
+        : capabilities.local ? 'On this device' : remote?.label || 'Server required';
+
+    useEffect(() => setPreviewSource(debouncedSource), [debouncedSource]);
 
     useEffect(() => {
-        let cancelled = false;
-
+        let active = true;
         loadRuntimeConfig().then((outcome) => {
-            if (cancelled) {
-                return;
-            }
-
-            // A config that is present but unusable used to be silent, which
-            // left the app rendering against the wrong engine and looking
-            // perfectly healthy. Say so. See src/runtimeConfig.ts for why the
-            // HTTP status alone cannot tell these cases apart.
+            if (!active) return;
             if (outcome.status === 'invalid') {
                 console.error(`[neolesk] ignoring runtime config: ${outcome.reason}`);
                 return;
             }
-
-            if (outcome.status === 'loaded' && outcome.config.krokiEngineUrl) {
-                const url = normalizeRenderUrl(outcome.config.krokiEngineUrl);
-                setRuntimeRenderUrl(url);
-                setRenderUrl(url);
+            if (outcome.status === 'loaded') {
+                setRenderUrl(normalizeRenderUrl(outcome.config.renderServerUrl || outcome.config.krokiEngineUrl || renderUrl));
+                setSessionBackendUrl(outcome.config.sessionBackendUrl || null);
             }
         });
-
-        return () => {
-            cancelled = true;
-        };
-    }, []);
+        return () => { active = false; };
+    }, []); // Runtime configuration is intentionally loaded once.
 
     useEffect(() => {
-        if (!isCompact) {
-            setMobileTab('code');
-        }
-    }, [isCompact]);
-
-    useEffect(() => {
-        if (debouncedEditorValue === editorValue) {
-            setPreviewText(debouncedEditorValue);
-        }
-    }, [debouncedEditorValue, editorValue]);
-
-    useEffect(() => {
-        const editor = editorRef.current;
-        const monaco = monacoRef.current;
-
-        if (!editor || !monaco) {
-            return;
-        }
-
-        const model = editor.getModel();
-        if (!model) {
-            return;
-        }
-
-        const toMonacoMarker = (
-            marker: {
-                message: string;
-                startLineNumber: number;
-                startColumn: number;
-                endLineNumber: number;
-                endColumn: number;
-                severity: 'error' | 'warning';
-            },
-        ): monacoEditor.editor.IMarkerData => ({
-            ...marker,
-            severity: marker.severity === 'warning'
-                ? monaco.MarkerSeverity.Warning
-                : monaco.MarkerSeverity.Error,
+        const state = buildDiagramState({
+            baseUrl,
+            diagramType: language,
+            diagramText: previewSource,
+            filetype: 'svg',
+            renderUrl,
         });
-
-        monaco.editor.setModelMarkers(model, 'neolesk-local-validation', localValidationMarkers.map(toMonacoMarker));
-        monaco.editor.setModelMarkers(model, 'neolesk-remote-validation', remoteValidationMarkers.map(toMonacoMarker));
-    }, [localValidationMarkers, remoteValidationMarkers]);
-
-    useEffect(() => {
-        const nextHash = `#${previewState.diagramHash}`;
-        if (window.location.hash !== nextHash) {
-            window.history.replaceState(null, '', nextHash);
-        }
-    }, [previewState.diagramHash]);
+        const nextHash = `#${state.diagramHash}`;
+        if (window.location.hash !== nextHash) window.history.replaceState(null, '', nextHash);
+    }, [baseUrl, language, previewSource, renderUrl]);
 
     useEffect(() => {
-        const handleHashChange = () => {
+        const onHashChange = () => {
             const parsed = parseDiagramUrl(window.location.hash);
-            if (!parsed) {
-                return;
-            }
-
-            setDiagramType(parsed.diagramType);
-            setFiletype(parsed.filetype);
-            setEditorValue(parsed.diagramText);
-            setPreviewText(parsed.diagramText);
-            setLastLoadedText(parsed.diagramText);
-            updateDiagramDraft(parsed.diagramType, parsed.diagramText);
+            if (!parsed) return;
+            setLanguage(parsed.diagramType);
+            setSource(parsed.diagramText);
+            setPreviewSource(parsed.diagramText);
+            setDrafts((current) => ({ ...current, [parsed.diagramType]: parsed.diagramText }));
         };
-
-        window.addEventListener('hashchange', handleHashChange);
-        return () => window.removeEventListener('hashchange', handleHashChange);
+        window.addEventListener('hashchange', onHashChange);
+        return () => window.removeEventListener('hashchange', onHashChange);
     }, []);
 
-    useEffect(() => {
-        if (!isDragging || !workspaceRef.current || layoutMode !== 'vertical') {
-            return;
+    const updateSource = (nextSource: string) => {
+        setSource(nextSource);
+        setDrafts((current) => ({ ...current, [language]: nextSource }));
+    };
+
+    const changeLanguage = (nextLanguage: string) => {
+        setDrafts((current) => ({ ...current, [language]: source }));
+        const nextSource = drafts[nextLanguage] || decode(diagramTypes[nextLanguage].example);
+        setLanguage(nextLanguage);
+        setSource(nextSource);
+        setPreviewSource(nextSource);
+    };
+
+    const selectExample = (example: ExampleRecord) => {
+        const nextSource = decode(example.example);
+        setLanguage(example.diagramType);
+        setSource(nextSource);
+        setPreviewSource(nextSource);
+        setDrafts((current) => ({ ...current, [example.diagramType]: nextSource }));
+        setMobileSection('code');
+    };
+
+    const copySnapshot = async () => {
+        await navigator.clipboard?.writeText(window.location.href);
+        setStatusMessage('Snapshot link copied');
+    };
+
+    const download = async (format: ExportFormat) => {
+        setExportOpen(false);
+        if (!renderState.svgText) return;
+        try {
+            const blob = await exportDiagram({
+                format,
+                svg: renderState.svgText,
+                language,
+                source,
+                remote,
+                remoteExport: createRemoteExportAdapter(),
+            });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = `diagram.${format}`;
+            anchor.click();
+            URL.revokeObjectURL(url);
+            setStatusMessage(`${format.toUpperCase()} exported`);
+        } catch (error) {
+            setStatusMessage(error instanceof Error ? error.message : String(error));
         }
-
-        const handleMouseMove = (event: MouseEvent) => {
-            if (!workspaceRef.current) {
-                return;
-            }
-
-            const rect = workspaceRef.current.getBoundingClientRect();
-            const width = ((event.clientX - rect.left) / rect.width) * 100;
-            setEditorWidth(Math.min(68, Math.max(30, width)));
-        };
-
-        const handleMouseUp = () => setIsDragging(false);
-
-        document.body.classList.add('workspace-resizing');
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-
-        return () => {
-            document.body.classList.remove('workspace-resizing');
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isDragging, layoutMode]);
-
-    useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                setExamplesMode(null);
-                setImportUrlOpen(false);
-                setEditorDrawerOpen(false);
-            }
-
-            if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
-                if (event.key === 'x') {
-                    setExamplesMode('grid');
-                    setExamplesSearch('');
-                }
-
-                if (event.key === 'i') {
-                    setImportUrlOpen(true);
-                }
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
-
-    const showEditorPane = !isCompact ? layoutMode !== 'preview' : mobileTab === 'code';
-    const showPreviewPane = !isCompact ? true : mobileTab === 'preview';
-
-    const updateDiagramDraft = (nextDiagramType: string, nextText: string) => {
-        setDraftsByDiagramType((current) => (
-            current[nextDiagramType] === nextText
-                ? current
-                : { ...current, [nextDiagramType]: nextText }
-        ));
     };
 
-    const handleDiagramTypeChange = (nextDiagramType: string) => {
-        const nextText = draftsByDiagramType[nextDiagramType] || decode(diagramTypes[nextDiagramType].example);
-        setDiagramType(nextDiagramType);
-        setFiletype(getValidFiletype(nextDiagramType, currentState.filetype));
-        setEditorValue(nextText);
-        setPreviewText(nextText);
-        setLastLoadedText(nextText);
-        updateDiagramDraft(nextDiagramType, nextText);
-    };
+    const editor = (
+        <section className="EditorPanel" aria-label="Code editor">
+            <CodeMirrorEditor
+                diagramType={language}
+                value={source}
+                wrapping={preferences.editorWrapping}
+                appearance={appearance}
+                markers={remoteMarkers}
+                onChange={updateSource}
+            />
+        </section>
+    );
 
-    const handleImportUrl = () => {
-        const parsed = parseDiagramUrl(importUrl);
-        if (!parsed) {
-            return;
-        }
+    const preview = (
+        <section className="PreviewPanel" aria-label="Diagram preview">
+            {renderState.loading && <div className="PreviewState">Rendering…</div>}
+            {!renderState.loading && renderState.blobUrl && (
+                <img src={renderState.blobUrl} alt="Rendered diagram" />
+            )}
+            {!renderState.loading && renderState.error && (
+                <div className="PreviewError" role="alert">
+                    <strong>{renderState.consentRequired ? 'Remote rendering is off' : 'Could not render this diagram'}</strong>
+                    <p>{renderState.error.message}</p>
+                    {renderState.consentRequired && (
+                        <button type="button" onClick={() => onPreferencesChange({ ...preferences, remoteRendering: 'neolesk' })}>
+                            Allow neolesk services
+                        </button>
+                    )}
+                </div>
+            )}
+        </section>
+    );
 
-        setDiagramType(parsed.diagramType);
-        setFiletype(parsed.filetype);
-        setEditorValue(parsed.diagramText);
-        setPreviewText(parsed.diagramText);
-        setLastLoadedText(parsed.diagramText);
-        updateDiagramDraft(parsed.diagramType, parsed.diagramText);
-        setImportUrlOpen(false);
-        setImportUrl('');
-    };
-
-    const handleExampleImport = (example: ExampleRecord) => {
-        setDiagramType(example.diagramType);
-        setFiletype(getValidFiletype(example.diagramType, filetype));
-        const exampleText = decode(example.example);
-        setEditorValue(exampleText);
-        setPreviewText(exampleText);
-        setLastLoadedText(exampleText);
-        updateDiagramDraft(example.diagramType, exampleText);
-        setExamplesMode(null);
-    };
-
-    const handleEditorChange = useCallback((value: string | undefined) => {
-        const nextValue = value || '';
-        setEditorValue(nextValue);
-        setDraftsByDiagramType((current) => (
-            current[diagramType] === nextValue
-                ? current
-                : { ...current, [diagramType]: nextValue }
-        ));
-    }, [diagramType]);
-
-    const handleRenderUrlChange = useCallback((value: string) => {
-        setRenderUrl(normalizeRenderUrl(value));
-    }, []);
-
-    const handleEditorMount = useCallback((
-        editor: monacoEditor.editor.IStandaloneCodeEditor,
-        monaco: typeof monacoEditor,
-    ) => {
-        editorRef.current = editor;
-        monacoRef.current = monaco;
-    }, []);
+    const syntax = cheatSheets[language];
 
     return (
-        <div className="App">
-            <header className="AppToolbar">
-                <div className="AppToolbarBrand">
-                    <span className="AppToolbarLogo">Neolesk</span>
+        <div
+            className="App"
+            data-appearance={preferences.appearance}
+            style={{ '--window-opacity': String(preferences.transparency) } as React.CSSProperties}
+        >
+            <header className="TopBar">
+                <a className="Brand" href="/" aria-label="neolesk home"><span>neo</span>lesk</a>
+                <div className="DocumentControls">
+                    <select aria-label="Diagram language" value={language} onChange={(event) => changeLanguage(event.target.value)}>
+                        {Object.entries(diagramTypes).map(([id, definition]) => (
+                            <option key={id} value={id}>{definition.name}</option>
+                        ))}
+                    </select>
+                    <span className={`Provenance ${renderState.provenance?.kind === 'remote' ? 'remote' : ''}`}>
+                        <span aria-hidden="true" />{provenanceLabel}
+                    </span>
                 </div>
-                <div className="AppToolbarControls">
-                    <label className="AppSelectField DiagramTypeField">
-                        <span className="AppSelectFieldLabel">Diagram type</span>
-                        <select
-                            className="AppSelectControl DiagramTypeSelect"
-                            value={diagramType}
-                            onChange={(event) => handleDiagramTypeChange(event.target.value)}
-                        >
-                            {Object.entries(diagramTypes).map(([value, info]) => (
-                                <option key={value} value={value}>
-                                    {info.name}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                </div>
-                <div className="AppToolbarActions">
-                    {!isCompact ? (
-                        <div className="SplitPresetGroup" aria-label="Preview layout modes">
-                            {layoutModes.map((mode) => (
-                                <button
-                                    key={mode}
-                                    type="button"
-                                    className={`SplitPresetButton${layoutMode === mode ? ' active' : ''}`}
-                                    onClick={() => setLayoutMode(mode)}
-                                >
-                                    <span className={`SplitPresetIcon SplitPresetIcon${mode[0].toUpperCase()}${mode.slice(1)}`}>
-                                        {mode === 'vertical' ? (
-                                            <>
-                                                <span className="SplitPresetIconPane SplitPresetIconPaneNarrow" />
-                                                <span className="SplitPresetIconPane SplitPresetIconPaneWide" />
-                                            </>
-                                        ) : null}
-                                        {mode === 'horizontal' ? (
-                                            <>
-                                                <span className="SplitPresetIconPane SplitPresetIconPaneTop" />
-                                                <span className="SplitPresetIconPane SplitPresetIconPaneBottom" />
-                                            </>
-                                        ) : null}
-                                        {mode === 'preview' ? <span className="SplitPresetIconPane SplitPresetIconPaneFull" /> : null}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                    ) : null}
-                    <button
-                        type="button"
-                        className="AppToolbarButton AppToolbarButtonIconOnlyMobile"
-                        onClick={() => { setExamplesMode('grid'); setExamplesSearch(''); }}
-                        aria-label="Examples"
-                        title="Examples"
-                    >
-                        <span className="AppToolbarButtonIcon" aria-hidden="true">
-                            <svg viewBox="0 0 20 20" focusable="false">
-                                <path d="M4 4.5h5l1.1 1.5H16a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 16 16H4A1.5 1.5 0 0 1 2.5 14.5V6A1.5 1.5 0 0 1 4 4.5Z" />
-                            </svg>
-                        </span>
-                        <span className="AppToolbarButtonLabel">Examples</span>
-                    </button>
-                    <button
-                        type="button"
-                        className="AppToolbarButton AppToolbarButtonIconOnlyMobile"
-                        onClick={() => setImportUrlOpen(true)}
-                        aria-label="Import"
-                        title="Import"
-                    >
-                        <span className="AppToolbarButtonIcon" aria-hidden="true">
-                            <svg viewBox="0 0 20 20" focusable="false">
-                                <path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3.4l1.2 1.5h6.4A1.5 1.5 0 0 1 17 7v7.5A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-9Z" />
-                                <path d="M10 8.1a.65.65 0 0 1 .65.65v2.1h2.1a.65.65 0 1 1 0 1.3h-2.1v2.1a.65.65 0 1 1-1.3 0v-2.1h-2.1a.65.65 0 1 1 0-1.3h2.1v-2.1A.65.65 0 0 1 10 8.1Z" />
-                            </svg>
-                        </span>
-                        <span className="AppToolbarButtonLabel">Import</span>
-                    </button>
+                <div className="TopActions">
+                    <button type="button" className="ToolbarButton" onClick={copySnapshot}><Link2 aria-hidden="true" /><span>Copy snapshot</span></button>
+                    <button type="button" className="ToolbarButton" disabled={!sessionBackendUrl}><Users aria-hidden="true" /><span>New session</span></button>
+                    <div className="ExportControl">
+                        <button type="button" className="ToolbarButton Primary" onClick={() => setExportOpen((open) => !open)}>
+                            <Download aria-hidden="true" /><span>Export</span>
+                        </button>
+                        {exportOpen && (
+                            <div className="ExportMenu">
+                                {(['svg', 'png', 'jpeg', 'pdf'] as const).map((format) => (
+                                    <button type="button" key={format} onClick={() => download(format)}>
+                                        {format.toUpperCase()}{format !== 'svg' && !remote ? <small>Requires server</small> : null}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </header>
 
-            {isCompact ? (
-                <div className="WorkspaceMobileTabs">
-                    <div className="WorkspaceMobileTabGroup">
-                        <button type="button" className={`WorkspaceMobileTab${mobileTab === 'code' ? ' active' : ''}`} onClick={() => setMobileTab('code')}>
-                            Code
-                        </button>
-                        <button type="button" className={`WorkspaceMobileTab${mobileTab === 'preview' ? ' active' : ''}`} onClick={() => setMobileTab('preview')}>
-                            Preview
-                        </button>
+            {!sessionBackendUrl && <div className="DeploymentNotice">Sessions unavailable in this deployment</div>}
+            {statusMessage && <div className="StatusMessage" role="status">{statusMessage}</div>}
+
+            {compact ? (
+                <main className="CompactWorkspace">
+                    <div className="CompactContent">
+                        {mobileSection === 'code' && editor}
+                        {mobileSection === 'preview' && preview}
+                        {mobileSection === 'examples' && <ExamplesView examples={examples} onSelect={selectExample} />}
+                        {mobileSection === 'settings' && <SettingsView preferences={preferences} onChange={onPreferencesChange} />}
                     </div>
-                    <button
-                        type="button"
-                        className={`EditorWrapButton EditorWrapButtonCompact${wrapEnabled ? ' active' : ''}`}
-                        onClick={() => setWrapEnabled((current) => !current)}
-                    >
-                        Wrap
-                    </button>
-                </div>
-            ) : null}
-
-            <main className="MainPanel">
-                <div
-                    className={`Workspace WorkspaceMode${layoutMode[0].toUpperCase()}${layoutMode.slice(1)}`}
-                    ref={workspaceRef}
-                    style={{ ['--editor-panel-width' as string]: `${editorWidth}%` }}
-                >
-                    <section className={`WorkspacePanel WorkspacePanelEditor${showEditorPane ? '' : ' compactHidden'}`}>
-                        {!isCompact ? (
-                            <div className="WorkspacePanelBar">
-                                <span className="WorkspacePanelTitle">Code</span>
-                                <button
-                                    type="button"
-                                    className={`EditorWrapButton${wrapEnabled ? ' active' : ''}`}
-                                    onClick={() => setWrapEnabled((current) => !current)}
-                                >
-                                    Wrap
-                                </button>
-                            </div>
-                        ) : null}
-                        <div className="WorkspacePanelBody">
-                            <div className="Editor">
-                                <MonacoEditor
-                                    className="MonacoEditor"
-                                    beforeMount={configureDiagramLanguages}
-                                    onMount={handleEditorMount}
-                                    language={editorLanguageId}
-                                    path={editorModelPath}
-                                    value={editorValue}
-                                    onChange={handleEditorChange}
-                                    height="100%"
-                                    options={editorOptions}
-                                />
-                            </div>
+                    <nav className="MobileTabs" role="tablist" aria-label="Editor sections">
+                        {mobileSections.map(({ id, label, Icon }) => (
+                            <button
+                                key={id}
+                                type="button"
+                                role="tab"
+                                aria-selected={mobileSection === id}
+                                onClick={() => setMobileSection(id)}
+                            >
+                                <Icon aria-hidden="true" /><span>{label}</span>
+                            </button>
+                        ))}
+                    </nav>
+                </main>
+            ) : (
+                <main className="DesktopWorkspace">
+                    <aside className="Sidebar">
+                        <div className="SidebarSwitcher" role="tablist" aria-label="Reference browser">
+                            <button type="button" role="tab" aria-selected={sidebar === 'examples'} onClick={() => setSidebar('examples')}>Examples</button>
+                            <button type="button" role="tab" aria-selected={sidebar === 'syntax'} onClick={() => setSidebar('syntax')}>Syntax</button>
                         </div>
-                        <EditorDrawer
-                            diagramType={diagramType}
-                            examples={currentTypeExamples}
-                            editorDirty={editorDirty}
-                            open={editorDrawerOpen}
-                            onToggle={() => setEditorDrawerOpen((v) => !v)}
-                            onExampleImport={handleExampleImport}
-                        />
-                    </section>
-
-                    {!isCompact && layoutMode === 'vertical' && showEditorPane ? (
-                        <button
-                            type="button"
-                            aria-label="Resize panels"
-                            className="WorkspaceDivider"
-                            onMouseDown={() => setIsDragging(true)}
-                            onDoubleClick={() => setEditorWidth(44)}
-                        />
-                    ) : null}
-
-                    <section className={`WorkspacePanel WorkspacePanelPreview${showPreviewPane ? '' : ' compactHidden'}${!isCompact && layoutMode === 'preview' ? ' previewOnly' : ''}`}>
-                        <div className="WorkspacePanelBody">
-                            <PreviewPane
-                                svg={svg}
-                                diagramType={diagramType}
-                                filetypes={supportedFiletypes}
-                                previewState={previewState}
-                                editorValue={editorValue}
-                                renderUrl={renderUrl}
-                                defaultRenderUrl={defaultRenderUrl}
-                                onRenderUrlChange={handleRenderUrlChange}
-                            />
+                        {sidebar === 'examples' ? (
+                            <div className="SidebarList">
+                                {examples.filter((example) => example.diagramType === language).map((example) => (
+                                    <button type="button" key={example.id} onClick={() => selectExample(example)}>
+                                        <span className="DocumentIcon"><FileText aria-hidden="true" /></span>
+                                        <span><strong>{example.title}</strong><small>{example.description}</small></span>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="SyntaxReference">
+                                <p>{syntax?.summary || 'No syntax reference is available for this language yet.'}</p>
+                                {syntax?.sections.map((section) => (
+                                    <section key={section.heading}>
+                                        <h3>{section.heading}</h3>
+                                        <pre>{section.items.join('\n')}</pre>
+                                    </section>
+                                ))}
+                            </div>
+                        )}
+                    </aside>
+                    <section className="CanvasSplit">
+                        <div className="Pane">
+                            <header><span>Source</span><small>{source === previewSource ? 'Up to date' : 'Editing…'}</small></header>
+                            {editor}
+                        </div>
+                        <div className="Pane PreviewPane">
+                            <header><span>Preview</span><small>{renderState.dimensions ? `${renderState.dimensions.width} × ${renderState.dimensions.height}` : 'Live preview'}</small></header>
+                            {preview}
                         </div>
                     </section>
-                </div>
-            </main>
-
-            <Modal
-                open={examplesMode === 'grid'}
-                title="Examples"
-                onClose={() => setExamplesMode(null)}
-                headerExtras={(
-                    <input
-                        className="ModalSearchInput"
-                        placeholder="Search examples"
-                        value={examplesSearch}
-                        onChange={(event) => setExamplesSearch(event.target.value)}
-                    />
-                )}
-            >
-                <div className="ExamplesGrid">
-                    {filteredExamples.map((example) => (
-                        <article key={example.id} className="ExampleCard">
-                            <div className="ExampleCardPreview">
-                                <ExampleImage alt={example.title} example={example} />
-                            </div>
-                            <div className="ExampleCardBody">
-                                <h3>{example.title}</h3>
-                                <p>{example.description}</p>
-                            </div>
-                            <div className="ExampleCardActions">
-                                <button
-                                    type="button"
-                                    className="ModalButton ModalButtonPrimary"
-                                    onClick={() => {
-                                        setSelectedExampleId(example.id);
-                                        setExamplesMode('detail');
-                                    }}
-                                >
-                                    View
-                                </button>
-                                <button type="button" className="ModalButton" onClick={() => handleExampleImport(example)}>
-                                    Import
-                                </button>
-                            </div>
-                        </article>
-                    ))}
-                </div>
-            </Modal>
-
-            <Modal
-                open={examplesMode === 'detail'}
-                title={selectedExample.title}
-                onClose={() => setExamplesMode(null)}
-                actions={(
-                    <>
-                        <button
-                            type="button"
-                            className="ModalButton"
-                            onClick={() => setSelectedExampleId((current) => (current - 1 + examples.length) % examples.length)}
-                        >
-                            Prev
-                        </button>
-                        <button
-                            type="button"
-                            className="ModalButton"
-                            onClick={() => setSelectedExampleId((current) => (current + 1) % examples.length)}
-                        >
-                            Next
-                        </button>
-                        <button
-                            type="button"
-                            className="ModalButton ModalButtonPrimary"
-                            onClick={() => handleExampleImport(selectedExample)}
-                        >
-                            Import
-                        </button>
-                    </>
-                )}
-            >
-                <div className="ExampleDetail">
-                    <div className="ExampleDetailMeta">
-                        <p>{selectedExample.description}</p>
-                        {selectedExample.doc ? (
-                            <a href={selectedExample.doc} target="_blank" rel="noreferrer">
-                                Documentation
-                            </a>
-                        ) : null}
-                    </div>
-                    <div className="ExampleDetailPreview">
-                        <ExampleImage alt={selectedExample.title} example={selectedExample} />
-                    </div>
-                    <pre className="ExampleDetailCode code">{decode(selectedExample.example)}</pre>
-                </div>
-            </Modal>
-
-            <Modal
-                open={importUrlOpen}
-                title="Import Diagram URL"
-                onClose={() => setImportUrlOpen(false)}
-                actions={(
-                    <button type="button" className="ModalButton ModalButtonPrimary" onClick={handleImportUrl}>
-                        Import
-                    </button>
-                )}
-            >
-                <div className="ImportForm">
-                    <input
-                        className="ModalInput code"
-                        placeholder="diagramType/svg/encoded"
-                        value={importUrl}
-                        onChange={(event) => setImportUrl(event.target.value)}
-                    />
-                </div>
-            </Modal>
+                    <aside className="DesktopSettings">
+                        <SettingsView preferences={preferences} onChange={onPreferencesChange} />
+                    </aside>
+                </main>
+            )}
         </div>
     );
+}
+
+function App() {
+    const [preferences, setPreferences] = useState<Preferences>(() => loadPreferences(window.localStorage));
+
+    const updatePreferences = (next: Preferences) => {
+        setPreferences(next);
+        savePreferences(window.localStorage, next);
+    };
+
+    if (!preferences.remoteRendering) {
+        return <ConsentInterstitial onChoose={(remoteRendering) => updatePreferences({ ...defaultPreferences, remoteRendering })} />;
+    }
+
+    return <EditorApplication preferences={preferences} onPreferencesChange={updatePreferences} />;
 }
 
 export default App;

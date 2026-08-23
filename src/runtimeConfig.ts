@@ -23,7 +23,10 @@
  */
 
 export interface RuntimeConfig {
+    /** @deprecated Use renderServerUrl. Kept for existing self-hosted images. */
     krokiEngineUrl?: string;
+    renderServerUrl?: string;
+    sessionBackendUrl?: string;
 }
 
 export type RuntimeConfigOutcome =
@@ -86,15 +89,19 @@ export const loadRuntimeConfig = async (
     }
 
     const config = parsed as Record<string, unknown>;
-    const engine = config.krokiEngineUrl;
-
-    if (engine !== undefined && typeof engine !== 'string') {
-        return { status: 'invalid', reason: `${path}: krokiEngineUrl must be a string` };
+    for (const key of ['krokiEngineUrl', 'renderServerUrl', 'sessionBackendUrl'] as const) {
+        const value = config[key];
+        if (value !== undefined && typeof value !== 'string') {
+            return { status: 'invalid', reason: `${path}: ${key} must be a string` };
+        }
+        if (typeof value === 'string' && value.trim() === '') {
+            return { status: 'invalid', reason: `${path}: ${key} is empty` };
+        }
     }
 
-    if (typeof engine === 'string' && engine.trim() === '') {
-        return { status: 'invalid', reason: `${path}: krokiEngineUrl is empty` };
-    }
-
-    return { status: 'loaded', config: engine === undefined ? {} : { krokiEngineUrl: engine } };
+    const runtimeConfig: RuntimeConfig = {};
+    if (typeof config.krokiEngineUrl === 'string') runtimeConfig.krokiEngineUrl = config.krokiEngineUrl;
+    if (typeof config.renderServerUrl === 'string') runtimeConfig.renderServerUrl = config.renderServerUrl;
+    if (typeof config.sessionBackendUrl === 'string') runtimeConfig.sessionBackendUrl = config.sessionBackendUrl;
+    return { status: 'loaded', config: runtimeConfig };
 };

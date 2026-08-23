@@ -4,7 +4,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-ARG NEOLESK_KROKI_ENGINE=https://kroki.io/
+ARG NEOLESK_KROKI_ENGINE=https://diagrams.darrengruber.com/render/
 
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts

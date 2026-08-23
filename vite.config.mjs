@@ -4,6 +4,7 @@ import { existsSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import wasm from 'vite-plugin-wasm';
 
 const require = createRequire(import.meta.url);
 const pkg = require('./package.json');
@@ -23,7 +24,10 @@ function runtimeConfigPlugin() {
     function generate() {
         const config = {};
         if (process.env.NEOLESK_KROKI_ENGINE) {
-            config.krokiEngineUrl = process.env.NEOLESK_KROKI_ENGINE;
+            config.renderServerUrl = process.env.NEOLESK_KROKI_ENGINE;
+        }
+        if (process.env.NEOLESK_SESSION_BACKEND) {
+            config.sessionBackendUrl = process.env.NEOLESK_SESSION_BACKEND;
         }
         if (Object.keys(config).length > 0) {
             writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
@@ -43,12 +47,16 @@ export default defineConfig({
     base: '/',
     plugins: [
         runtimeConfigPlugin(),
+        wasm(),
         react({ include: /\.(js|jsx|ts|tsx)$/ }),
     ],
     define: {
         __APP_VERSION__: JSON.stringify(pkg.version),
         __GIT_HASH__: JSON.stringify(gitHash),
-        __KROKI_ENGINE_URL__: JSON.stringify(process.env.NEOLESK_KROKI_ENGINE || 'https://kroki.io/'),
+        __KROKI_ENGINE_URL__: JSON.stringify(process.env.NEOLESK_KROKI_ENGINE || 'https://diagrams.darrengruber.com/render/'),
+    },
+    build: {
+        target: 'esnext',
     },
     resolve: {
         alias: {
@@ -63,6 +71,9 @@ export default defineConfig({
     },
     test: {
         environment: 'jsdom',
+        environmentOptions: {
+            jsdom: { url: 'http://localhost/' },
+        },
         globals: true,
         setupFiles: './src/setupTests.ts',
         css: true,

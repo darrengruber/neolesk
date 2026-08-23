@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import cheatSheets from './cheatSheets';
 import { diagramTypes } from '../state';
-import { validateDiagramText } from '../editor/diagramLanguageRegistry';
+import { validateDiagramText } from '../editor/codeMirrorLanguage';
 
 const getSectionSnippet = (diagramType: string, heading: string): string => {
     const section = cheatSheets[diagramType]?.sections.find((entry) => entry.heading === heading);

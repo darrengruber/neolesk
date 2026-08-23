@@ -1,7 +1,15 @@
-import type * as monacoEditor from 'monaco-editor';
+export type SyntaxTokenAction = string | { token: string; next?: string };
 
-export type MonarchLanguage = monacoEditor.languages.IMonarchLanguage;
-export type LanguageConfiguration = monacoEditor.languages.LanguageConfiguration;
+/** Small tokenizer grammar consumed by neolesk's CodeMirror stream adapter. */
+export interface MonarchLanguage {
+    tokenizer: Record<string, Array<[RegExp, SyntaxTokenAction]>>;
+}
+
+export interface LanguageConfiguration {
+    comments?: { lineComment?: string; blockComment?: [string, string] };
+    autoClosingPairs?: Array<{ open: string; close: string }>;
+    surroundingPairs?: Array<{ open: string; close: string }>;
+}
 
 export interface DiagramValidationMarker {
     message: string;
@@ -21,7 +29,7 @@ export type DiagramValidator = (context: DiagramValidationContext) => DiagramVal
 
 export interface DiagramLanguageDefinition {
     diagramType: string;
-    monacoLanguageId: string;
+    languageId: string;
     tokenizer?: MonarchLanguage;
     configuration?: LanguageConfiguration;
     aliases?: string[];

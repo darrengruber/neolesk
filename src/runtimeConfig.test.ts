@@ -26,6 +26,29 @@ describe('loadRuntimeConfig', () => {
         });
     });
 
+    it('discovers render and session capabilities independently', async () => {
+        const outcome = await loadRuntimeConfig(fetchReturning(respond(JSON.stringify({
+            renderServerUrl: 'https://diagrams.example/render/',
+            sessionBackendUrl: 'https://diagrams.example/',
+        }), { contentType: 'application/json' })));
+
+        expect(outcome).toEqual({
+            status: 'loaded',
+            config: {
+                renderServerUrl: 'https://diagrams.example/render/',
+                sessionBackendUrl: 'https://diagrams.example/',
+            },
+        });
+    });
+
+    it('rejects an empty session backend instead of advertising a broken feature', async () => {
+        const outcome = await loadRuntimeConfig(fetchReturning(respond(JSON.stringify({
+            sessionBackendUrl: ' ',
+        }), { contentType: 'application/json' })));
+
+        expect(outcome.status).toBe('invalid');
+    });
+
     // The regression this module exists for. Every host serving this app has an
     // SPA fallback, so a MISSING config.json comes back as 200 + index.html.
     // The old code called res.json() on that, threw, and swallowed it — making

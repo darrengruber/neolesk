@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateDiagramText } from './diagramLanguageRegistry';
+import { validateDiagramText } from './codeMirrorLanguage';
 
 describe('diagram validation', () => {
     it('flags invalid JSON-backed diagrams locally', () => {

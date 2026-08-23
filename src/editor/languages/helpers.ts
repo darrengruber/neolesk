@@ -542,11 +542,11 @@ export const buildFenceValidator = (startKeyword: string, endKeyword: string): D
 
 export const defineDiagramLanguage = (
     diagramType: string,
-    monacoLanguageId: string,
+    languageId: string,
     options?: Pick<DiagramLanguageDefinition, 'tokenizer' | 'configuration' | 'aliases' | 'validate'>,
 ): DiagramLanguageDefinition => ({
     diagramType,
-    monacoLanguageId,
+    languageId,
     aliases: options?.aliases || [diagramType],
     tokenizer: options?.tokenizer,
     configuration: options?.configuration,
@@ -555,10 +555,10 @@ export const defineDiagramLanguage = (
 
 export const defineBuiltinDiagramLanguage = (
     diagramType: string,
-    monacoLanguageId: string,
+    languageId: string,
     validate?: DiagramValidator,
 ): DiagramLanguageDefinition => (
-    defineDiagramLanguage(diagramType, monacoLanguageId, { validate })
+    defineDiagramLanguage(diagramType, languageId, { validate })
 );
 
 export const defineFamilyDiagramLanguage = (

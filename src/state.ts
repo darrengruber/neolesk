@@ -6,7 +6,7 @@ import type { DiagramState, DiagramStateInput, DiagramTypeMap, ParsedDiagramUrl 
 
 export const defaultDiagramType = 'plantuml';
 const legacyRenderUrl = 'https://kroki.io/';
-export const defaultRenderUrl = 'https://kroki.io/';
+export const defaultRenderUrl = 'https://diagrams.darrengruber.com/render/';
 
 export const diagramTypes = krokiInfo as DiagramTypeMap;
 
