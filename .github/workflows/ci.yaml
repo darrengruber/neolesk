@@ -73,16 +73,19 @@ jobs:
 
   corpus:
     runs-on: ubuntu-latest
+    # Golden images are generated in this exact browser/font environment.
+    # Running Playwright directly on ubuntu-latest made text metrics drift even
+    # when the SVG bytes and browser version were unchanged.
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
     env:
-      NEOLESK_KROKI_PROXY_TARGET: http://127.0.0.1:8000/
+      NEOLESK_KROKI_PROXY_TARGET: http://kroki:8000/
     services:
       kroki:
         image: yuzutech/kroki:0.32.1@sha256:6980bfb218b48b74ea14b888d9c7e8c032d1cb6325f3292277abdf62483abd9d
         env:
           KROKI_EXCALIDRAW_HOST: excalidraw
           KROKI_DIAGRAMSNET_HOST: diagramsnet
-        ports:
-          - 8000:8000
       excalidraw:
         image: yuzutech/kroki-excalidraw:0.32.1@sha256:214f13c1cd3c3f79a18a83631a900fedbed71b2f39d3a0c5630ac5fa5ad40046
       diagramsnet:
@@ -90,18 +93,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 24
-          cache: npm
-
       - run: npm ci --ignore-scripts
-      - run: npx playwright install --with-deps chromium
 
       - name: Wait for Kroki
         run: |
           for _ in $(seq 1 60); do
-            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then
+            if curl --fail --silent http://kroki:8000/health >/dev/null; then
               exit 0
             fi
             sleep 2
