@@ -7,7 +7,7 @@ interface DownloadDropdownProps {
     onDownload: (filetype: string) => void;
 }
 
-function DownloadDropdown({ filetypes, disabled, downloading, onDownload }: DownloadDropdownProps): JSX.Element {
+function DownloadDropdown({ filetypes, disabled, downloading, onDownload }: DownloadDropdownProps) {
     const [open, setOpen] = useState(false);
     const panelRef = useRef<HTMLDivElement | null>(null);
 

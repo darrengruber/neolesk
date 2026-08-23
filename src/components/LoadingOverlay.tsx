@@ -3,7 +3,7 @@ interface LoadingOverlayProps {
     detail?: string;
 }
 
-function LoadingOverlay({ message, detail }: LoadingOverlayProps): JSX.Element {
+function LoadingOverlay({ message, detail }: LoadingOverlayProps) {
     return (
         <div className="LoadingOverlay">
             <div className="LoadingOverlayCard">

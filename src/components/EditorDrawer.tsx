@@ -12,7 +12,7 @@ interface EditorDrawerProps {
     onExampleImport: (example: ExampleRecord) => void;
 }
 
-function EditorDrawer({ diagramType, examples, editorDirty, open, onToggle, onExampleImport }: EditorDrawerProps): JSX.Element {
+function EditorDrawer({ diagramType, examples, editorDirty, open, onToggle, onExampleImport }: EditorDrawerProps) {
     const cheatSheet = cheatSheets[diagramType];
     const docUrl = useMemo(() => {
         const defaultExample = examples.find((e) => e.default);

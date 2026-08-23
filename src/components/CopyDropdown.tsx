@@ -18,7 +18,7 @@ interface CopyDropdownProps {
     onRenderUrlChange: (url: string) => void;
 }
 
-function CopyDropdown({ previewState, editorValue, renderUrl, defaultRenderUrl, onRenderUrlChange }: CopyDropdownProps): JSX.Element {
+function CopyDropdown({ previewState, editorValue, renderUrl, defaultRenderUrl, onRenderUrlChange }: CopyDropdownProps) {
     const [open, setOpen] = useState(false);
     const [copiedScope, setCopiedScope] = useState<CopyScope | null>(null);
     const panelRef = useRef<HTMLDivElement | null>(null);

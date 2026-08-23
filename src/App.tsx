@@ -53,7 +53,7 @@ const monacoOptions = {
     wrappingIndent: 'indent' as const,
 };
 
-function App(): JSX.Element {
+function App() {
     const baseUrl = useMemo(() => window.location.origin + window.location.pathname, []);
     const [runtimeRenderUrl, setRuntimeRenderUrl] = useState<string | null>(null);
     const initialRenderUrl = normalizeRenderUrl(runtimeRenderUrl || __KROKI_ENGINE_URL__ || defaultRenderUrl);

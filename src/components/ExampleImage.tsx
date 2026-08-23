@@ -7,7 +7,7 @@ interface ExampleImageProps {
     alt: string;
 }
 
-const ExampleImage = ({ example, alt }: ExampleImageProps): JSX.Element => {
+const ExampleImage = ({ example, alt }: ExampleImageProps) => {
     const primaryUrl = useMemo(() => getExampleUrl(example), [example]);
 
     return (

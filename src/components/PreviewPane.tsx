@@ -37,7 +37,7 @@ const PreviewPane = ({
     renderUrl,
     defaultRenderUrl,
     onRenderUrlChange,
-}: PreviewPaneProps): JSX.Element => {
+}: PreviewPaneProps) => {
     const panelRef = useRef<HTMLDivElement | null>(null);
     const toolbarRef = useRef<HTMLDivElement | null>(null);
     const transformApiRef = useRef<TransformApi | null>(null);

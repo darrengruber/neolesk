@@ -9,7 +9,7 @@ interface ModalProps {
     headerExtras?: ReactNode;
 }
 
-const Modal = ({ open, title, onClose, children, actions, headerExtras }: ModalProps): JSX.Element | null => {
+const Modal = ({ open, title, onClose, children, actions, headerExtras }: ModalProps) => {
     if (!open) {
         return null;
     }
