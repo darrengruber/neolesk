@@ -1,0 +1,31 @@
+{
+  "skill_name": "neolesk-diagrams",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Please replace the placeholder in this live neolesk session with a clear architecture diagram for a checkout platform. Show browser to edge to checkout API to Postgres, plus an asynchronous order-event path from the API through a queue to a fulfillment worker. Make the synchronous and asynchronous paths visually distinct, group the client, public edge, and private services into trust boundaries, verify that it renders, and give me an immutable share link. Do not repeat the agent URL in your response. MCP URL: <MCP_URL>",
+      "expected_output": "A successfully rendered D2 architecture diagram in the live session, an immutable snapshot URL, and a concise handoff that does not disclose the agent capability.",
+      "files": [],
+      "expectations": [
+        "The final session language is D2 and the source represents Browser, Edge, Checkout API, Postgres, Queue, and Fulfillment Worker inside meaningful trust boundaries.",
+        "The source makes the synchronous request path and asynchronous order-event path visually distinguishable.",
+        "The final render has no diagnostics and reports renderer provenance.",
+        "The saved immutable snapshot URL encodes the final D2 diagram.",
+        "The user-facing response links the immutable snapshot and does not disclose an /mcp/ agent endpoint."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Please update the existing Mermaid service flow in this live neolesk session. Preserve the current language and all existing Client, API, Payments, and Orders DB components. Add a circuit breaker before Payments and an explicit retry path that ends in a dead-letter queue after exhaustion. Verify the render, export a real PNG, and give me both an immutable snapshot link and the live editor link. Do not repeat the agent MCP URL. MCP URL: <MCP_URL>",
+      "expected_output": "The existing Mermaid diagram is revised without losing its original components, renders without diagnostics, produces a valid PNG, and is handed off with correctly labeled snapshot and live links but no agent link.",
+      "files": [],
+      "expectations": [
+        "The final language remains Mermaid and the source preserves Client, API, Payments, and Orders DB while adding a circuit breaker, retry path, and dead-letter queue.",
+        "The final render has no diagnostics and reports renderer provenance.",
+        "diagram.png is a non-empty valid PNG export rather than renamed text or SVG data.",
+        "The saved snapshot URL is immutable Mermaid state and the live editor URL uses the /s/ route.",
+        "The user-facing response clearly labels snapshot and live links and does not disclose an /mcp/ agent endpoint."
+      ]
+    }
+  ]
+}

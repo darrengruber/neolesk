@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "neolesk-diagrams": {
+      "source": "./skills/neolesk-diagrams",
+      "sourceType": "local",
+      "computedHash": "87a724ec1dfadf7924a969d05d61555012fc29e86c264e354dae89c8b0977836"
+    },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",

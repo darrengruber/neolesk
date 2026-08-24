@@ -48,3 +48,9 @@ jest_html_reporters.html
 dist/
 
 **/charts/*
+
+# Local skill evaluation workspaces
+/skills/*-workspace/
+
+# Agent-created disposable worktrees
+/.claude/worktrees/
