@@ -1,5 +1,6 @@
 import type { BrowserRenderer } from '../engines/contract';
 import type { RendererAdapter, RendererInput } from './rendering';
+import { pikchrSvgOrThrow } from './pikchrOutput';
 import { plantUmlUnsupportedError, wrapPlantUmlSource } from './plantumlOutput';
 import {
     D2_LAYOUTS,
@@ -226,7 +227,7 @@ const pikchrRenderer: RendererAdapter = {
     async render({ source }) {
         const { default: pikchr } = await import('pikchr-wasm');
         await pikchr.loadWASM();
-        return pikchr.render(source, 'neolesk-pikchr');
+        return pikchrSvgOrThrow(pikchr.render(source, 'neolesk-pikchr'));
     },
 };
 

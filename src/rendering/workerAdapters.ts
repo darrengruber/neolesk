@@ -1,4 +1,5 @@
 import type { RendererAdapter } from './rendering';
+import { pikchrSvgOrThrow } from './pikchrOutput';
 import { plantUmlSourceError, plantUmlUnsupportedError, wrapPlantUmlSource } from './plantumlOutput';
 import { D2_OPTION_DEFINITIONS, GRAPHVIZ_LAYOUTS, GRAPHVIZ_OPTION_DEFINITIONS } from './rendererOptions';
 
@@ -117,17 +118,7 @@ const pikchrRenderer: RendererAdapter = {
     languages: ['pikchr'],
     formats: ['svg'],
     async render({ source }) {
-        const output = await (await import('./workerRuntimes')).renderWorkerPikchr(source);
-        // Pikchr returns an HTML error block instead of SVG when the source is invalid.
-        if (!/^\s*<svg\b/i.test(output)) {
-            const text = output.replace(/<[^>]*>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-                .replace(/&quot;/g, '"').replace(/&amp;/g, '&');
-            const markers = Array.from(text.matchAll(/\/\*\s*(\d+)\s*\*\//g));
-            const line = markers[markers.length - 1]?.[1];
-            const message = text.match(/ERROR:\s*(.+)/)?.[1]?.trim() || 'Pikchr could not render the source';
-            throw new Error(line ? `${message} (line ${line})` : message);
-        }
-        return output;
+        return pikchrSvgOrThrow(await (await import('./workerRuntimes')).renderWorkerPikchr(source));
     },
 };
 
