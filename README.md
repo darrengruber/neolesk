@@ -86,6 +86,24 @@ chat. Their job is to see the diagram, make a small change, and share it again.
 
 ## Deployments
 
+### Preview before production
+
+Deploy a change to a preview first (ADR 0020). On a Trusted Host with the
+enrolled `alicit` CLI, check out the commit and run:
+
+```bash
+npm run deploy:preview            # the branch name becomes the preview name
+NEOLESK_SMOKE_URL=https://<branch>.neolesk-preview.pages.dev npm run test:smoke
+```
+
+Approve the `pages-neolesk` request on the iPhone. The preview is the static
+build at `https://<branch>.neolesk-preview.pages.dev`, with no sessions. After
+the smoke test passes and the preview looks right on a phone, push `main` and
+move the neolesk SHA in darren-iac/iac `apps/base/neolesk/docker-bake.hcl`;
+the image build and Flux ship it to production.
+
+### Production
+
 The complete deployment is a celld module Worker with static assets, Durable
 Object sessions, WebSockets, alarms, and MCP routes:
 

@@ -58,6 +58,8 @@
         "test:corpus": "playwright test",
         "test:corpus:update": "playwright test --update-snapshots",
         "test:e2e": "playwright test -c playwright.e2e.config.ts",
+        "test:smoke": "playwright test -c playwright.smoke.config.ts",
+        "deploy:preview": "scripts/deploy-preview-through-alicit.sh \"$(git rev-parse HEAD)\"",
         "test:watch": "vitest",
         "prebuild": "npm run examples:cache",
         "predeploy": "npm run prepare:worker && npm run build",
