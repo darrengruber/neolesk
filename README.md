@@ -51,7 +51,12 @@ npm run typecheck
 npm test
 npm run build
 npm run test:corpus
+npm run test:e2e
 ```
+
+`test:e2e` runs the user journeys on an iPhone and an iPad in WebKit and on a
+desktop Chromium window, with axe in light and dark. It writes a screenshot of
+every screen to `test-results/e2e-screens/`; look at them after a design change.
 
 The corpus test uses Playwright and a render service for the server-only
 examples. Point it at a compatible service when necessary:
@@ -62,6 +67,22 @@ NEOLESK_KROKI_PROXY_TARGET=https://your-kroki.example/ npm run test:corpus
 
 Use `npm run test:corpus:update` only after reviewing an intentional rendering
 change; it rewrites the committed references.
+
+## Design
+
+neolesk follows Apple's Human Interface Guidelines (ADR 0003, ADR 0019). The
+person it is designed for often has a phone in one hand and a diagram link in a
+chat. Their job is to see the diagram, make a small change, and share it again.
+
+- **On a phone** the tab bar holds Code, Preview, Examples and Settings. The
+  navigation bar title is the diagram language, and its subtitle says where the
+  diagram rendered. A shared link opens on Preview. One Share button holds the
+  snapshot link, live sessions and export.
+- **On an iPad** the Editor tab shows source and preview side by side.
+- **On a desktop** the workspace keeps the sidebar, split panes and settings.
+- **The signature element is render provenance**: "On this device" or the name
+  of the render server, beside the control that decides it, and the same split
+  in the language picker.
 
 ## Deployments
 

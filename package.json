@@ -13,6 +13,7 @@
         "@codemirror/state": "^6.7.1",
         "@codemirror/view": "^6.43.9",
         "@hpcc-js/wasm-graphviz": "^1.28.0",
+        "@lezer/highlight": "^1.2.4",
         "@plantuml/core": "^1.2026.6",
         "@softwaretechnik/dbml-renderer": "^1.0.31",
         "@terrastruct/d2": "^0.1.33",
@@ -56,6 +57,7 @@
         "test:worker": "node scripts/verify-worker-start.mjs",
         "test:corpus": "playwright test",
         "test:corpus:update": "playwright test --update-snapshots",
+        "test:e2e": "playwright test -c playwright.e2e.config.ts",
         "test:watch": "vitest",
         "prebuild": "npm run examples:cache",
         "predeploy": "npm run prepare:worker && npm run build",
@@ -74,6 +76,7 @@
         ]
     },
     "devDependencies": {
+        "@axe-core/playwright": "^4.13.0",
         "@modelcontextprotocol/client": "^2.0.0",
         "@playwright/test": "^1.58.2",
         "@types/react": "^19.2.18",

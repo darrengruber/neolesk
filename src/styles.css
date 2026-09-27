@@ -1,67 +1,84 @@
-:root {
-    color-scheme: light dark;
+/* neolesk design system (ADR 0003, ADR 0019).
+ *
+ * Colour: Apple's semantic palette with neolesk blue as the tint. Where an iOS
+ * value fails WCAG AA as small text, the *-text token uses the Increase
+ * Contrast value; fills keep the standard colour.
+ *
+ * The preview canvas tokens (--canvas-*) and the wide-layout heights are
+ * frozen: the example corpus screenshots that element pixel for pixel
+ * (ADR 0012). Change them only together with a reviewed corpus update.
+ */
+
+:root,
+.App[data-appearance="light"] {
+    color-scheme: light;
     --label: #1d1d1f;
-    --secondary-label: #6e6e73;
+    --secondary-label: #636366;
     --tertiary-label: #8e8e93;
     --system-background: #f5f5f7;
     --secondary-background: #ffffff;
     --tertiary-background: #f2f2f7;
+    --grouped-background: #f2f2f7;
+    --cell-background: #ffffff;
     --elevated-background: rgba(255, 255, 255, var(--window-opacity, 0.72));
-    --separator: rgba(60, 60, 67, 0.22);
+    --bar-material: rgba(249, 249, 251, calc(var(--window-opacity, 0.72) + 0.1));
+    --separator: rgba(60, 60, 67, 0.29);
     --opaque-separator: #c6c6c8;
-    --fill: rgba(120, 120, 128, 0.16);
+    --fill: rgba(120, 120, 128, 0.2);
     --secondary-fill: rgba(120, 120, 128, 0.12);
+    --fill-selected: #e5e5ea;
     --selection-fill: rgba(0, 122, 255, 0.08);
     --selection: rgba(0, 122, 255, 0.22);
+    --backdrop: rgba(0, 0, 0, 0.2);
     --tint: #007aff;
+    --tint-text: #0062cc;
+    --button-fill: #0071e3;
     --green: #34c759;
+    --green-text: #1e7b34;
     --orange: #ff9500;
+    --orange-text: #c93400;
     --red: #ff3b30;
+    --red-text: #d70015;
     --shadow: 0 18px 55px rgba(0, 0, 0, 0.12);
-    --spring: linear(0, .006, .025 2.3%, .101 4.8%, .539 12.6%, .749 17.2%, .849 20.9%, .921 25.2%, .968 30.3%, .997 36.4%, 1.013 43.5%, 1.017 52.7%, 1.006 75.8%, 1);
-    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --font-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+    --canvas-background: #f2f2f7;
+    --canvas-grid: rgba(60, 60, 67, 0.22);
 }
 
 @media (prefers-color-scheme: dark) {
-    :root {
+    :root,
+    .App[data-appearance="auto"] {
+        color-scheme: dark;
         --label: #f5f5f7;
         --secondary-label: #aeaeb2;
         --tertiary-label: #8e8e93;
         --system-background: #000000;
         --secondary-background: #1c1c1e;
         --tertiary-background: #2c2c2e;
+        --grouped-background: #000000;
+        --cell-background: #1c1c1e;
         --elevated-background: rgba(28, 28, 30, var(--window-opacity, 0.72));
+        --bar-material: rgba(22, 22, 24, calc(var(--window-opacity, 0.72) + 0.1));
         --separator: rgba(84, 84, 88, 0.65);
         --opaque-separator: #38383a;
-        --fill: rgba(120, 120, 128, 0.34);
+        --fill: rgba(120, 120, 128, 0.36);
         --secondary-fill: rgba(120, 120, 128, 0.24);
+        --fill-selected: #3a3a3c;
         --selection-fill: rgba(10, 132, 255, 0.14);
         --selection: rgba(10, 132, 255, 0.32);
+        --backdrop: rgba(0, 0, 0, 0.48);
         --tint: #0a84ff;
+        --tint-text: #409cff;
+        --button-fill: #0071e3;
         --green: #30d158;
+        --green-text: #30d158;
         --orange: #ff9f0a;
+        --orange-text: #ff9f0a;
         --red: #ff453a;
+        --red-text: #ff6961;
         --shadow: 0 22px 70px rgba(0, 0, 0, 0.45);
+        --canvas-background: #2c2c2e;
+        --canvas-grid: rgba(84, 84, 88, 0.65);
     }
-}
-
-.App[data-appearance="light"] {
-    color-scheme: light;
-    --label: #1d1d1f;
-    --secondary-label: #6e6e73;
-    --tertiary-label: #8e8e93;
-    --system-background: #f5f5f7;
-    --secondary-background: #ffffff;
-    --tertiary-background: #f2f2f7;
-    --elevated-background: rgba(255, 255, 255, var(--window-opacity, 0.72));
-    --separator: rgba(60, 60, 67, 0.22);
-    --opaque-separator: #c6c6c8;
-    --fill: rgba(120, 120, 128, 0.16);
-    --secondary-fill: rgba(120, 120, 128, 0.12);
-    --selection-fill: rgba(0, 122, 255, 0.08);
-    --selection: rgba(0, 122, 255, 0.22);
-    --tint: #007aff;
 }
 
 .App[data-appearance="dark"] {
@@ -72,14 +89,121 @@
     --system-background: #000000;
     --secondary-background: #1c1c1e;
     --tertiary-background: #2c2c2e;
+    --grouped-background: #000000;
+    --cell-background: #1c1c1e;
     --elevated-background: rgba(28, 28, 30, var(--window-opacity, 0.72));
+    --bar-material: rgba(22, 22, 24, calc(var(--window-opacity, 0.72) + 0.1));
     --separator: rgba(84, 84, 88, 0.65);
     --opaque-separator: #38383a;
-    --fill: rgba(120, 120, 128, 0.34);
+    --fill: rgba(120, 120, 128, 0.36);
     --secondary-fill: rgba(120, 120, 128, 0.24);
+    --fill-selected: #3a3a3c;
     --selection-fill: rgba(10, 132, 255, 0.14);
     --selection: rgba(10, 132, 255, 0.32);
+    --backdrop: rgba(0, 0, 0, 0.48);
     --tint: #0a84ff;
+    --tint-text: #409cff;
+    --button-fill: #0071e3;
+    --green: #30d158;
+    --green-text: #30d158;
+    --orange: #ff9f0a;
+    --orange-text: #ff9f0a;
+    --red: #ff453a;
+    --red-text: #ff6961;
+    --shadow: 0 22px 70px rgba(0, 0, 0, 0.45);
+    --canvas-background: #2c2c2e;
+    --canvas-grid: rgba(84, 84, 88, 0.65);
+}
+
+/* Increase Contrast. The selectors repeat the appearance selectors above so
+   they win at equal specificity, and the dark values follow the dark scheme. */
+@media (prefers-contrast: more) {
+    :root,
+    .App[data-appearance="light"],
+    .App[data-appearance="auto"] {
+        --secondary-label: #3a3a3c;
+        --separator: rgba(60, 60, 67, 0.6);
+        --tint-text: #0040dd;
+        --button-fill: #0040dd;
+        --green-text: #1e6b2f;
+        --orange-text: #a52a00;
+        --red-text: #ad0010;
+    }
+    .App[data-appearance="dark"] {
+        --secondary-label: #d1d1d6;
+        --separator: rgb(140, 140, 145);
+        --tint-text: #6bb1ff;
+        --button-fill: #0040dd;
+        --green-text: #30db5b;
+        --orange-text: #ffb340;
+        --red-text: #ff6961;
+    }
+}
+
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+    :root,
+    .App[data-appearance="auto"] {
+        --secondary-label: #d1d1d6;
+        --separator: rgb(140, 140, 145);
+        --tint-text: #6bb1ff;
+        --button-fill: #0040dd;
+        --green-text: #30db5b;
+        --orange-text: #ffb340;
+        --red-text: #ff6961;
+    }
+}
+
+/* Syntax colours (Xcode-like), each 4.5:1 or better on the editor background. */
+:root,
+.App[data-appearance="light"] {
+    --syntax-keyword: #9b2393;
+    --syntax-string: #c41a16;
+    --syntax-number: #1c00cf;
+    --syntax-comment: #5d6c79;
+    --syntax-type: #0b4f79;
+    --syntax-property: #326d74;
+    --syntax-meta: #643820;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root,
+    .App[data-appearance="auto"] {
+        --syntax-keyword: #fc5fa3;
+        --syntax-string: #fc6a5d;
+        --syntax-number: #d0bf69;
+        --syntax-comment: #8c99a5;
+        --syntax-type: #5dd8ff;
+        --syntax-property: #67b7a4;
+        --syntax-meta: #fd8f3f;
+    }
+}
+
+.App[data-appearance="dark"] {
+    --syntax-keyword: #fc5fa3;
+    --syntax-string: #fc6a5d;
+    --syntax-number: #d0bf69;
+    --syntax-comment: #8c99a5;
+    --syntax-type: #5dd8ff;
+    --syntax-property: #67b7a4;
+    --syntax-meta: #fd8f3f;
+}
+
+:root {
+    --spring: linear(0, .006, .025 2.3%, .101 4.8%, .539 12.6%, .749 17.2%, .849 20.9%, .921 25.2%, .968 30.3%, .997 36.4%, 1.013 43.5%, 1.017 52.7%, 1.006 75.8%, 1);
+    --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+    --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+    --radius-group: 12px;
+    --radius-sheet: 16px;
+    --row-min: 44px;
+    /* iOS text styles, relative to a 17 px body. */
+    --t-large: 2rem;
+    --t-title3: 1.176rem;
+    --t-body: 1rem;
+    --t-subhead: 0.882rem;
+    --t-footnote: 0.765rem;
+    --t-caption: 0.706rem;
+    --t-caption2: 0.647rem;
 }
 
 * { box-sizing: border-box; }
@@ -88,6 +212,18 @@
     syntax: "<percentage>";
     inherits: false;
     initial-value: 50%;
+}
+
+html {
+    font-family: var(--font-ui);
+    font-size: 106.25%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+/* Safari follows the iOS Text Size setting (Dynamic Type). */
+@supports (font: -apple-system-body) {
+    html { font: -apple-system-body; }
 }
 
 html,
@@ -99,54 +235,321 @@ body {
     overflow: hidden;
     background: var(--system-background);
     color: var(--label);
-    font-family: var(--font-ui);
+    font-size: var(--t-body);
     -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
 }
 
 button,
 input,
-select { font: inherit; }
-
-button,
-select,
-input { color: inherit; }
+select { font: inherit; color: inherit; }
 
 button { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled) { cursor: pointer; }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--tint) 60%, transparent); outline-offset: 2px; }
+svg { flex: none; }
+
+.VisuallyHidden {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
 
 .LiquidGlassFilter { position: absolute; width: 0; height: 0; pointer-events: none; }
 
 .App {
-    height: 100dvh;
+    position: fixed;
+    top: var(--viewport-offset, 0px);
+    left: 0;
+    width: 100%;
+    height: var(--viewport-height, 100dvh);
     min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background:
-        radial-gradient(circle at 78% 4%, color-mix(in srgb, var(--tint) 9%, transparent), transparent 31%),
-        var(--system-background);
+    background: var(--system-background);
     color: var(--label);
 }
+
+/* ---- Shared controls ------------------------------------------------- */
+
+.IconButton {
+    display: inline-grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--tint);
+}
+.IconButton svg { width: 22px; height: 22px; }
+
+.TextButton {
+    min-height: 44px;
+    padding: 0 8px;
+    border: 0;
+    background: none;
+    color: var(--tint-text);
+    font-size: var(--t-body);
+}
+.TextButtonBold { font-weight: 600; }
+
+@media (hover: hover) {
+    .IconButton:hover, .TextButton:hover { opacity: .7; }
+}
+
+.ActivityState {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    color: var(--secondary-label);
+    font-size: var(--t-subhead);
+}
+
+/* iOS activity indicator: eight spokes, static under Reduce Motion. */
+.Spinner { position: relative; width: 28px; height: 28px; }
+.Spinner i {
+    position: absolute;
+    left: 12.5px;
+    top: 0;
+    width: 3px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--secondary-label);
+    transform-origin: 1.5px 14px;
+    animation: spoke .8s linear infinite;
+}
+@keyframes spoke { from { opacity: 1; } to { opacity: .15; } }
+.Spinner i:nth-child(1) { transform: rotate(0deg); animation-delay: -.8s; }
+.Spinner i:nth-child(2) { transform: rotate(45deg); animation-delay: -.7s; }
+.Spinner i:nth-child(3) { transform: rotate(90deg); animation-delay: -.6s; }
+.Spinner i:nth-child(4) { transform: rotate(135deg); animation-delay: -.5s; }
+.Spinner i:nth-child(5) { transform: rotate(180deg); animation-delay: -.4s; }
+.Spinner i:nth-child(6) { transform: rotate(225deg); animation-delay: -.3s; }
+.Spinner i:nth-child(7) { transform: rotate(270deg); animation-delay: -.2s; }
+.Spinner i:nth-child(8) { transform: rotate(315deg); animation-delay: -.1s; }
+
+.SearchField { position: relative; margin: 8px 0 4px; }
+.SearchField svg {
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    width: 17px;
+    height: 17px;
+    transform: translateY(-50%);
+    color: var(--secondary-label);
+    pointer-events: none;
+}
+.SearchField input {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px 8px 32px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--secondary-fill);
+    font-size: var(--t-body);
+    appearance: none;
+}
+.SearchField input::placeholder { color: var(--secondary-label); }
+.SearchField input::-webkit-search-cancel-button { cursor: pointer; }
+
+/* Inset grouped lists. */
+.Group { margin: 24px 0 0; min-width: 0; }
+.GroupHeader {
+    margin: 0;
+    padding: 0 4px 8px;
+    font-size: var(--t-title3);
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+.GroupCount { color: var(--secondary-label); font-weight: 400; }
+.GroupFooter {
+    margin: 0;
+    padding: 8px 4px 0;
+    color: var(--secondary-label);
+    font-size: var(--t-footnote);
+    line-height: 1.35;
+}
+.GroupList {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow: hidden;
+    border-radius: var(--radius-group);
+    background: var(--cell-background);
+}
+.GroupList > li { position: relative; }
+/* Inset separators between rows, never above the first. */
+.GroupList > li + li::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 16px;
+    right: 0;
+    z-index: 1;
+    border-top: .5px solid var(--separator);
+}
+.GroupList > li:has(.RowIcon) + li::before { left: 52px; }
+
+.Row {
+    position: relative;
+    width: 100%;
+    min-height: var(--row-min);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 16px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-size: var(--t-body);
+    line-height: 1.29;
+    text-align: left;
+}
+.RowButton:active:not(:disabled), .RowButton[aria-current="true"] { background: var(--fill-selected); }
+@media (hover: hover) {
+    .RowButton:hover:not(:disabled) { background: color-mix(in srgb, var(--fill-selected) 55%, transparent); }
+}
+.RowButton:disabled { cursor: default; }
+.RowButton:disabled .RowBody, .RowButton:disabled .RowIcon { opacity: .45; }
+.Row:focus-visible, .OptionRow:has(input:focus-visible) { outline: 3px solid var(--tint); outline-offset: -3px; border-radius: var(--radius-group); }
+.RowIcon { display: grid; place-items: center; width: 24px; color: var(--tint); }
+.RowIcon svg { width: 22px; height: 22px; }
+.RowBody { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.RowTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.RowSubtitle {
+    overflow: hidden;
+    color: var(--secondary-label);
+    font-size: var(--t-subhead);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.RowTrailing {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 55%;
+    color: var(--secondary-label);
+    font-size: var(--t-subhead);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+.RowChevron { width: 14px; height: 14px; color: var(--tertiary-label); }
+.RowControl { padding-block: 8px; }
+.RowStack { display: grid; gap: 4px; }
+
+.OptionRow { cursor: pointer; }
+.OptionRow input { position: absolute; opacity: 0; pointer-events: none; }
+.OptionRow[data-disabled] { cursor: default; }
+.OptionRow[data-disabled] .RowBody { opacity: .45; }
+.OptionCheck { width: 20px; height: 20px; color: var(--tint); visibility: hidden; }
+.OptionRow input:checked ~ .OptionCheck { visibility: visible; }
+
+.SwitchRow { cursor: pointer; }
+.Switch {
+    position: relative;
+    flex: none;
+    width: 51px;
+    height: 31px;
+    margin: 0;
+    border-radius: 16px;
+    background: var(--fill);
+    appearance: none;
+    transition: background-color .2s ease;
+}
+.Switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 27px;
+    height: 27px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 1px 1px rgba(0, 0, 0, .16);
+    transition: transform .25s var(--spring);
+}
+.Switch:checked { background: var(--green); }
+.Switch:checked::after { transform: translateX(20px); }
+
+.SegmentedControl {
+    width: 100%;
+    display: grid;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+    padding: 2px;
+    border-radius: 9px;
+    background: var(--secondary-fill);
+}
+.Segment { position: relative; display: grid; cursor: pointer; }
+.Segment input { position: absolute; opacity: 0; pointer-events: none; }
+.Segment span {
+    min-height: 36px;
+    display: grid;
+    place-items: center;
+    padding: 0 8px;
+    border-radius: 7px;
+    font-size: var(--t-subhead);
+    font-weight: 500;
+}
+.Segment input:checked + span {
+    background: var(--cell-background);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, .12), 0 3px 1px rgba(0, 0, 0, .04);
+    font-weight: 600;
+}
+.App[data-appearance="dark"] .Segment input:checked + span { background: #636366; }
+@media (prefers-color-scheme: dark) {
+    .App[data-appearance="auto"] .Segment input:checked + span { background: #636366; }
+}
+.Segment:has(input:focus-visible) span { outline: 3px solid var(--tint); outline-offset: -2px; }
+
+.Slider { width: 100%; min-height: 32px; margin: 0; accent-color: var(--tint); }
+
+.EmptyState {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    padding: 64px 24px;
+    text-align: center;
+}
+.EmptyState svg { width: 48px; height: 48px; margin-bottom: 6px; color: var(--tertiary-label); }
+.EmptyTitle { margin: 0; font-size: 1.294rem; font-weight: 700; }
+.EmptyDetail { max-width: 32ch; margin: 0; color: var(--secondary-label); }
+
+.PresenceDot, .ProvenanceDot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--green);
+}
+.PresenceDot[data-presence="disconnected"], .PresenceDot[data-presence="offline"] { background: var(--orange); }
+.ProvenanceDot[data-remote] { background: var(--orange); }
+
+/* ---- Consent and loading ----------------------------------------------- */
 
 .ConsentScreen {
     min-height: 100dvh;
     display: grid;
     place-items: center;
     overflow: auto;
-    padding: max(28px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
-    background:
-        radial-gradient(circle at 50% -15%, rgba(0, 122, 255, 0.22), transparent 42%),
-        var(--system-background);
+    padding: max(28px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    background: var(--grouped-background);
 }
 
 .ConsentCard {
-    width: min(100%, 580px);
-    padding: 42px;
-    border: 1px solid var(--separator);
-    border-radius: 28px;
-    background: var(--elevated-background);
+    width: min(100%, 560px);
+    padding: 40px;
+    border-radius: 24px;
+    background: var(--cell-background);
     box-shadow: var(--shadow);
-    backdrop-filter: blur(32px) saturate(160%);
-    -webkit-backdrop-filter: blur(32px) saturate(160%);
 }
 
 .ConsentSymbol {
@@ -154,57 +557,45 @@ button { -webkit-tap-highlight-color: transparent; }
     height: 58px;
     display: grid;
     place-items: center;
-    margin-bottom: 28px;
+    margin-bottom: 24px;
     border-radius: 14px;
-    background: linear-gradient(150deg, color-mix(in srgb, var(--tint) 82%, white), var(--tint));
+    background: var(--button-fill);
     color: white;
-    box-shadow: 0 9px 24px color-mix(in srgb, var(--tint) 28%, transparent);
 }
-
 .ConsentSymbol svg { width: 30px; height: 30px; }
-
-.Eyebrow {
-    margin: 0 0 7px;
-    color: var(--tint);
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: .07em;
-    text-transform: uppercase;
-}
-
-.ConsentCard h1,
-.SettingsView h2,
-.ExamplesView h2 {
-    margin: 0;
-    letter-spacing: -.035em;
-}
-
-.ConsentCard h1 { max-width: 420px; font-size: clamp(30px, 6vw, 42px); line-height: 1.05; }
-.ConsentIntro { margin: 18px 0 28px; color: var(--secondary-label); font-size: 16px; line-height: 1.55; }
+.ConsentKicker { margin: 0 0 6px; color: var(--secondary-label); font-size: var(--t-subhead); font-weight: 600; }
+.ConsentCard h1 { max-width: 420px; margin: 0; font-size: clamp(1.75rem, 6vw, 2.35rem); line-height: 1.1; letter-spacing: -.02em; }
+.ConsentIntro { margin: 16px 0 24px; color: var(--secondary-label); font-size: var(--t-body); line-height: 1.45; }
 .ConsentChoices { display: grid; gap: 10px; }
 
 .ChoiceButton {
     width: 100%;
+    min-height: 64px;
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 15px;
-    border: 1px solid var(--separator);
+    padding: 14px 16px;
+    border: 0;
     border-radius: 14px;
-    background: var(--secondary-background);
+    background: var(--grouped-background);
     text-align: left;
-    cursor: pointer;
-    transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+    transition: background-color 150ms ease;
 }
-
-.ChoiceButton:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--tint) 45%, var(--separator)); }
-.ChoiceButton:focus-visible { outline: 3px solid color-mix(in srgb, var(--tint) 30%, transparent); outline-offset: 2px; }
-.ChoiceButton svg { width: 23px; height: 23px; color: var(--tint); flex: none; }
+@media (hover: hover) { .ChoiceButton:hover { background: var(--fill-selected); } }
+.ChoiceButton:active { background: var(--fill-selected); }
+.ChoiceButton svg { width: 24px; height: 24px; color: var(--tint); }
 .ChoiceButton span { display: grid; gap: 3px; }
-.ChoiceButton strong { font-size: 15px; }
-.ChoiceButton small { color: var(--secondary-label); font-size: 12px; line-height: 1.35; }
-.ChoiceButtonPrimary { background: color-mix(in srgb, var(--tint) 10%, var(--secondary-background)); }
-.ConsentFootnote { margin: 22px 0 0; color: var(--tertiary-label); font-size: 12px; text-align: center; }
+.ChoiceButton strong { font-size: var(--t-body); font-weight: 600; }
+.ChoiceButton small { color: var(--secondary-label); font-size: var(--t-subhead); line-height: 1.35; }
+.ChoiceButtonPrimary { background: var(--button-fill); color: white; }
+.ChoiceButtonPrimary svg, .ChoiceButtonPrimary small { color: white; }
+@media (hover: hover) { .ChoiceButtonPrimary:hover { background: color-mix(in srgb, var(--button-fill) 88%, black); } }
+.ConsentFootnote { margin: 20px 0 0; color: var(--secondary-label); font-size: var(--t-footnote); text-align: center; }
+
+/* ---- Wide workspace (>= 1100 px) ---------------------------------------
+   Heights here are pinned: the preview canvas is screenshotted by the
+   example corpus, so the bar (52), notice (24) and pane header (34) must not
+   move it. */
 
 .TopBar {
     min-height: 52px;
@@ -228,13 +619,11 @@ button { -webkit-tap-highlight-color: transparent; }
     letter-spacing: -.04em;
     text-decoration: none;
 }
-
-.Brand span { color: var(--tint); }
+.Brand span { color: var(--tint-text); }
 .DocumentControls, .TopActions { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .TopActions { justify-content: flex-end; }
 
-.LanguagePicker { position: relative; min-width: 0; }
-.LanguagePicker summary {
+.LanguagePicker {
     min-width: 112px;
     max-width: 210px;
     height: 32px;
@@ -248,63 +637,9 @@ button { -webkit-tap-highlight-color: transparent; }
     background: var(--secondary-fill);
     font-size: 12px;
     font-weight: 650;
-    cursor: pointer;
-    list-style: none;
 }
-.LanguagePicker summary::-webkit-details-marker { display: none; }
-.LanguagePicker summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.LanguagePicker summary svg { width: 14px; height: 14px; flex: none; transition: transform 280ms var(--spring); }
-.LanguagePicker[open] summary svg { transform: rotate(180deg); }
-.LanguageMenu {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 0;
-    width: min(280px, calc(100vw - 24px));
-    max-height: min(65vh, 480px);
-    overflow: auto;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 2px;
-    padding: 7px;
-    border: 1px solid var(--separator);
-    border-radius: 13px;
-    background: var(--elevated-background);
-    box-shadow: var(--shadow);
-    backdrop-filter: blur(30px) saturate(160%);
-    -webkit-backdrop-filter: blur(30px) saturate(160%);
-    animation: menu-in 260ms var(--spring);
-    z-index: 40;
-}
-.LanguageMenu button {
-    min-width: 0;
-    padding: 8px;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--label);
-    font-size: 11px;
-    text-align: left;
-    cursor: pointer;
-}
-.LanguageMenu button:hover { background: var(--fill); }
-.LanguageMenu button[aria-selected="true"] { background: var(--selection); color: var(--tint); font-weight: 700; }
-
-@keyframes menu-in {
-    from { opacity: 0; transform: translateY(-5px) scale(.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-.DocumentControls select,
-.SettingsGroup select,
-.SettingsGroup input[type="range"] {
-    min-width: 0;
-    border: 1px solid var(--separator);
-    border-radius: 9px;
-    padding: 6px 30px 6px 9px;
-    background: var(--secondary-fill);
-}
-
-.DocumentControls select { max-width: 210px; font-weight: 600; }
+.LanguagePicker span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.LanguagePicker svg { width: 14px; height: 14px; }
 
 .Provenance {
     min-width: 0;
@@ -319,7 +654,6 @@ button { -webkit-tap-highlight-color: transparent; }
     font-weight: 650;
     white-space: nowrap;
 }
-
 .Provenance > span { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
 .Provenance.remote > span { background: var(--orange); }
 
@@ -335,60 +669,39 @@ button { -webkit-tap-highlight-color: transparent; }
     background: var(--secondary-fill);
     font-size: 12px;
     font-weight: 650;
-    cursor: pointer;
 }
-
 .ToolbarButton:hover:not(:disabled) { background: var(--fill); }
 .ToolbarButton:disabled { opacity: .42; cursor: not-allowed; }
 .ToolbarButton svg { width: 14px; height: 14px; }
-.ToolbarButton.Primary { border-color: transparent; background: var(--tint); color: white; }
-.ExportControl { position: relative; }
-
-.ExportMenu {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 8px);
-    width: 190px;
-    padding: 6px;
-    border: 1px solid var(--separator);
-    border-radius: 11px;
-    background: var(--elevated-background);
-    box-shadow: var(--shadow);
-    backdrop-filter: blur(30px) saturate(160%);
-    animation: menu-in 280ms var(--spring);
-    z-index: 30;
-}
-
-.SheetHandle { display: none !important; }
-
-.ExportMenu button {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 9px;
-    border: 0;
-    border-radius: 7px;
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
-}
-
-.ExportMenu button:hover { background: var(--fill); }
-.ExportMenu small { color: var(--secondary-label); }
+.ToolbarButton.Primary { border-color: transparent; background: var(--button-fill); color: white; }
+.ToolbarButton.Primary:hover:not(:disabled) { background: color-mix(in srgb, var(--button-fill) 88%, black); }
 
 .DeploymentNotice,
 .StatusMessage,
 .SessionNotice {
     flex: none;
+    height: 24px;
     padding: 5px 12px;
     border-bottom: 1px solid var(--separator);
     background: color-mix(in srgb, var(--orange) 10%, var(--secondary-background));
     color: var(--secondary-label);
     font-size: 11px;
+    line-height: 13px;
     text-align: center;
 }
 
-.StatusMessage { background: color-mix(in srgb, var(--tint) 10%, var(--secondary-background)); }
+.StatusMessage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: auto;
+    min-height: 24px;
+    padding-block: 0;
+    background: color-mix(in srgb, var(--tint) 10%, var(--secondary-background));
+    color: var(--label);
+}
+.StatusMessage .StatusDismiss { width: 24px; height: 23px; }
 
 .SessionNotice {
     display: flex;
@@ -397,11 +710,21 @@ button { -webkit-tap-highlight-color: transparent; }
     gap: 14px;
     background: color-mix(in srgb, var(--green) 10%, var(--secondary-background));
 }
-
 .SessionNotice > span { display: inline-flex; align-items: center; gap: 6px; color: var(--label); font-weight: 650; }
-.SessionNotice button { padding: 1px 6px; border: 0; background: transparent; color: var(--tint); font-size: inherit; cursor: pointer; }
-.PresenceDot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
-.PresenceDot.disconnected, .PresenceDot.offline { background: var(--orange); }
+.SessionNotice button { padding: 1px 6px; border: 0; background: transparent; color: var(--tint-text); font-size: inherit; }
+.SessionNotice .PresenceDot { width: 7px; height: 7px; }
+
+.StatusDismiss {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--secondary-label);
+}
+.StatusDismiss svg { width: 14px; height: 14px; }
 
 .DesktopWorkspace {
     flex: 1;
@@ -426,7 +749,6 @@ button { -webkit-tap-highlight-color: transparent; }
     backdrop-filter: blur(20px);
     z-index: 2;
 }
-
 .SidebarSwitcher button {
     padding: 6px;
     border: 0;
@@ -435,12 +757,9 @@ button { -webkit-tap-highlight-color: transparent; }
     color: var(--secondary-label);
     font-size: 11px;
     font-weight: 650;
-    cursor: pointer;
 }
-
 .SidebarSwitcher button[aria-selected="true"] { background: var(--fill); color: var(--label); }
 .SidebarList { padding: 2px 7px 18px; }
-
 .SidebarList > button {
     width: 100%;
     display: grid;
@@ -452,13 +771,11 @@ button { -webkit-tap-highlight-color: transparent; }
     border-radius: 8px;
     background: transparent;
     text-align: left;
-    cursor: pointer;
 }
-
-.SidebarList > button:hover { background: var(--secondary-fill); }
+.SidebarList > button:hover:not(:disabled) { background: var(--secondary-fill); }
 .SidebarList strong, .SidebarList small { display: block; overflow: hidden; text-overflow: ellipsis; }
 .SidebarList strong { font-size: 12px; white-space: nowrap; }
-.SidebarList small { margin-top: 2px; color: var(--secondary-label); font-size: 10px; line-height: 1.35; }
+.SidebarList small { margin-top: 2px; color: var(--secondary-label); font-size: 11px; line-height: 1.35; }
 
 .DocumentIcon {
     width: 28px;
@@ -469,12 +786,30 @@ button { -webkit-tap-highlight-color: transparent; }
     background: color-mix(in srgb, var(--tint) 12%, transparent);
     color: var(--tint);
 }
-
 .DocumentIcon svg { width: 14px; }
 .SyntaxReference { padding: 9px 12px 30px; }
-.SyntaxReference > p { color: var(--secondary-label); font-size: 11px; line-height: 1.45; }
-.SyntaxReference h3 { margin: 18px 0 7px; font-size: 11px; }
-.SyntaxReference pre { margin: 0; overflow: auto; padding: 9px; border-radius: 8px; background: var(--secondary-fill); color: var(--secondary-label); font: 10px/1.55 var(--font-mono); }
+.SyntaxReference > p { color: var(--secondary-label); font-size: 12px; line-height: 1.45; }
+.SyntaxReference h3 { margin: 18px 0 7px; font-size: 12px; }
+.SyntaxReference pre { margin: 0; overflow: auto; padding: 9px; border-radius: 8px; background: var(--secondary-fill); color: var(--label); font: 11px/1.55 var(--font-mono); }
+
+.SidebarTitle { margin: 0; padding: 18px 16px 0; font-size: 22px; letter-spacing: -.02em; }
+
+/* Settings in the wide sidebar use the macOS density. */
+.DesktopSettings .SettingsView { padding: 0 12px 24px; }
+.DesktopSettings .Group { margin-top: 18px; }
+.DesktopSettings .GroupHeader { padding-bottom: 6px; color: var(--secondary-label); font-size: 11px; font-weight: 650; }
+.DesktopSettings .GroupFooter { font-size: 11px; }
+.DesktopSettings .GroupList { border-radius: 10px; }
+.DesktopSettings .Row { min-height: 32px; padding: 7px 10px; font-size: 12px; }
+.DesktopSettings .RowSubtitle, .DesktopSettings .RowTrailing { font-size: 11px; }
+.DesktopSettings .RowSubtitle { white-space: normal; }
+.DesktopSettings .GroupList > li + li::before { left: 10px; }
+.DesktopSettings .Segment span { min-height: 24px; padding: 0 4px; font-size: 11px; }
+.DesktopSettings .OptionCheck { width: 15px; height: 15px; }
+.DesktopSettings .Switch { width: 38px; height: 22px; }
+.DesktopSettings .Switch::after { width: 18px; height: 18px; }
+.DesktopSettings .Switch:checked::after { transform: translateX(16px); }
+.DesktopSettings .Slider { min-height: 20px; }
 
 .CanvasSplit {
     min-width: 0;
@@ -484,8 +819,10 @@ button { -webkit-tap-highlight-color: transparent; }
     transition: --source-pane 300ms var(--spring);
 }
 .CanvasSplit:has(.PaneSplitter:active) { transition-duration: 0ms; }
-.Pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--secondary-background); }
-.PreviewPane { border-left: 1px solid var(--separator); }
+.Pane { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--secondary-background); }
+/* The preview starts at a sub-pixel offset, so this border blends into the
+   corpus screenshot's first column: it uses the frozen canvas token. */
+.PreviewPane { border-left: 1px solid var(--canvas-grid); }
 .PaneSplitter {
     position: relative;
     z-index: 2;
@@ -506,11 +843,23 @@ button { -webkit-tap-highlight-color: transparent; }
 .PaneSplitter:hover::after,
 .PaneSplitter:focus-visible::after { inset: 0 2px; background: var(--tint); }
 .PaneSplitter:focus-visible { outline: 3px solid color-mix(in srgb, var(--tint) 28%, transparent); outline-offset: -3px; }
-.Pane > header { height: 34px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 11px; border-bottom: 1px solid var(--separator); color: var(--secondary-label); font-size: 11px; }
+.Pane > header {
+    height: 34px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 11px;
+    border-bottom: 1px solid var(--separator);
+    color: var(--secondary-label);
+    font-size: 11px;
+}
 .Pane > header span { color: var(--label); font-weight: 650; }
 .EditorPanel, .PreviewPanel { flex: 1; min-height: 0; overflow: hidden; }
+.EditorPanel { background: var(--secondary-background); }
 .CodeMirrorEditor, .CodeMirrorEditor > .cm-editor { height: 100%; }
 
+/* The preview canvas. Frozen at wide width; see the note at the top. */
 .PreviewPanel {
     position: relative;
     display: grid;
@@ -518,10 +867,10 @@ button { -webkit-tap-highlight-color: transparent; }
     overflow: auto;
     padding: 28px;
     background-image:
-        linear-gradient(var(--separator) 1px, transparent 1px),
-        linear-gradient(90deg, var(--separator) 1px, transparent 1px);
+        linear-gradient(var(--canvas-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--canvas-grid) 1px, transparent 1px);
     background-size: 20px 20px;
-    background-color: var(--tertiary-background);
+    background-color: var(--canvas-background);
 }
 
 .PreviewPanel img {
@@ -529,7 +878,7 @@ button { -webkit-tap-highlight-color: transparent; }
     max-width: 100%;
     max-height: 100%;
     padding: 22px;
-    border: 1px solid var(--separator);
+    border: 1px solid var(--canvas-grid);
     border-radius: 13px;
     background: white;
     box-shadow: 0 12px 35px rgba(0, 0, 0, .10);
@@ -553,117 +902,485 @@ button { -webkit-tap-highlight-color: transparent; }
     background: var(--elevated-background);
     box-shadow: 0 6px 20px rgba(0, 0, 0, .08);
     backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
     grid-area: 1 / 1;
     justify-self: center;
 }
 .PreviewPanel > img,
 .PreviewPanel > .PreviewState,
 .PreviewPanel > .PreviewError { grid-area: 1 / 1; }
-.PreviewZoom button { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 7px; background: transparent; cursor: pointer; }
-.PreviewZoom button:hover { background: var(--fill); }
+.PreviewZoom button {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--label);
+}
+.PreviewZoom button:hover:not(:disabled) { background: var(--fill); }
+.PreviewZoom button:disabled { color: var(--tertiary-label); cursor: default; }
 .PreviewZoom svg { width: 15px; height: 15px; }
-.PreviewZoom output { min-width: 42px; color: var(--secondary-label); font-size: 10px; font-weight: 650; text-align: center; }
+.PreviewZoom .ZoomValue {
+    width: auto;
+    min-width: 42px;
+    color: var(--secondary-label);
+    font-size: 11px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+}
 
 .PreviewState { color: var(--secondary-label); font-size: 12px; }
-.PreviewError { width: min(440px, 100%); padding: 20px; border: 1px solid color-mix(in srgb, var(--red) 28%, var(--separator)); border-radius: 13px; background: var(--secondary-background); }
-.PreviewError strong { color: var(--red); }
-.PreviewError p { color: var(--secondary-label); font-size: 12px; line-height: 1.5; }
-.PreviewError button { padding: 7px 10px; border: 0; border-radius: 8px; background: var(--tint); color: white; cursor: pointer; }
+.PreviewState.EmptyState { font-size: var(--t-body); }
+.PreviewError {
+    width: min(440px, 100%);
+    padding: 20px;
+    border: 1px solid color-mix(in srgb, var(--red) 28%, var(--separator));
+    border-radius: 13px;
+    background: var(--secondary-background);
+}
+.PreviewError strong { color: var(--red-text); }
+.PreviewError p {
+    max-height: 40vh;
+    overflow: auto;
+    color: var(--secondary-label);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.PreviewError button { min-height: 32px; padding: 7px 12px; border: 0; border-radius: 8px; background: var(--button-fill); color: white; font-weight: 600; }
 
-.SettingsView, .ExamplesView { padding: 18px; }
-.SettingsView h2, .ExamplesView h2 { font-size: 22px; }
-.SettingsGroup { display: grid; gap: 1px; margin-top: 18px; overflow: hidden; border: 1px solid var(--separator); border-radius: 11px; background: var(--separator); }
-.SettingsGroup > label { min-width: 0; display: grid; gap: 8px; padding: 12px; background: var(--secondary-background); color: var(--secondary-label); font-size: 11px; }
-.SettingsGroup label > span { display: grid; gap: 2px; }
-.SettingsGroup strong { color: var(--label); }
-.SettingsGroup small { line-height: 1.35; }
-.SettingsGroup select, .SettingsGroup input[type="range"] { width: 100%; }
-.ToggleSetting { grid-template-columns: 1fr auto !important; align-items: center; }
-.ToggleSetting input { width: 32px; height: 18px; accent-color: var(--tint); }
+/* ---- Touch layouts: compact (< 768 px) and regular (768–1099 px) -------- */
+
+.App[data-layout="compact"],
+.App[data-layout="regular"] {
+    --editor-font-size: 16px;
+    background: var(--grouped-background);
+}
 
 .CompactWorkspace { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.CompactContent { flex: 1; min-height: 0; display: flex; }
-.CompactContent > * { flex: 1; min-width: 0; }
-.CompactPage { min-height: 0; display: flex; flex-direction: column; overflow: hidden; animation: compact-page-in 340ms var(--spring); }
-.CompactPage > h1 { flex: none; margin: 0; padding: 16px 16px 10px; font-size: 34px; line-height: 1.05; letter-spacing: -.045em; }
-.CompactPageContent { flex: 1; min-height: 0; display: flex; }
-.CompactPageContent > * { flex: 1; min-width: 0; }
-@keyframes compact-page-in {
-    from { opacity: 0; transform: translateX(18px) scale(.985); }
-    to { opacity: 1; transform: translateX(0) scale(1); }
+.CompactPage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--grouped-background);
 }
-.MobileTabs { min-height: 58px; display: grid; grid-template-columns: repeat(4, 1fr); padding: 4px max(4px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left)); border-top: 1px solid var(--separator); background: var(--elevated-background); backdrop-filter: blur(28px) saturate(160%); }
-.MobileTabs button { min-width: 0; display: grid; place-items: center; gap: 1px; padding: 3px; border: 0; border-radius: 10px; background: transparent; color: var(--secondary-label); font-size: 10px; cursor: pointer; transition: color 220ms ease, transform 280ms var(--spring), background 220ms ease; }
-.MobileTabs button[aria-selected="true"] { color: var(--tint); }
-.MobileTabs button:active { transform: scale(.92); }
-.MobileTabs svg { width: 19px; height: 19px; }
+.CompactPage[data-page="code"] { background: var(--cell-background); }
+.CompactPage > .EditorPanel { background: var(--cell-background); }
 
-.ExamplesView { min-height: 0; overflow: auto; }
-.ExamplesView header { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
-.ExamplesView input { min-width: 0; padding: 8px 10px; border: 1px solid var(--separator); border-radius: 9px; background: var(--secondary-fill); }
-.ExampleGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-top: 18px; }
-.ExampleGrid button { display: grid; gap: 7px; padding: 14px; border: 1px solid var(--separator); border-radius: 12px; background: var(--secondary-background); text-align: left; cursor: pointer; }
-.ExampleGrid button:hover { border-color: color-mix(in srgb, var(--tint) 45%, var(--separator)); }
-.ExampleGrid span { color: var(--tint); font-size: 10px; font-weight: 650; text-transform: uppercase; }
-.ExampleGrid small { color: var(--secondary-label); line-height: 1.4; }
+.NavBar {
+    position: relative;
+    z-index: 5;
+    flex: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    min-height: calc(44px + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) calc(4px + env(safe-area-inset-right)) 0 calc(4px + env(safe-area-inset-left));
+    transition: background-color .2s ease, box-shadow .2s ease;
+}
+.NavBar[data-scrolled] {
+    background: var(--bar-material);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 .5px 0 var(--separator);
+}
+.NavBarSide { min-width: 0; display: flex; align-items: center; }
+.NavBarTrailing { justify-content: flex-end; }
+.NavBarCenter { min-width: 0; max-width: min(64vw, 440px); display: flex; justify-content: center; }
+.NavBarTitle {
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity .2s ease;
+}
+.NavBar[data-scrolled] .NavBarTitle { opacity: 1; }
 
-@media (max-width: 1100px) {
-    .DesktopWorkspace { grid-template-columns: 180px minmax(0, 1fr); }
-    .DesktopSettings { display: none; }
-    .TopBar { grid-template-columns: 100px minmax(240px, 1fr) auto; }
-    .ToolbarButton span { display: none; }
-    .LanguagePicker summary { max-width: 180px; }
+.TitleMenuButton {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 1px;
+    padding: 2px 8px;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    color: var(--label);
+}
+.TitleMenuButton:active { background: var(--secondary-fill); }
+.TitleMenuName {
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+    font-size: var(--t-body);
+    font-weight: 600;
+    white-space: nowrap;
+}
+.TitleMenuName svg { width: 15px; height: 15px; color: var(--secondary-label); }
+.TitleMenuSubtitle {
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    overflow: hidden;
+    color: var(--secondary-label);
+    font-size: var(--t-caption);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.TitleMenuSubtitle .ProvenanceDot { width: 6px; height: 6px; }
+
+.SessionCapsule {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 0;
+    background: none;
+    color: var(--green-text);
+    font-size: var(--t-subhead);
+    font-weight: 600;
 }
 
-@media (max-width: 759px) {
-    .TopBar { min-height: 88px; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: 36px 36px; gap: 4px 7px; padding: max(7px, env(safe-area-inset-top)) 8px 7px; }
-    .Brand { font-size: 17px; }
-    .DocumentControls { justify-content: flex-end; }
-    .LanguagePicker summary { width: min(40vw, 160px); min-width: 96px; }
-    .Provenance { max-width: 115px; overflow: hidden; text-overflow: ellipsis; }
-    .TopActions { grid-column: 1 / -1; justify-content: stretch; }
-    .TopActions > .ToolbarButton,
-    .TopActions > .ExportControl { flex: 1; }
-    .TopActions .ToolbarButton { width: 100%; }
-    .TopActions .ToolbarButton span { display: inline; }
-    .ExportMenu {
-        position: fixed;
-        inset: auto 8px max(72px, calc(64px + env(safe-area-inset-bottom))) 8px;
-        width: auto;
-        max-height: min(70dvh, 540px);
-        overflow: hidden;
-        padding: 4px 7px max(10px, env(safe-area-inset-bottom));
-        border-radius: 22px;
-        transition: transform 360ms var(--spring), max-height 360ms var(--spring);
-        animation: sheet-in 420ms var(--spring);
+.LargeTitlePage { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.LargeTitlePage > .NavBar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+}
+.PageScroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: calc(44px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 32px calc(16px + env(safe-area-inset-left));
+}
+.App[data-layout="regular"] .PageScroll > * { max-width: 720px; margin-inline: auto; }
+.LargeTitle {
+    margin: 0;
+    padding: 2px 4px 4px;
+    font-size: var(--t-large);
+    font-weight: 700;
+    letter-spacing: .011em;
+    line-height: 1.2;
+}
+
+.ExamplesView .Group:first-of-type { margin-top: 16px; }
+.SettingsView .Group:first-child { margin-top: 12px; }
+
+.App[data-layout="compact"] .PreviewPanel,
+.App[data-layout="regular"] .PreviewPanel {
+    position: static;
+    padding: 16px 16px 84px;
+    place-items: safe center;
+    touch-action: pan-x pan-y;
+}
+.PreviewPanel[data-sizing="fit"] img {
+    max-width: none;
+    max-height: none;
+    padding: 12px;
+    box-sizing: content-box;
+    border-radius: 12px;
+    transform: none;
+    transition: none;
+}
+
+/* The zoom capsule floats above the canvas within thumb reach. */
+.App[data-layout="compact"] .PreviewZoom,
+.App[data-layout="regular"] .PreviewZoom {
+    position: absolute;
+    top: auto;
+    bottom: 16px;
+    left: 50%;
+    gap: 0;
+    padding: 2px;
+    border: .5px solid var(--separator);
+    border-radius: 24px;
+    background: var(--bar-material);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .14);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    transform: translateX(-50%);
+}
+.App[data-layout="compact"] .PreviewZoom button,
+.App[data-layout="regular"] .PreviewZoom button { width: 44px; height: 44px; border-radius: 22px; color: var(--tint); }
+.App[data-layout="compact"] .PreviewZoom svg,
+.App[data-layout="regular"] .PreviewZoom svg { width: 20px; height: 20px; }
+.App[data-layout="compact"] .PreviewZoom .ZoomValue,
+.App[data-layout="regular"] .PreviewZoom .ZoomValue { min-width: 64px; color: var(--label); font-size: var(--t-subhead); font-weight: 600; }
+.App[data-layout="compact"] .PreviewState,
+.App[data-layout="regular"] .PreviewState { font-size: var(--t-subhead); }
+.App[data-layout="compact"] .PreviewError,
+.App[data-layout="regular"] .PreviewError { padding: 16px; border-radius: var(--radius-group); }
+.App[data-layout="compact"] .PreviewError p,
+.App[data-layout="regular"] .PreviewError p { font-size: var(--t-footnote); }
+.App[data-layout="compact"] .PreviewError button,
+.App[data-layout="regular"] .PreviewError button { min-height: 44px; width: 100%; border-radius: 12px; }
+
+/* Regular width: the split editor keeps a touch-sized splitter. */
+.App[data-layout="regular"] .CanvasSplit { flex: 1; grid-template-columns: minmax(260px, var(--source-pane)) 20px minmax(260px, 1fr); }
+.App[data-layout="regular"] .PaneSplitter { width: 20px; }
+.App[data-layout="regular"] .PaneSplitter::after { inset: 0 9px; }
+.App[data-layout="regular"] .Pane > header { height: 36px; font-size: var(--t-footnote); }
+
+.TabBar {
+    flex: none;
+    display: grid;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+    padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    border-top: .5px solid var(--separator);
+    background: var(--bar-material);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+.TabBar button {
+    min-width: 0;
+    min-height: 49px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 2px;
+    padding: 4px 2px 2px;
+    border: 0;
+    background: transparent;
+    color: var(--secondary-label);
+    font-size: var(--t-caption2);
+    font-weight: 500;
+}
+.TabBar button[aria-selected="true"] { color: var(--tint-text); }
+.TabBar svg { width: 24px; height: 24px; }
+.TabBar button:focus-visible { outline-offset: -3px; border-radius: 10px; }
+.App[data-layout="regular"] .TabBar button { grid-auto-flow: column; gap: 6px; font-size: var(--t-footnote); }
+.App[data-layout="regular"] .TabBar svg { width: 22px; height: 22px; }
+/* iOS hides the tab bar while the keyboard is up. */
+.App[data-keyboard="open"] .TabBar { display: none; }
+
+.StatusRegion:empty { display: none; }
+
+.Toast {
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 52px);
+    left: 50%;
+    z-index: 30;
+    width: max-content;
+    max-width: min(calc(100vw - 32px), 480px);
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 4px 4px 16px;
+    border: .5px solid var(--separator);
+    border-radius: 22px;
+    background: var(--bar-material);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .16);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    font-size: var(--t-subhead);
+    font-weight: 500;
+    transform: translateX(-50%);
+    animation: toast-in .35s var(--ease-sheet);
+}
+.Toast .StatusDismiss { width: 36px; height: 36px; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, -12px); } }
+
+/* ---- Sheets: native <dialog> ------------------------------------------ */
+
+.Sheet {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - env(safe-area-inset-top) - 24px);
+    margin: auto 0 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    background: var(--grouped-background);
+    color: var(--label);
+    box-shadow: 0 -2px 30px rgba(0, 0, 0, .12);
+    font-size: var(--t-body);
+    transform: translateY(var(--sheet-drag, 0px));
+    transition: transform .3s var(--ease-sheet);
+}
+.Sheet[data-dragging] { transition: none; }
+.Sheet::backdrop { background: var(--backdrop); }
+.Sheet[open] { display: flex; animation: sheet-up .45s var(--ease-sheet); }
+.Sheet[open]::backdrop { animation: fade .3s ease; }
+@keyframes sheet-up { from { transform: translateY(100%); } }
+@keyframes fade { from { opacity: 0; } }
+.SheetContent { width: 100%; min-height: 0; display: flex; flex-direction: column; }
+.SheetHeader {
+    position: relative;
+    flex: none;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    min-height: 56px;
+    padding: 6px 8px 0 16px;
+    touch-action: none;
+}
+.SheetHeader > :last-child { justify-self: end; }
+.SheetGrabber {
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    width: 36px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--opaque-separator);
+    transform: translateX(-50%);
+}
+.SheetTitle { margin: 0; font-size: var(--t-body); font-weight: 600; text-align: center; }
+.SheetTitle:focus { outline: none; }
+.SheetBody {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 calc(16px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+}
+.SheetBody > .Group:first-child, .SheetBody > .SearchField + .Group { margin-top: 12px; }
+.SheetEmpty { padding: 24px 4px; }
+.LanguageSheet { height: calc(100dvh - env(safe-area-inset-top) - 24px); }
+
+@media (min-width: 768px) {
+    .Sheet {
+        width: 460px;
+        max-height: min(80dvh, 760px);
+        margin: auto;
+        border-radius: var(--radius-sheet);
+        box-shadow: var(--shadow);
+        transform: none;
     }
-    .ExportMenu[data-detent="compact"] { max-height: 164px; }
-    .ExportMenu[data-detent="expanded"] { max-height: min(70dvh, 540px); }
-    .SheetHandle { width: 100% !important; min-height: 25px !important; display: grid !important; place-items: center; padding: 0 !important; touch-action: none; }
-    .SheetHandle span { width: 38px; height: 5px; border-radius: 9px; background: var(--opaque-separator); }
-    .ExportMenu button { min-height: 42px; padding-inline: 13px; }
-    @keyframes sheet-in {
-        from { opacity: 0; transform: translateY(38px) scale(.97); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    .DeploymentNotice { font-size: 10px; }
-    .EditorPanel, .PreviewPanel { height: 100%; }
-    .PreviewPanel { padding-top: 8px; }
-    .SettingsView, .ExamplesView { padding: 22px 16px 32px; }
-    .ConsentCard { padding: 28px 20px; border-radius: 23px; }
+    .Sheet[open] { animation: fade .2s ease; }
+    .SheetGrabber { display: none; }
+    .LanguageSheet { height: min(80dvh, 760px); }
 }
+
+/* Pointer-agnostic touch sizing for the wide layout on an iPad in landscape. */
+@media (pointer: coarse) {
+    .App[data-layout="wide"] .ToolbarButton,
+    .App[data-layout="wide"] .LanguagePicker { height: 36px; }
+    .App[data-layout="wide"] .SidebarList > button { min-height: 44px; }
+    .App[data-layout="wide"] .SidebarSwitcher button { min-height: 36px; }
+}
+
+/* ---- Materials and accessibility preferences ---------------------------- */
 
 @supports ((backdrop-filter: url("#neolesk-liquid-glass")) or (-webkit-backdrop-filter: url("#neolesk-liquid-glass"))) {
-    .ConsentCard, .TopBar, .SidebarSwitcher, .DesktopSettings, .MobileTabs, .ExportMenu, .LanguageMenu {
+    .TopBar, .SidebarSwitcher, .DesktopSettings, .TabBar, .NavBar[data-scrolled], .Toast {
         backdrop-filter: url("#neolesk-liquid-glass") blur(24px) saturate(170%);
         -webkit-backdrop-filter: url("#neolesk-liquid-glass") blur(24px) saturate(170%);
     }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .TopBar, .Sidebar, .DesktopSettings, .TabBar, .NavBar[data-scrolled], .Toast, .PreviewZoom { background: var(--secondary-background); }
 }
 
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .ConsentCard, .TopBar, .Sidebar, .DesktopSettings, .MobileTabs, .ExportMenu, .LanguageMenu { background: var(--secondary-background); }
+@media (prefers-reduced-transparency: reduce) {
+    .TopBar, .Sidebar, .SidebarSwitcher, .DesktopSettings, .TabBar, .NavBar[data-scrolled], .Toast, .PreviewZoom {
+        background: var(--secondary-background) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    .Spinner i { animation: none; opacity: .5; }
+    .Spinner i:nth-child(1) { opacity: 1; }
+}
+
+@media (forced-colors: active) {
+    .GroupList, .Sheet, .Toast, .PreviewZoom, .ConsentCard { border: 1px solid CanvasText; }
+    .RowButton[aria-current="true"] { outline: 2px solid Highlight; }
+    .Switch { border: 1px solid CanvasText; }
+    .Switch:checked { background: Highlight; }
+    .PresenceDot, .ProvenanceDot { forced-color-adjust: none; }
+}
+
+/* ---- Navigation stack --------------------------------------------------- */
+
+.BackButton {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 8px 0 0;
+    border: 0;
+    background: none;
+    color: var(--tint-text);
+    font-size: var(--t-body);
+}
+.BackButton svg { width: 26px; height: 26px; margin-right: -2px; }
+@media (hover: hover) { .BackButton:hover { opacity: .7; } }
+.LargeTitle:focus { outline: none; }
+.LargeTitle:focus-visible { outline: 3px solid var(--tint); outline-offset: 2px; border-radius: 6px; }
+.LargeTitlePage[data-animate="push"] { animation: push-in .45s var(--ease-sheet); }
+.LargeTitlePage[data-animate="pop"] { animation: pop-in .45s var(--ease-sheet); }
+@keyframes push-in { from { transform: translateX(100%); } }
+@keyframes pop-in { from { transform: translateX(-30%); opacity: .6; } }
+
+/* iOS slider: a thin track and a round white thumb. */
+.Slider { appearance: none; height: 32px; background: transparent; }
+.Slider::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--tint) var(--fill-to, 50%), var(--fill) var(--fill-to, 50%)); }
+.Slider::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; margin-top: -12px; border-radius: 50%; background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 1px 1px rgba(0, 0, 0, .16), 0 0 0 .5px rgba(0, 0, 0, .04); }
+.Slider::-moz-range-track { height: 4px; border-radius: 2px; background: var(--fill); }
+.Slider::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--tint); }
+.Slider::-moz-range-thumb { width: 28px; height: 28px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .15); }
+.DesktopSettings .Slider::-webkit-slider-thumb { width: 18px; height: 18px; margin-top: -7px; }
+
+.OptionRow .RowSubtitle { white-space: normal; }
+
+.App[data-layout="regular"] .TabBar { justify-content: center; grid-auto-columns: minmax(0, 180px); }
+.App[data-layout="regular"] .TabBar button { display: flex; justify-content: center; align-items: center; }
+
+/* ---- Print: the diagram alone, fitted to the page ------------------------ */
+
+.PrintDiagram { display: none; }
+
+@page { margin: 12mm; }
+@page landscape { size: landscape; }
+
+@media print {
+    :root, .App { color-scheme: light; }
+    html, body, #root { height: auto; overflow: visible; background: #fff; }
+    .App,
+    .App[data-layout] {
+        position: static;
+        height: auto;
+        overflow: visible;
+        background: #fff;
+        color: #000;
+    }
+    .App > :not(.PrintDiagram) { display: none !important; }
+    .PrintDiagram {
+        display: grid;
+        place-items: center;
+        min-height: calc(100vh - 1px);
+        break-inside: avoid;
+    }
+    .PrintDiagram[data-orientation="landscape"] { page: landscape; }
+    /* Vector output scales cleanly, so the diagram fills the printable area. */
+    .PrintDiagram img {
+        display: block;
+        width: 100%;
+        height: calc(100vh - 1px);
+        object-fit: contain;
+    }
+    .PrintDiagram p { font: 12pt/1.4 var(--font-ui); }
 }

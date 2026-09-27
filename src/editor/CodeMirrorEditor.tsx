@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { basicSetup } from 'codemirror';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { linter } from '@codemirror/lint';
+import { tags } from '@lezer/highlight';
 import { Annotation, Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import type { EphemeralStore, LoroDoc, LoroText, UndoManager } from 'loro-crdt/bundler';
@@ -41,7 +43,7 @@ const editorTheme = (appearance: Appearance): Extension => EditorView.theme({
         height: '100%',
         color: 'var(--label)',
         backgroundColor: 'transparent',
-        fontSize: '14px',
+        fontSize: 'var(--editor-font-size, 14px)',
     },
     '.cm-scroller': {
         fontFamily: 'var(--font-mono)',
@@ -53,7 +55,8 @@ const editorTheme = (appearance: Appearance): Extension => EditorView.theme({
         padding: '0 16px',
     },
     '.cm-gutters': {
-        color: 'var(--tertiary-label)',
+        // Line numbers are text, so they take the secondary label colour for contrast.
+        color: 'var(--secondary-label)',
         backgroundColor: 'transparent',
         borderRight: '1px solid var(--separator)',
     },
@@ -65,6 +68,25 @@ const editorTheme = (appearance: Appearance): Extension => EditorView.theme({
         backgroundColor: 'var(--selection)',
     },
 }, { dark: appearance === 'dark' });
+
+/**
+ * Syntax colours as CSS tokens, so dark mode and Increase Contrast apply. The
+ * basicSetup default style is light-only and falls below 2:1 on a dark editor.
+ */
+const syntaxColours = syntaxHighlighting(HighlightStyle.define([
+    { tag: [tags.keyword, tags.controlKeyword, tags.definitionKeyword, tags.modifier, tags.bool, tags.atom], color: 'var(--syntax-keyword)' },
+    { tag: [tags.string, tags.special(tags.string), tags.regexp], color: 'var(--syntax-string)' },
+    { tag: [tags.number, tags.integer, tags.float], color: 'var(--syntax-number)' },
+    { tag: [tags.comment, tags.lineComment, tags.blockComment, tags.docComment], color: 'var(--syntax-comment)', fontStyle: 'italic' },
+    { tag: [tags.typeName, tags.className, tags.namespace, tags.tagName, tags.heading], color: 'var(--syntax-type)' },
+    { tag: [tags.propertyName, tags.attributeName, tags.labelName], color: 'var(--syntax-property)' },
+    { tag: [tags.meta, tags.processingInstruction, tags.annotation], color: 'var(--syntax-meta)' },
+    { tag: [tags.variableName, tags.definition(tags.variableName), tags.function(tags.variableName)], color: 'var(--label)' },
+    { tag: tags.invalid, color: 'var(--red-text)' },
+    { tag: tags.strong, fontWeight: 'bold' },
+    { tag: tags.emphasis, fontStyle: 'italic' },
+    { tag: tags.link, color: 'var(--tint-text)', textDecoration: 'underline' },
+]));
 
 const validationExtension = (
     diagramType: string,
@@ -114,6 +136,7 @@ function CodeMirrorEditor({
             doc: value,
             extensions: [
                 basicSetup,
+                syntaxColours,
                 compartments.language.of(support.extensions),
                 compartments.wrapping.of(wrapping ? EditorView.lineWrapping : []),
                 compartments.appearance.of(editorTheme(appearance)),
@@ -124,6 +147,11 @@ function CodeMirrorEditor({
                     'aria-label': 'Diagram source',
                     'aria-multiline': 'true',
                     spellcheck: 'false',
+                    // The iOS keyboard would otherwise capitalise and "correct" diagram source.
+                    autocapitalize: 'off',
+                    autocorrect: 'off',
+                    // WebKit reports a contenteditable as unfocusable without an explicit tab index.
+                    tabindex: '0',
                 }),
                 EditorView.updateListener.of((update) => {
                     if (update.docChanged && !update.transactions.some((transaction) => (
