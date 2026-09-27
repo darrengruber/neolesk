@@ -71,6 +71,34 @@ jobs:
           test -d dist/assets
           echo "bundle: $(du -sh dist | cut -f1)"
 
+  e2e:
+    runs-on: ubuntu-latest
+    # User journeys on an iPhone and an iPad in WebKit and on desktop Chromium,
+    # with axe in light and dark (ADR 0019). Same pinned browsers as the corpus.
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
+    env:
+      NEOLESK_CACHE_SKIP: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - run: npm ci --ignore-scripts
+
+      - name: Run the journeys on iPhone, iPad and desktop
+        run: npm run test:e2e
+
+      - name: Upload traces and screenshots
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-journeys
+          path: |
+            test-results/e2e
+            test-results/e2e-screens
+            playwright-report/e2e
+          if-no-files-found: ignore
+
   corpus:
     runs-on: ubuntu-latest
     # Golden images are generated in this exact browser/font environment.
