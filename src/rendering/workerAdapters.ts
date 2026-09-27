@@ -1,4 +1,5 @@
 import type { RendererAdapter } from './rendering';
+import { plantUmlSourceError, plantUmlUnsupportedError, wrapPlantUmlSource } from './plantumlOutput';
 import { D2_OPTION_DEFINITIONS, GRAPHVIZ_LAYOUTS, GRAPHVIZ_OPTION_DEFINITIONS } from './rendererOptions';
 
 const stringOption = (options: Record<string, string>, key: string, values: readonly string[]) => {
@@ -34,35 +35,6 @@ const graphvizRenderer: RendererAdapter = {
     },
 };
 
-/**
- * PlantUML servers, Kroki included, wrap a diagram body without an `@start...` line in
- * `@startuml`/`@enduml`. The MIT build does not. This mirrors the browser adapter helper.
- */
-const wrapPlantUmlSource = (source: string): string => (
-    /^\s*@start/m.test(source) ? source : `@startuml\n${source}\n@enduml`
-);
-
-const PLANTUML_UNSUPPORTED = 'Diagram not supported by this release of PlantUML';
-
-/** PlantUML reports source errors as an error diagram, not through its failure callback. */
-const plantUmlErrorFromSvg = (svg: string, lineOffset = 0): Error | null => {
-    // The MIT build omits some diagram types, such as Salt, and draws an explanation instead.
-    if (svg.includes(PLANTUML_UNSUPPORTED)) {
-        const directive = svg.match(/following directive\s*(?:<[^>]*>\s*)*([^<]*?)\s*(?:<[^>]*>\s*)*is not recognized/i)?.[1]
-            ?.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
-        return new Error(directive
-            ? `The PlantUML MIT build does not support ${directive}. A render server can draw it.`
-            : 'The PlantUML MIT build does not support this diagram. A render server can draw it.');
-    }
-    const origin = svg.match(/>\[From [^<]*?\(line (\d+)\)\s*\]<\/text>/);
-    if (!origin) return null;
-    const messages = Array.from(svg.matchAll(/<text\b[^>]*\bfill="#FF0000"[^>]*>([^<]*)<\/text>/g))
-        .map((match) => match[1].trim())
-        .filter(Boolean);
-    if (messages.length === 0) return null;
-    return new Error(`${messages.join(' ')} (line ${Math.max(1, Number(origin[1]) - lineOffset)})`);
-};
-
 type PlantUmlRender = (
     source: string[],
     success: (svg: string) => void,
@@ -96,7 +68,7 @@ const plantUmlRenderer: RendererAdapter = {
                 (message) => { clearTimeout(timeout); reject(new Error(message)); },
             );
         });
-        const sourceError = plantUmlErrorFromSvg(svg, wrapped === source ? 0 : 1);
+        const sourceError = plantUmlUnsupportedError(svg) ?? plantUmlSourceError(svg, wrapped === source ? 0 : 1);
         if (sourceError) throw sourceError;
         return svg;
     },

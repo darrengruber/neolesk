@@ -47,7 +47,7 @@ describe('assertPlantUmlSupported', () => {
 
     it('turns the MIT build explanation into a rejection that names the directive', () => {
         expect(() => assertPlantUmlSupported(unsupported))
-            .toThrow('The PlantUML browser build does not support @startsalt. A render server can draw it.');
+            .toThrow('The PlantUML MIT build does not support @startsalt. A render server can draw it.');
     });
 
     it('passes a drawn diagram through unchanged', () => {
