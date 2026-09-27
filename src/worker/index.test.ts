@@ -58,6 +58,43 @@ describe('session Worker WebSocket ingress', () => {
         expect(new URL(String(remoteFetch.mock.calls[0][0])).origin).toBe('http://kroki.internal');
     });
 
+    it('returns structured errors when the render server is unreachable or rejects an export', async () => {
+        const remoteFetch = vi.fn(async (): Promise<Response> => {
+            throw new Error('internal error; reference = abc123');
+        });
+        vi.stubGlobal('fetch', remoteFetch);
+        const { cell } = createHarness();
+        await cell.fetch(new Request('https://diagrams.example/initialize', {
+            method: 'POST', body: JSON.stringify({ language: 'mermaid', source: 'flowchart LR\nA --> B' }),
+        }));
+        const exportPng = () => cell.fetch(new Request('https://diagrams.example/export', {
+            method: 'POST', body: JSON.stringify({ participantId: 'agent', format: 'png', rendererId: 'neolesk' }),
+        }));
+
+        const rendered = await cell.fetch(new Request('https://diagrams.example/render', {
+            method: 'POST', body: JSON.stringify({ participantId: 'agent', format: 'svg' }),
+        }));
+        expect(rendered.status).toBe(422);
+        expect(await rendered.json()).toEqual(expect.objectContaining({
+            code: 'REMOTE_RENDER_FAILED',
+            error: 'Render server is unreachable',
+            diagnostics: [expect.objectContaining({ kind: 'render', message: 'Render server is unreachable' })],
+        }));
+
+        const unreachable = await exportPng();
+        expect(unreachable.status).toBe(502);
+        expect(await unreachable.json()).toEqual({ error: 'Render server is unreachable', code: 'EXPORT_FAILED' });
+
+        remoteFetch.mockResolvedValueOnce(new Response('Unsupported output format: png for d2. Must be one of svg.', {
+            status: 400,
+        }));
+        const rejected = await exportPng();
+        expect(rejected.status).toBe(422);
+        expect(await rejected.json()).toEqual({
+            error: 'Unsupported output format: png for d2. Must be one of svg.', code: 'EXPORT_FAILED',
+        });
+    });
+
     it('rejects oversized frames before decoding or parsing them', async () => {
         const { cell, socket } = createHarness();
 

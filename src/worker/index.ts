@@ -3,12 +3,14 @@ import {
     createKrokiRemoteAdapter,
     createKrokiRemoteRenderer,
     readResponseBytes,
+    RemoteRenderError,
+    RemoteResponseTooLargeError,
     withRenderDeadline,
 } from '../rendering/remote';
 import { workerRendererCatalog } from '../rendering/workerCatalog';
 import { createRenderingModule, validateRendererOptions } from '../rendering/rendering';
 import { bytesToBase64 } from '../session/base64';
-import { createSessionCell, type SessionCellStorage } from '../session/sessionCell';
+import { createSessionCell, SessionExportError, type SessionCellStorage } from '../session/sessionCell';
 import { createWorkerRouter, type SessionNamespace } from './router';
 import { createSessionMcpHandler } from './sessionMcp';
 
@@ -69,10 +71,22 @@ export class SessionCell {
 
     constructor(private readonly state: ObjectState, environment: WorkerEnvironment) {
         const krokiOrigin = environment.KROKI_ORIGIN || DEFAULT_KROKI_ORIGIN;
+        const krokiRender = createKrokiRemoteAdapter();
         const rendering = createRenderingModule({
             catalog: workerRendererCatalog,
             environment: 'worker',
-            remoteRender: createKrokiRemoteAdapter(),
+            remoteRender: async (input) => {
+                try {
+                    return await krokiRender(input);
+                } catch (error) {
+                    // workerd reports a refused or unresolvable origin as an opaque "internal error".
+                    if (error instanceof RemoteRenderError || error instanceof RemoteResponseTooLargeError
+                        || (error instanceof Error && error.message.startsWith('Render server timed out'))) {
+                        throw error;
+                    }
+                    throw new Error('Render server is unreachable');
+                }
+            },
         });
         const inClusterRenderer = createKrokiRemoteRenderer({
             id: 'neolesk', label: 'neolesk Kroki', url: krokiOrigin,
@@ -105,26 +119,46 @@ export class SessionCell {
             maxExportBytes: MAX_BINARY_EXPORT_BYTES,
             exportBinary: async ({ language, source, format, options, rendererId, maxBytes }) => {
                 const targetOrigin = rendererId === 'kroki-io' ? 'https://kroki.io/' : krokiOrigin;
-                return withRenderDeadline(RENDER_TIMEOUT_MS, async (signal) => {
-                    const response = await fetch(createKrokiEndpoint(targetOrigin, language, format, options), {
-                        method: 'POST',
-                        headers: { 'content-type': 'text/plain; charset=utf-8' },
-                        body: source,
-                        signal,
+                const timeoutMessage = `Render server timed out after ${RENDER_TIMEOUT_MS}ms`;
+                try {
+                    return await withRenderDeadline(RENDER_TIMEOUT_MS, async (signal) => {
+                        let response: Response;
+                        try {
+                            response = await fetch(createKrokiEndpoint(targetOrigin, language, format, options), {
+                                method: 'POST',
+                                headers: { 'content-type': 'text/plain; charset=utf-8' },
+                                body: source,
+                                signal,
+                            });
+                        } catch {
+                            throw new SessionExportError(502, 'Render server is unreachable');
+                        }
+                        const data = await readResponseBytes(
+                            response,
+                            response.ok ? maxBytes : MAX_RENDER_ERROR_BYTES,
+                        );
+                        if (!response.ok) {
+                            // A 4xx carries the render server's verdict on the source or format.
+                            const message = new TextDecoder().decode(data).trim();
+                            throw new SessionExportError(
+                                response.status >= 500 ? 502 : 422,
+                                message || `Kroki returned HTTP ${response.status}`,
+                            );
+                        }
+                        return {
+                            data,
+                            mimeType: response.headers.get('content-type') || `image/${format}`,
+                        };
                     });
-                    const data = await readResponseBytes(
-                        response,
-                        response.ok ? maxBytes : MAX_RENDER_ERROR_BYTES,
-                    );
-                    if (!response.ok) {
-                        const message = new TextDecoder().decode(data).trim();
-                        throw new Error(message || `Kroki returned HTTP ${response.status}`);
+                } catch (error) {
+                    if (error instanceof Error && error.message === timeoutMessage) {
+                        throw new SessionExportError(504, timeoutMessage);
                     }
-                    return {
-                        data,
-                        mimeType: response.headers.get('content-type') || `image/${format}`,
-                    };
-                });
+                    if (error instanceof RemoteResponseTooLargeError) {
+                        throw new SessionExportError(502, error.message);
+                    }
+                    throw error;
+                }
             },
         });
     }

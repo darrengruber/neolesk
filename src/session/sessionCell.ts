@@ -51,6 +51,14 @@ export interface SessionExportInput extends SessionSnapshot {
     maxBytes: number;
 }
 
+/** A binary export that failed for a known reason, with the HTTP status the cell returns. */
+export class SessionExportError extends Error {
+    constructor(readonly status: number, message: string) {
+        super(message);
+        this.name = 'SessionExportError';
+    }
+}
+
 export interface SessionChangeMessage {
     type: 'changed' | 'presence' | 'closed';
     state?: 'connected' | 'disconnected';
@@ -487,6 +495,9 @@ export const createSessionCell = (
         } catch (error) {
             if (error instanceof RequestBodyTooLargeError) return json({ error: error.message }, 413);
             if (error instanceof SessionLimitError) return json({ error: error.message }, 413);
+            if (error instanceof SessionExportError) {
+                return json({ error: error.message, code: 'EXPORT_FAILED' }, error.status);
+            }
             if (error instanceof RenderingError) return json({
                 error: error.message,
                 code: error.code,

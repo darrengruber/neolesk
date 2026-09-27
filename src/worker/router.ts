@@ -32,6 +32,13 @@ export interface WorkerRouterDependencies {
     };
 }
 
+class RenderServerUnreachableError extends Error {
+    constructor() {
+        super('Render server is unreachable');
+        this.name = 'RenderServerUnreachableError';
+    }
+}
+
 const SESSION_ID = /^[0-9a-f]{64}$/i;
 const KROKI_PATH = /^[a-z0-9_-]+\/[a-z0-9_-]+(?:\/[A-Za-z0-9_-]+)?$/i;
 
@@ -197,8 +204,17 @@ export const createWorkerRouter = (dependencies: WorkerRouterDependencies): {
                         return await withRenderDeadline(maxProxyRenderMs, async (deadlineSignal) => {
                             const combined = combineSignals([request.signal, deadlineSignal]);
                             try {
-                                const upstream = await dependencies.krokiFetch(krokiRequest, { signal: combined.signal });
-                                const bytes = await readResponseBytes(upstream, maxProxyResponseBytes);
+                                let upstream: Response;
+                                let bytes: Uint8Array;
+                                try {
+                                    upstream = await dependencies.krokiFetch(krokiRequest, { signal: combined.signal });
+                                    bytes = await readResponseBytes(upstream, maxProxyResponseBytes);
+                                } catch (error) {
+                                    // withRenderDeadline still reports its own timeout as a 504,
+                                    // and a client that left keeps its cancellation.
+                                    if (error instanceof RemoteResponseTooLargeError || request.signal.aborted) throw error;
+                                    throw new RenderServerUnreachableError();
+                                }
                                 const headers = new Headers(upstream.headers);
                                 headers.delete('content-encoding');
                                 headers.delete('transfer-encoding');
@@ -231,6 +247,7 @@ export const createWorkerRouter = (dependencies: WorkerRouterDependencies): {
             } catch (error) {
                 if (error instanceof RequestBodyTooLargeError) return json({ error: error.message }, 413);
                 if (error instanceof RemoteResponseTooLargeError) return json({ error: error.message }, 502);
+                if (error instanceof RenderServerUnreachableError) return json({ error: error.message }, 502);
                 if (error instanceof Error && error.message === `Render server timed out after ${maxProxyRenderMs}ms`) {
                     return json({ error: error.message }, 504);
                 }

@@ -201,6 +201,24 @@ describe('Worker public URL surface', () => {
         expect(await response.json()).toEqual({ error: 'Render server timed out after 250ms' });
     });
 
+    it('answers a structured 502 when the render server is unreachable', async () => {
+        // workerd rejects a refused private origin with an opaque "internal error".
+        krokiFetch.mockRejectedValue(new Error('internal error; reference = abc123'));
+        const router = createWorkerRouter({ namespace, assetFetch, krokiFetch });
+
+        const response = await router.fetch(new Request('https://diagrams.example/render/mermaid/svg', {
+            method: 'POST', body: 'graph TD\nA-->B',
+        }));
+
+        expect(response.status).toBe(502);
+        expect(response.headers.get('content-type')).toContain('application/json');
+        expect(await response.json()).toEqual({ error: 'Render server is unreachable' });
+        const next = await router.fetch(new Request('https://diagrams.example/render/mermaid/svg', {
+            method: 'POST', body: 'graph TD\nA-->B',
+        }));
+        expect(next.status).toBe(502);
+    });
+
     it('propagates client cancellation to Kroki proxy work', async () => {
         const seenSignal = vi.fn();
         krokiFetch.mockImplementation((_request: Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
