@@ -32,6 +32,20 @@ describe('SessionDocument', () => {
         });
     });
 
+    it('bounds the text diff so a large rewrite cannot hold the cell', () => {
+        const session = SessionDocument.create({ language: 'svgbob', source: '-->' });
+        const large = 'x'.repeat(300_000);
+        const startedAt = performance.now();
+
+        session.replace({ source: large }, { actor: 'agent', actorId: 'mcp' });
+
+        // Unbounded, Myers' diff took over 70 s here and over 140 s inside workerd.
+        expect(performance.now() - startedAt).toBeLessThan(10_000);
+        expect(session.sharedState().source).toBe(large);
+        expect(session.undoLastAgentWrite()).toBe(true);
+        expect(session.sharedState().source).toBe('-->');
+    });
+
     it('records agent writes and restores the previous shared document', () => {
         const session = SessionDocument.create(initial);
 

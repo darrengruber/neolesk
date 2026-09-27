@@ -49,6 +49,7 @@ export class SessionLimitError extends Error {
 export class SessionDocument {
     static readonly DEFAULT_MAX_DOCUMENT_BYTES = 256 * 1024;
     static readonly MAX_HISTORY_ENTRIES = 64;
+    static readonly TEXT_DIFF_TIMEOUT_MS = 250;
 
     private document: LoroDoc;
     private readonly maxDocumentBytes: number;
@@ -125,7 +126,19 @@ export class SessionDocument {
         const candidate = LoroDoc.fromSnapshot(before);
         const beforeFrontiers = candidate.frontiers();
         const undoManager = actor.actor === 'agent' ? new UndoManager(candidate, {}) : null;
-        fields.forEach((field) => candidate.getText(field).update(changes[field] as string));
+        // Myers' diff is quadratic in the edit size: a 300 KB rewrite held the cell for over
+        // two minutes. Past the deadline, replace the whole text instead of the minimal edit.
+        fields.forEach((field) => {
+            const text = candidate.getText(field);
+            const next = changes[field] as string;
+            try {
+                text.update(next, { timeoutMs: SessionDocument.TEXT_DIFF_TIMEOUT_MS });
+            } catch (error) {
+                if (!(error instanceof Error) || !/timeout/i.test(error.message)) throw error;
+                text.delete(0, text.length);
+                text.insert(0, next);
+            }
+        });
         candidate.commit({ origin: actor.actor, message: `${actor.actorId}: ${fields.join(', ')}` });
         const nextSnapshot = candidate.export({ mode: 'snapshot' });
         const afterFrontiers = candidate.frontiers();
