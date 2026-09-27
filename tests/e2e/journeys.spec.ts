@@ -87,11 +87,16 @@ test.describe('editing', () => {
 
     test('the share sheet names what each action needs', async ({ page, layout }) => {
         await page.goto('/');
+        // Export rows wait for the diagram; open the sheet once it has rendered.
+        if (layout === 'compact') await openTab(page, 'Preview');
+        await expect(renderedDiagram(page).first()).toBeAttached({ timeout: 30_000 });
         const { invoker, sheet } = await openShareSheet(page, layout);
         await expect(sheet.getByRole('button', { name: 'Copy Snapshot Link' })).toBeEnabled();
         await expect(sheet.getByRole('button', { name: 'New Session' })).toBeDisabled();
         await expect(sheet.getByText('Sessions unavailable in this deployment.')).toBeVisible();
-        await expect(sheet.getByRole('button', { name: /^PDF/ })).toBeDisabled();
+        // With no render server, this device still makes every format of the diagram it drew.
+        await expect(sheet.getByRole('button', { name: /^PDF/ })).toBeEnabled();
+        await expect(sheet.getByText('Every format is made on this device.', { exact: false })).toBeVisible();
         await expect(sheet.getByRole('button', { name: 'SVG' })).toBeEnabled();
 
         // Focus goes into the sheet and comes back to the control that opened it.
