@@ -49,4 +49,16 @@ await Promise.all([
     ),
 ]);
 
+// D2 sketch mode evaluates a modified rough.js that is embedded in d2.wasm. workerd forbids
+// eval, so extract that exact code as a static module for the D2 evaluator seam.
+const d2Wasm = await readFile(resolve(root, 'node_modules/@terrastruct/d2/dist/node-esm/d2.wasm'));
+const roughStart = d2Wasm.indexOf('/*eslint-disable */\n// This is a slightly modified version of rough.js for D2');
+const roughEndMarker = 'newSeed: () => B.newSeed(),\n};';
+const roughEnd = roughStart < 0 ? -1 : d2Wasm.indexOf(roughEndMarker, roughStart);
+if (roughEnd < 0) throw new Error('Could not find the rough.js build embedded in d2.wasm');
+await writeFile(
+    resolve(generated, 'd2-rough.js'),
+    `${d2Wasm.subarray(roughStart, roughEnd + roughEndMarker.length).toString('utf8')}\nexport default rough;\n`,
+);
+
 process.stdout.write('Prepared static Worker WASM modules.\n');

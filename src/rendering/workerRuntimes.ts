@@ -154,7 +154,9 @@ let d2Ready: Promise<D2Runtime> | null = null;
 export const loadWorkerD2 = async (): Promise<D2Runtime> => {
     if (!d2Ready) {
         d2Ready = (async () => {
-            workerGlobals.eval = createD2DagreEvaluator();
+            // @ts-expect-error Generated upstream runtime has no declaration file.
+            const { default: d2Rough } = await import('../worker/generated/d2-rough.js');
+            workerGlobals.eval = createD2DagreEvaluator(d2Rough);
             workerGlobals.global ||= globalThis;
             // @ts-expect-error Generated upstream runtime has no declaration file.
             await import('../worker/generated/d2-wasm-exec.js');

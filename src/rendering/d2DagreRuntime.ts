@@ -1,7 +1,39 @@
 import { layout } from 'dagre-d3-es/src/dagre/layout.js';
 import { Graph } from 'dagre-d3-es/src/graphlib/index.js';
+import JSON5 from 'json5';
 
 type DagreGraph = InstanceType<typeof Graph>;
+
+interface SketchElement {
+    style: Record<string, string>;
+    tagName: string;
+    attrs: Record<string, string>;
+    children: SketchElement[];
+    setAttribute(key: string, value: string): void;
+    appendChild(node: SketchElement): void;
+}
+
+/** The rough.js build that D2 embeds. prepare-worker-assets.mjs extracts it from d2.wasm. */
+export interface D2SketchRough {
+    svg(root: unknown, config: unknown): unknown;
+}
+
+// D2 sketch mode draws every shape with rough.js through the same eval protocol.
+const SKETCH_METHODS = new Set(['rectangle', 'ellipse', 'circle', 'line', 'linearPath', 'polygon', 'arc', 'curve', 'path']);
+const sketchDocument = {
+    createElementNS: (_namespace: string, tagName: string): SketchElement => {
+        const children: SketchElement[] = [];
+        const attrs: Record<string, string> = {};
+        return {
+            style: {},
+            tagName,
+            attrs,
+            setAttribute: (key, value) => { attrs[key] = value; },
+            appendChild: (node) => { children.push(node); },
+            children,
+        };
+    },
+};
 
 const parseNumberProperty = (source: string, property: string): number | undefined => {
     const match = source.match(new RegExp(`\\b${property}:\\s*(-?[\\d.]+)`));
@@ -18,12 +50,42 @@ const requireGraph = (graph: DagreGraph | null): DagreGraph => {
     return graph;
 };
 
-export const createD2DagreEvaluator = (): ((source: string) => unknown) => {
+export const createD2DagreEvaluator = (rough?: D2SketchRough): ((source: string) => unknown) => {
     let graph: DagreGraph | null = null;
+    let sketch: unknown = null;
+    let sketchNode: SketchElement | null = null;
 
     return (source) => {
         const command = String(source).trim();
         if (command.startsWith('(function(f){') && command.includes('g.dagre=f()')) return undefined;
+
+        // D2 evaluates its embedded rough.js first. The same code arrives here as a static module.
+        if (command.startsWith('/*eslint-disable */') && command.includes('modified version of rough.js for D2')) {
+            return undefined;
+        }
+
+        if (command.startsWith('const root = {')) {
+            const seed = command.match(/rough\.svg\(root, \{ seed: (\d+) \}\)/);
+            if (!seed) throw new Error(`Unsupported D2 sketch setup: ${command.slice(0, 120)}`);
+            if (!rough) throw new Error('D2 sketch mode is unavailable');
+            sketch = rough.svg({ ownerDocument: sketchDocument }, { seed: Number(seed[1]) });
+            sketchNode = null;
+            return undefined;
+        }
+
+        const sketchCall = command.match(/^node = rc\.([A-Za-z]+)\(([\s\S]*)\);?$/);
+        if (sketchCall && SKETCH_METHODS.has(sketchCall[1])) {
+            if (!sketch) throw new Error('D2 sketch renderer has not been initialized');
+            const parameters = JSON5.parse(`[${sketchCall[2]}]`) as unknown[];
+            const draw = (sketch as unknown as Record<string, (...values: unknown[]) => SketchElement>)[sketchCall[1]];
+            sketchNode = draw.apply(sketch, parameters);
+            return undefined;
+        }
+
+        if (command === "JSON.stringify(node.children, null, '  ')") {
+            if (!sketchNode) throw new Error('D2 sketch shape has not been drawn');
+            return JSON.stringify(sketchNode.children, null, '  ');
+        }
 
         if (command.startsWith('var g = new dagre.graphlib.Graph(')) {
             graph = new Graph({ compound: true, multigraph: true });
