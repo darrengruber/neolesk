@@ -1,5 +1,6 @@
 // Does a tab opened before a deploy still load its lazy engines afterwards?
-// It serves dist/ the way production does (an unknown path answers index.html),
+// It serves dist/ the way production does (a missing /assets/* file is a 404,
+// any other unknown path answers index.html),
 // opens an iPhone WebKit tab, then "deploys" a copy of the build in which every
 // hashed asset has a new name, and renders Mermaid and D2 in the old tab.
 // Build first: NEOLESK_CACHE_SKIP=1 npm run build && node scripts/check-stale-tab.mjs
@@ -23,6 +24,7 @@ const server = createServer((req, res) => {
   const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   let file = join(root, path);
   if (path.endsWith('/') || !existsSync(file) || statSync(file).isDirectory()) file = join(root, 'index.html'); // SPA fallback, as production
+  if (path.startsWith('/assets/') && file.endsWith('index.html')) { res.writeHead(404, { 'content-type': 'text/plain', 'cache-control': 'no-store' }); res.end('Not found\n'); return; }
   res.writeHead(200, { 'content-type': types[extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' });
   res.end(readFileSync(file));
 }).listen(8991);

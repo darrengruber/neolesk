@@ -280,6 +280,18 @@ export const createWorkerRouter = (dependencies: WorkerRouterDependencies): {
                     ));
                 }
 
+                if (url.pathname.startsWith('/assets/')) {
+                    // The build puts only scripts, styles and wasm here. The
+                    // asset layer answers a missing file with the app shell,
+                    // which a stale tab would try to run as a module.
+                    const asset = await dependencies.assetFetch(request);
+                    if (!asset.headers.get('content-type')?.includes('text/html')) return asset;
+                    return new Response('Not found\n', {
+                        status: 404,
+                        headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+                    });
+                }
+
                 return dependencies.assetFetch(request);
             } catch (error) {
                 const failure = errorResponse(error);

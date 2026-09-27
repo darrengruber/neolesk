@@ -41,6 +41,35 @@ describe('Worker public URL surface', () => {
         expect(new URL(cellFetch.mock.calls[0][0].url).pathname).toBe('/initialize');
     });
 
+    it('answers a missing build asset with 404, not the app shell', async () => {
+        // The asset layer falls back to index.html for any unknown path. For a
+        // hashed chunk from an old build that turns into a MIME-type error in
+        // a stale tab, so /assets/* must say plainly that the file is gone.
+        const shell = () => new Response('<!doctype html><title>neolesk</title>', {
+            headers: { 'content-type': 'text/html; charset=utf-8' },
+        });
+        assetFetch.mockImplementation(async (request: Request) => (
+            new URL(request.url).pathname === '/assets/index-abc123.js'
+                ? new Response('export {}', { headers: { 'content-type': 'text/javascript', 'cache-control': 'public, max-age=31536000, immutable' } })
+                : shell()
+        ));
+        const router = createWorkerRouter({ namespace, assetFetch, krokiFetch });
+
+        const missing = await router.fetch(new Request('https://diagrams.example/assets/index-old999.js'));
+        expect(missing.status).toBe(404);
+        expect(missing.headers.get('content-type')).toContain('text/plain');
+        expect(missing.headers.get('cache-control')).toBe('no-store');
+
+        const present = await router.fetch(new Request('https://diagrams.example/assets/index-abc123.js'));
+        expect(present.status).toBe(200);
+        expect(present.headers.get('cache-control')).toContain('immutable');
+        expect(await present.text()).toBe('export {}');
+
+        const appRoute = await router.fetch(new Request('https://diagrams.example/some/app/route'));
+        expect(appRoute.status).toBe(200);
+        expect(await appRoute.text()).toContain('<!doctype html>');
+    });
+
     it('publishes runtime discovery and keeps the static app on session URLs', async () => {
         const router = createWorkerRouter({ namespace, assetFetch, krokiFetch });
 
