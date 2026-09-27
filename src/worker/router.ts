@@ -40,6 +40,15 @@ class RenderServerUnreachableError extends Error {
 }
 
 const SESSION_ID = /^[0-9a-f]{64}$/i;
+// Pages previews are the static build on another origin (ADR 0020). They
+// render and export through this proxy after consent, so a browser there needs
+// CORS. The private Kroki behind the proxy allows only tailnet and localhost.
+const PREVIEW_ORIGIN = /^https:\/\/(?:[a-z0-9-]+\.)?neolesk-preview\.pages\.dev$/;
+const RENDER_CORS_HEADERS = {
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-headers': 'Content-Type, Accept',
+    'access-control-max-age': '600',
+};
 const KROKI_PATH = /^[a-z0-9_-]+\/[a-z0-9_-]+(?:\/[A-Za-z0-9_-]+)?$/i;
 
 const json = (value: unknown, status = 200, headers: Record<string, string> = {}): Response => new Response(JSON.stringify(value), {
@@ -132,6 +141,64 @@ export const createWorkerRouter = (dependencies: WorkerRouterDependencies): {
         return true;
     };
 
+    const errorResponse = (error: unknown): Response | null => {
+        if (error instanceof RequestBodyTooLargeError) return json({ error: error.message }, 413);
+        if (error instanceof RemoteResponseTooLargeError) return json({ error: error.message }, 502);
+        if (error instanceof RenderServerUnreachableError) return json({ error: error.message }, 502);
+        if (error instanceof Error && error.message === `Render server timed out after ${maxProxyRenderMs}ms`) {
+            return json({ error: error.message }, 504);
+        }
+        return null;
+    };
+
+    const renderProxy = async (request: Request, url: URL): Promise<Response> => {
+        const renderPath = url.pathname.slice('/render/'.length);
+        if (!KROKI_PATH.test(renderPath)) return json({ error: 'Invalid render path' }, 400);
+        const origin = new URL(dependencies.krokiOrigin || 'http://kroki:8000/');
+        const target = new URL(renderPath, origin);
+        if (target.origin !== origin.origin) return json({ error: 'Invalid render path' }, 400);
+        target.search = url.search;
+        const krokiRequest = await forwardedRequest(request, target, maxRequestBodyBytes);
+        if (!accept('render', request)) {
+            return json({ error: 'Render proxy rate limit exceeded' }, 429, { 'retry-after': '60' });
+        }
+        if (proxyRendersInFlight >= maxConcurrentProxyRenders) {
+            return json({ error: 'Too many concurrent proxy renders' }, 429, { 'retry-after': '1' });
+        }
+        proxyRendersInFlight += 1;
+        try {
+            return await withRenderDeadline(maxProxyRenderMs, async (deadlineSignal) => {
+                const combined = combineSignals([request.signal, deadlineSignal]);
+                try {
+                    let upstream: Response;
+                    let bytes: Uint8Array;
+                    try {
+                        upstream = await dependencies.krokiFetch(krokiRequest, { signal: combined.signal });
+                        bytes = await readResponseBytes(upstream, maxProxyResponseBytes);
+                    } catch (error) {
+                        // withRenderDeadline still reports its own timeout as a 504,
+                        // and a client that left keeps its cancellation.
+                        if (error instanceof RemoteResponseTooLargeError || request.signal.aborted) throw error;
+                        throw new RenderServerUnreachableError();
+                    }
+                    const headers = new Headers(upstream.headers);
+                    headers.delete('content-encoding');
+                    headers.delete('transfer-encoding');
+                    headers.set('content-length', String(bytes.byteLength));
+                    return new Response(Uint8Array.from(bytes), {
+                        status: upstream.status,
+                        statusText: upstream.statusText,
+                        headers,
+                    });
+                } finally {
+                    combined.dispose();
+                }
+            });
+        } finally {
+            proxyRendersInFlight -= 1;
+        }
+    };
+
     return {
         async fetch(request: Request): Promise<Response> {
             const url = new URL(request.url);
@@ -186,51 +253,21 @@ export const createWorkerRouter = (dependencies: WorkerRouterDependencies): {
                 }
 
                 if (url.pathname.startsWith('/render/')) {
-                    const renderPath = url.pathname.slice('/render/'.length);
-                    if (!KROKI_PATH.test(renderPath)) return json({ error: 'Invalid render path' }, 400);
-                    const origin = new URL(dependencies.krokiOrigin || 'http://kroki:8000/');
-                    const target = new URL(renderPath, origin);
-                    if (target.origin !== origin.origin) return json({ error: 'Invalid render path' }, 400);
-                    target.search = url.search;
-                    const krokiRequest = await forwardedRequest(request, target, maxRequestBodyBytes);
-                    if (!accept('render', request)) {
-                        return json({ error: 'Render proxy rate limit exceeded' }, 429, { 'retry-after': '60' });
-                    }
-                    if (proxyRendersInFlight >= maxConcurrentProxyRenders) {
-                        return json({ error: 'Too many concurrent proxy renders' }, 429, { 'retry-after': '1' });
-                    }
-                    proxyRendersInFlight += 1;
-                    try {
-                        return await withRenderDeadline(maxProxyRenderMs, async (deadlineSignal) => {
-                            const combined = combineSignals([request.signal, deadlineSignal]);
-                            try {
-                                let upstream: Response;
-                                let bytes: Uint8Array;
-                                try {
-                                    upstream = await dependencies.krokiFetch(krokiRequest, { signal: combined.signal });
-                                    bytes = await readResponseBytes(upstream, maxProxyResponseBytes);
-                                } catch (error) {
-                                    // withRenderDeadline still reports its own timeout as a 504,
-                                    // and a client that left keeps its cancellation.
-                                    if (error instanceof RemoteResponseTooLargeError || request.signal.aborted) throw error;
-                                    throw new RenderServerUnreachableError();
-                                }
-                                const headers = new Headers(upstream.headers);
-                                headers.delete('content-encoding');
-                                headers.delete('transfer-encoding');
-                                headers.set('content-length', String(bytes.byteLength));
-                                return new Response(Uint8Array.from(bytes), {
-                                    status: upstream.status,
-                                    statusText: upstream.statusText,
-                                    headers,
-                                });
-                            } finally {
-                                combined.dispose();
-                            }
+                    const origin = request.headers.get('origin');
+                    const previewOrigin = origin && PREVIEW_ORIGIN.test(origin) ? origin : null;
+                    if (!previewOrigin) return await renderProxy(request, url);
+                    const response = request.method === 'OPTIONS'
+                        ? new Response(null, { status: 204 })
+                        : await renderProxy(request, url).catch((error: unknown) => {
+                            const failure = errorResponse(error);
+                            if (!failure) throw error;
+                            return failure;
                         });
-                    } finally {
-                        proxyRendersInFlight -= 1;
-                    }
+                    const headers = new Headers(response.headers);
+                    Object.entries(RENDER_CORS_HEADERS).forEach(([name, value]) => headers.set(name, value));
+                    headers.set('access-control-allow-origin', previewOrigin);
+                    headers.append('vary', 'Origin');
+                    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
                 }
 
                 const sessionPage = url.pathname.match(/^\/s\/([^/]+)\/?$/);
@@ -245,12 +282,8 @@ export const createWorkerRouter = (dependencies: WorkerRouterDependencies): {
 
                 return dependencies.assetFetch(request);
             } catch (error) {
-                if (error instanceof RequestBodyTooLargeError) return json({ error: error.message }, 413);
-                if (error instanceof RemoteResponseTooLargeError) return json({ error: error.message }, 502);
-                if (error instanceof RenderServerUnreachableError) return json({ error: error.message }, 502);
-                if (error instanceof Error && error.message === `Render server timed out after ${maxProxyRenderMs}ms`) {
-                    return json({ error: error.message }, 504);
-                }
+                const failure = errorResponse(error);
+                if (failure) return failure;
                 throw error;
             }
         },

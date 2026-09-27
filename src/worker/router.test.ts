@@ -69,6 +69,35 @@ describe('Worker public URL surface', () => {
         expect(new URL(krokiFetch.mock.calls[0][0].url).origin).toBe('http://kroki.kroki.svc.cluster.local:8000');
     });
 
+    it('lets a Pages preview origin call the render proxy, and no other origin', async () => {
+        const router = createWorkerRouter({ namespace, assetFetch, krokiFetch });
+        const preview = 'https://hig-mobile.neolesk-preview.pages.dev';
+
+        const preflight = await router.fetch(new Request('https://diagrams.example/render/graphviz/png', {
+            method: 'OPTIONS',
+            headers: { origin: preview, 'access-control-request-method': 'POST', 'access-control-request-headers': 'content-type' },
+        }));
+        expect(preflight.status).toBe(204);
+        expect(preflight.headers.get('access-control-allow-origin')).toBe(preview);
+        expect(preflight.headers.get('access-control-allow-methods')).toContain('POST');
+        expect(preflight.headers.get('access-control-allow-headers')).toContain('Content-Type');
+        expect(krokiFetch).not.toHaveBeenCalled();
+
+        const render = await router.fetch(new Request('https://diagrams.example/render/graphviz/png', {
+            method: 'POST', headers: { origin: preview, 'content-type': 'text/plain' }, body: 'digraph { a -> b }',
+        }));
+        expect(render.headers.get('access-control-allow-origin')).toBe(preview);
+        expect(render.headers.get('vary')).toContain('Origin');
+        expect(await render.text()).toBe('kroki:/graphviz/png');
+
+        for (const origin of ['https://evil.example', 'https://neolesk-preview.pages.dev.evil.example', 'http://x.neolesk-preview.pages.dev']) {
+            const other = await router.fetch(new Request('https://diagrams.example/render/graphviz/png', {
+                method: 'POST', headers: { origin }, body: 'digraph { a -> b }',
+            }));
+            expect(other.headers.get('access-control-allow-origin')).toBeNull();
+        }
+    });
+
     it('never lets a render path replace the configured Kroki origin', async () => {
         const router = createWorkerRouter({
             namespace,
