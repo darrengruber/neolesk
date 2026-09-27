@@ -32,7 +32,9 @@ describe('SessionDocument', () => {
         });
     });
 
-    it('bounds the text diff so a large rewrite cannot hold the cell', () => {
+    // An explicit timeout keeps a slow runner failing on the assertion, not on
+    // Vitest's 5 s default.
+    it('bounds the text diff so a large rewrite cannot hold the cell', { timeout: 30_000 }, () => {
         const session = SessionDocument.create({ language: 'svgbob', source: '-->' });
         const large = 'x'.repeat(300_000);
         const startedAt = performance.now();
@@ -40,10 +42,25 @@ describe('SessionDocument', () => {
         session.replace({ source: large }, { actor: 'agent', actorId: 'mcp' });
 
         // Unbounded, Myers' diff took over 70 s here and over 140 s inside workerd.
-        expect(performance.now() - startedAt).toBeLessThan(10_000);
+        // Preparing the undo through Loro's UndoManager then took another 1.7 s.
+        // The write now costs the 250 ms diff budget plus a few milliseconds.
+        expect(performance.now() - startedAt).toBeLessThan(1_500);
         expect(session.sharedState().source).toBe(large);
         expect(session.undoLastAgentWrite()).toBe(true);
         expect(session.sharedState().source).toBe('-->');
+    });
+
+    it('undoes a large rewrite while preserving a later human edit', { timeout: 30_000 }, () => {
+        const session = SessionDocument.create({ language: 'svgbob', source: '-->' });
+        session.replace({ source: 'x'.repeat(300_000) }, { actor: 'agent', actorId: 'mcp' });
+
+        const human = LoroDoc.fromSnapshot(session.exportSnapshot());
+        human.getText('source').insert(human.getText('source').length, ' HUMAN');
+        human.commit({ origin: 'human' });
+        session.importUpdate(human.export({ mode: 'snapshot' }), { actor: 'human', actorId: 'browser' });
+
+        expect(session.undoLastAgentWrite()).toBe(true);
+        expect(session.sharedState().source).toBe('--> HUMAN');
     });
 
     it('records agent writes and restores the previous shared document', () => {

@@ -30,6 +30,8 @@ export interface SessionHistoryEntry extends SessionWriteActor {
 
 export interface StoredHistoryEntry extends SessionHistoryEntry {
     undo?: Uint8Array;
+    /** The write fell back to a whole-text replacement; `undo` is its fast inverse. */
+    undoReplacesWholeText?: boolean;
     before?: Frontiers;
     after?: Frontiers;
 }
@@ -122,12 +124,14 @@ export class SessionDocument {
         ));
         if (fields.length === 0) return [];
 
+        const previous = this.sharedState();
         const before = this.exportSnapshot();
         const candidate = LoroDoc.fromSnapshot(before);
         const beforeFrontiers = candidate.frontiers();
         const undoManager = actor.actor === 'agent' ? new UndoManager(candidate, {}) : null;
         // Myers' diff is quadratic in the edit size: a 300 KB rewrite held the cell for over
         // two minutes. Past the deadline, replace the whole text instead of the minimal edit.
+        let replacedWholeText = false;
         fields.forEach((field) => {
             const text = candidate.getText(field);
             const next = changes[field] as string;
@@ -137,6 +141,7 @@ export class SessionDocument {
                 if (!(error instanceof Error) || !/timeout/i.test(error.message)) throw error;
                 text.delete(0, text.length);
                 text.insert(0, next);
+                replacedWholeText = true;
             }
         });
         candidate.commit({ origin: actor.actor, message: `${actor.actorId}: ${fields.join(', ')}` });
@@ -147,7 +152,18 @@ export class SessionDocument {
         let undo: Uint8Array | undefined;
         if (undoManager) {
             const afterVersion = candidate.version();
-            if (!undoManager.undo()) throw new Error('Could not record an undo operation for the agent write');
+            if (replacedWholeText) {
+                // UndoManager needs over a second to revert a whole-text replacement of this
+                // size. The inverse is a whole-text replacement back: its delete names exactly
+                // the characters this write inserted, so later edits still survive the undo.
+                fields.forEach((field) => {
+                    const text = candidate.getText(field);
+                    text.delete(0, text.length);
+                    text.insert(0, previous[field]);
+                });
+            } else if (!undoManager.undo()) {
+                throw new Error('Could not record an undo operation for the agent write');
+            }
             candidate.commit({ origin: 'session:prepare-undo' });
             undo = candidate.export({ mode: 'update', from: afterVersion });
         }
@@ -157,6 +173,7 @@ export class SessionDocument {
             at,
             fields: [...fields],
             undo,
+            ...(undo && replacedWholeText ? { undoReplacesWholeText: true } : {}),
             ...(actor.actor === 'agent' ? { before: beforeFrontiers, after: afterFrontiers } : {}),
         };
         this.audit.push(entry);
@@ -208,6 +225,7 @@ export class SessionDocument {
     history(): SessionHistoryEntry[] {
         return this.audit.map(({
             undo: _undo,
+            undoReplacesWholeText: _undoReplacesWholeText,
             before: _before,
             after: _after,
             ...entry
@@ -234,7 +252,11 @@ export class SessionDocument {
         const undo = undoUpdate || latest?.undo;
         if (!undo) return false;
         const candidate = LoroDoc.fromSnapshot(this.exportSnapshot());
-        if (latest?.before && latest.after) {
+        // Diffing a whole-text replacement back takes over a second for a large source;
+        // its prepared inverse reverts the same characters in milliseconds.
+        if (latest?.undoReplacesWholeText && latest.undo) {
+            candidate.import(latest.undo);
+        } else if (latest?.before && latest.after) {
             candidate.applyDiff(candidate.diff(latest.after, latest.before, false));
         } else {
             candidate.import(undo);
