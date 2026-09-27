@@ -136,6 +136,15 @@ this runtime file alongside the static assets:
 
 ## Session API
 
+Stress-test a change to sessions before you ship it. The script opens real
+iPhone, iPad and desktop browsers on its own throwaway session, runs an agent
+write burst, concurrent typing and a network drop, and checks that every editor
+and the server converge:
+
+```bash
+node scripts/stress-live-session.mjs https://diagrams.darrengruber.com 6 50
+```
+
 Starting a session produces three unguessable URLs:
 
 - `/s/<id>` — the live human editor

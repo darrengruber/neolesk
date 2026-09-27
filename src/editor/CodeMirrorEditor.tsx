@@ -113,8 +113,6 @@ function CodeMirrorEditor({
     const viewRef = useRef<EditorView | null>(null);
     const onChangeRef = useRef(onChange);
     const onScrollRef = useRef(onScroll);
-    const valueRef = useRef(value);
-    const diagramTypeRef = useRef(diagramType);
     const compartmentsRef = useRef({
         language: new Compartment(),
         wrapping: new Compartment(),
@@ -125,8 +123,6 @@ function CodeMirrorEditor({
     });
     onChangeRef.current = onChange;
     onScrollRef.current = onScroll;
-    valueRef.current = value;
-    diagramTypeRef.current = diagramType;
 
     useEffect(() => {
         if (!hostRef.current) return undefined;
@@ -192,13 +188,11 @@ function CodeMirrorEditor({
     useEffect(() => {
         const view = viewRef.current;
         if (!view) return;
-        if (collaboration) {
-            collaboration.replaceDocument?.(
-                { language: diagramType, source: value },
-                'Replaced diagram source',
-            );
-            return;
-        }
+        // In a live session the shared Loro document is the source of truth and
+        // `value` only mirrors it. Pushing `value` back would turn a stale React
+        // render into a human edit that reverts newer writes; explicit
+        // replacements go through collaboration.replaceDocument instead.
+        if (collaboration) return;
         const current = view.state.doc.toString();
         if (current === value) return;
         view.dispatch({
@@ -293,12 +287,11 @@ function CodeMirrorEditor({
             view.dispatch({ annotations: externalUpdate.of(true) });
             ready = true;
             hostRef.current?.setAttribute('data-collaboration', 'ready');
-            const requested = pending || {
-                snapshot: { language: diagramTypeRef.current, source: valueRef.current },
-                message: 'Synchronized diagram source',
-            };
+            // Apply only a replacement someone asked for before the binding was
+            // ready. The React mirror can be older than the shared document here.
+            const requested = pending;
             pending = null;
-            replaceDocument(requested.snapshot, requested.message);
+            if (requested) replaceDocument(requested.snapshot, requested.message);
         });
 
         return () => {

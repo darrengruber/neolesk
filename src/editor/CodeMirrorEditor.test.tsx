@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { EphemeralStore, LoroDoc, UndoManager } from 'loro-crdt/bundler';
-import CodeMirrorEditor from './CodeMirrorEditor';
+import CodeMirrorEditor, { type CollaborationBinding } from './CodeMirrorEditor';
 
 describe('CodeMirrorEditor', () => {
     it('presents the diagram source as an accessible editor', async () => {
@@ -48,9 +48,9 @@ describe('CodeMirrorEditor', () => {
             .toHaveTextContent('private -> local'));
     });
 
-    it('applies a whole-document replacement through the collaborative binding', async () => {
+    const collaborativeEditor = (source: string) => {
         const doc = new LoroDoc();
-        doc.getText('source').update('a -> b');
+        doc.getText('source').update(source);
         doc.commit();
         const collaboration = {
             doc,
@@ -58,37 +58,61 @@ describe('CodeMirrorEditor', () => {
             ephemeral: new EphemeralStore(),
             undoManager: new UndoManager(doc, {}),
             user: { name: 'Human', colorClassName: 'human' },
-        };
-        const { rerender } = render(
+        } as CollaborationBinding;
+        const element = (value: string) => (
             <CodeMirrorEditor
                 diagramType="d2"
-                value="a -> b"
+                value={value}
                 wrapping
                 appearance="light"
                 markers={[]}
                 onChange={vi.fn()}
                 collaboration={collaboration}
-            />,
+            />
         );
+        return { doc, collaboration, element };
+    };
 
+    it('applies an explicit whole-document replacement through the collaborative binding', async () => {
+        const { doc, collaboration, element } = collaborativeEditor('a -> b');
+        render(element('a -> b'));
         await waitFor(() => expect(document.querySelector('.CodeMirrorEditor'))
             .toHaveAttribute('data-collaboration', 'ready'));
 
-        rerender(
-            <CodeMirrorEditor
-                diagramType="d2"
-                value="replacement -> diagram"
-                wrapping
-                appearance="light"
-                markers={[]}
-                onChange={vi.fn()}
-                collaboration={collaboration}
-            />,
-        );
+        collaboration.replaceDocument?.({ language: 'd2', source: 'replacement -> diagram' }, 'Loaded an example');
 
-        await waitFor(() => expect(screen.getByRole('textbox', { name: 'Diagram source' }))
-            .toHaveTextContent('replacement -> diagram'));
         await waitFor(() => expect(doc.getText('source').toString()).toBe('replacement -> diagram'));
         expect(screen.getByRole('textbox', { name: 'Diagram source' })).toHaveTextContent('replacement -> diagram');
+    });
+
+    // Regression: in a live session React's value only mirrors the shared
+    // document. A render that carries an older value (a burst of agent writes
+    // arrives faster than React renders) must not write that older text back
+    // into the session as a human edit.
+    it('never writes a stale value prop back into the shared document', async () => {
+        const { doc, element } = collaborativeEditor('digraph { a }');
+        const { rerender } = render(element('digraph { a }'));
+        await waitFor(() => expect(document.querySelector('.CodeMirrorEditor'))
+            .toHaveAttribute('data-collaboration', 'ready'));
+        let localEdits = 0;
+        const unsubscribe = doc.subscribeLocalUpdates(() => { localEdits += 1; });
+
+        // Two agent writes arrive from another peer.
+        const agent = LoroDoc.fromSnapshot(doc.export({ mode: 'snapshot' }));
+        for (const next of ['digraph { n0 }', 'digraph { n1 }']) {
+            agent.getText('source').update(next);
+            agent.commit();
+            doc.import(agent.export({ mode: 'update', from: doc.oplogVersion() }));
+        }
+        await waitFor(() => expect(screen.getByRole('textbox', { name: 'Diagram source' })).toHaveTextContent('digraph { n1 }'));
+
+        // React then renders with the value from the first write.
+        rerender(element('digraph { n0 }'));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        expect(doc.getText('source').toString()).toBe('digraph { n1 }');
+        expect(screen.getByRole('textbox', { name: 'Diagram source' })).toHaveTextContent('digraph { n1 }');
+        expect(localEdits).toBe(0);
+        unsubscribe();
     });
 });
