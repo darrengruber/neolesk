@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -24,6 +24,19 @@ const gitHash = (() => {
         return execSync('git rev-parse --short=8 HEAD').toString().trim();
     } catch {
         return 'dev';
+    }
+})();
+
+/**
+ * The example thumbnails that exist for this build. The examples:cache step
+ * runs before Vite starts; with NEOLESK_CACHE_SKIP=1 the list can be empty, and
+ * the app then shows placeholders rather than requesting missing files.
+ */
+const exampleThumbnails = (() => {
+    try {
+        return readdirSync(resolve('public/cache')).filter((file) => file.endsWith('.svg')).sort();
+    } catch {
+        return [];
     }
 })();
 
@@ -86,6 +99,7 @@ export default defineConfig({
         __GIT_HASH__: JSON.stringify(gitHash),
         __KROKI_ENGINE_URL__: JSON.stringify(process.env.NEOLESK_KROKI_ENGINE || 'https://diagrams.darrengruber.com/render/'),
         __PLANTUML_VIZ_URL__: JSON.stringify(plantUmlVizUrl),
+        __EXAMPLE_THUMBNAILS__: JSON.stringify(exampleThumbnails),
     },
     build: {
         target: 'esnext',

@@ -129,6 +129,15 @@ test.describe('editing', () => {
         const row = page.getByRole('region', { name: 'All Languages' }).getByRole('button', { name: /^GraphViz/ });
         await row.click();
         await expect(page.getByRole('heading', { level: 1, name: 'GraphViz' })).toBeFocused();
+        // Each example shows its picture. A build without thumbnails shows a placeholder, not a broken image.
+        const tiles = page.locator('.ExampleTile');
+        await expect(tiles).toHaveCount(5);
+        const pictures = page.locator('.ExampleTile .Thumbnail img');
+        if (await pictures.count() > 0) {
+            await expect.poll(() => pictures.first().evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+        } else {
+            await expect(page.locator('.ExampleTile .Thumbnail svg')).toHaveCount(5);
+        }
 
         await page.getByRole('button', { name: 'Examples', exact: true }).click();
         await expect(row).toBeFocused();

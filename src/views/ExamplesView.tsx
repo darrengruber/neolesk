@@ -2,14 +2,42 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { diagramTypes } from '../state';
 import type { ExampleRecord } from '../types';
-import { Group, RowButton, SearchField, iconProps } from '../ui/controls';
+import { Group, SearchField, iconProps } from '../ui/controls';
 import { groupExamples, languageSummaries, type LanguageSummary } from '../ui/model';
+import { ExampleThumbnail } from '../ui/ExampleThumbnail';
 import { LargeTitlePage } from '../ui/Navigation';
 
 /** The example title repeats the language name; the description says what the example shows. */
 const rowTitle = (example: ExampleRecord) => example.description || example.title;
 const countText = (count: number) => `${count} ${count === 1 ? 'example' : 'examples'}`;
 const REPLACE_NOTE = 'Opening an example replaces the diagram in the editor.';
+
+/** A gallery of example pictures: people choose a diagram by how it looks. */
+function ExampleGallery({ examples, languageName, disabled, onSelect }: {
+    examples: ExampleRecord[];
+    languageName: string;
+    disabled: boolean;
+    onSelect: (example: ExampleRecord) => void;
+}) {
+    return (
+        <ul className="ExampleGallery">
+            {examples.map((example) => (
+                <li key={example.id}>
+                    <button
+                        type="button"
+                        className="ExampleTile"
+                        disabled={disabled}
+                        onClick={() => onSelect(example)}
+                    >
+                        <ExampleThumbnail example={example} />
+                        <span className="ExampleTileTitle">{rowTitle(example)}</span>
+                        {example.title !== languageName && <span className="ExampleTileSubtitle">{example.title}</span>}
+                    </button>
+                </li>
+            ))}
+        </ul>
+    );
+}
 
 /**
  * Examples as an iOS navigation stack: languages, then the examples of one
@@ -67,36 +95,41 @@ export function ExamplesView({ examples, onSelect, disabled = false, currentLang
                 )}
             >
                 <div className="ExamplesView">
-                    <Group footer={disabled ? 'Examples open after the live session connects.' : REPLACE_NOTE}>
-                        {(group?.examples || []).map((example) => (
-                            <RowButton
-                                key={example.id}
-                                title={rowTitle(example)}
-                                subtitle={example.title !== name ? example.title : undefined}
-                                disabled={disabled}
-                                onClick={() => onSelect(example)}
-                            />
-                        ))}
-                    </Group>
+                    <ExampleGallery
+                        examples={group?.examples || []}
+                        languageName={name}
+                        disabled={disabled}
+                        onSelect={onSelect}
+                    />
+                    <p className="GroupFooter">{disabled ? 'Examples open after the live session connects.' : REPLACE_NOTE}</p>
                 </div>
             </LargeTitlePage>
         );
     }
 
-    const languageRow = (summary: LanguageSummary) => (
+    const coverOf = (language: string) => {
+        const languageExamples = allGroups.find((item) => item.id === language)?.examples || [];
+        return languageExamples.find((example) => example.default) || languageExamples[0];
+    };
+
+    const languageRow = (summary: LanguageSummary) => {
+        const cover = coverOf(summary.id);
+        return (
         <li key={summary.id}>
             <button
                 type="button"
-                className="Row RowButton"
+                className="Row RowButton LanguageRow"
                 data-language-row={summary.id}
                 onClick={() => push(summary.id)}
             >
+                {cover && <ExampleThumbnail example={cover} size="row" />}
                 <span className="RowBody"><span className="RowTitle">{summary.name}</span></span>
                 <span className="RowTrailing" aria-label={countText(summary.count)}>{summary.count}</span>
                 <ChevronRight className="RowChevron" {...iconProps} />
             </button>
         </li>
-    );
+        );
+    };
 
     return (
         <LargeTitlePage title="Examples" titleId="examples-title" animate={animate === 'pop' ? 'pop' : undefined}>
@@ -111,16 +144,17 @@ export function ExamplesView({ examples, onSelect, disabled = false, currentLang
                             <p className="EmptyDetail">Check the spelling or try a new search.</p>
                         </div>
                     ) : groups.map((group) => (
-                        <Group key={group.id} header={group.name} count={group.examples.length}>
-                            {group.examples.map((example) => (
-                                <RowButton
-                                    key={example.id}
-                                    title={rowTitle(example)}
-                                    disabled={disabled}
-                                    onClick={() => onSelect(example)}
-                                />
-                            ))}
-                        </Group>
+                        <section key={group.id} className="Group" aria-label={group.name}>
+                            <h3 className="GroupHeader">
+                                {group.name}<span className="GroupCount"> {group.examples.length}</span>
+                            </h3>
+                            <ExampleGallery
+                                examples={group.examples}
+                                languageName={group.name}
+                                disabled={disabled}
+                                onSelect={onSelect}
+                            />
+                        </section>
                     ))
                 ) : (
                     <>

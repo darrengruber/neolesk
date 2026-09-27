@@ -11,6 +11,7 @@ import {
     pinchZoom,
     presenceText,
     stepZoom,
+    thumbnailUrl,
     tabsForLayout,
     zoomValueText,
 } from './model';
@@ -131,6 +132,19 @@ describe('languageSummaries', () => {
 
     it('has no current entry when the language has no examples', () => {
         expect(languageSummaries([], diagramTypes, 'tikz')).toEqual({ current: null, others: [] });
+    });
+});
+
+describe('thumbnailUrl', () => {
+    const item = { ...example(0, 'graphviz', 'GraphViz', 'Default'), example: 'eNpLyUwvSizIUHBXqPZIzcnJVyjPL8pJqQUAYN4H9Q' };
+
+    it('points at the pre-rendered thumbnail from the site root, so a session path does not break it', () => {
+        const url = thumbnailUrl(item, (file) => file.endsWith('.svg'));
+        expect(url).toMatch(/^\/cache\/[0-9a-f]{16}\.svg$/);
+    });
+
+    it('gives no URL when the build has no thumbnail, instead of a broken image', () => {
+        expect(thumbnailUrl(item, () => false)).toBeNull();
     });
 });
 

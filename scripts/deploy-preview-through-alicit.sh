@@ -62,6 +62,11 @@ fi
 # The Pages account; an identifier, not a credential.
 export CLOUDFLARE_ACCOUNT_ID="c6c0da6f79d5b4a62fe1d2eff2f108e5"
 
+# Example thumbnails: render any that are missing from our own Kroki (the
+# generator's tailnet default) and repair existing ones. A failure leaves
+# placeholders in the preview; it does not stop the deploy.
+npm run examples:cache || echo "WARNING: example thumbnails incomplete; the preview shows placeholders." >&2
+
 # The static build: every browser renderer and snapshot links. It has no
 # session backend, as in the Docker image (ADR 0011). The explicit render
 # server writes dist/config.json, so the runtime config is present, not a 404.

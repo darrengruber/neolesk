@@ -1384,3 +1384,66 @@ svg { flex: none; }
     }
     .PrintDiagram p { font: 12pt/1.4 var(--font-ui); }
 }
+
+/* ---- Example thumbnails ------------------------------------------------- */
+
+/* Diagrams are drawn for a white page, so the tile stays white in dark mode. */
+.Thumbnail {
+    position: relative;
+    flex: none;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border: .5px solid var(--separator);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--tertiary-label);
+}
+/* Absolute, so a tall diagram fits the tile instead of setting its height. */
+.Thumbnail img { position: absolute; inset: 0; width: 100%; height: 100%; padding: 8%; object-fit: contain; }
+.Thumbnail svg { width: 40%; height: 40%; }
+.Thumbnail[data-size="tile"] { width: 100%; aspect-ratio: 4 / 3; }
+.Thumbnail[data-size="row"] { width: 52px; height: 39px; border-radius: 7px; }
+.Thumbnail[data-size="row"] img { padding: 3px; }
+
+.ExampleGallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 16px 12px;
+    margin: 16px 0 0;
+    padding: 0;
+    list-style: none;
+}
+.App[data-layout="regular"] .ExampleGallery { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.ExampleTile {
+    width: 100%;
+    display: grid;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    text-align: left;
+}
+.ExampleTile:active:not(:disabled) .Thumbnail { opacity: .7; }
+@media (hover: hover) { .ExampleTile:hover:not(:disabled) .Thumbnail { border-color: var(--tint); } }
+.ExampleTile:disabled { cursor: default; opacity: .45; }
+.ExampleTile:focus-visible { outline: none; }
+.ExampleTile:focus-visible .Thumbnail { outline: 3px solid var(--tint); outline-offset: 2px; }
+.ExampleTileTitle {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: var(--t-subhead);
+    font-weight: 600;
+    line-height: 1.25;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+.ExampleTileSubtitle { overflow: hidden; color: var(--secondary-label); font-size: var(--t-footnote); text-overflow: ellipsis; white-space: nowrap; }
+
+.LanguageRow { padding-block: 6px; }
+.GroupList > li:has(.LanguageRow) + li::before { left: 80px; }
+
+/* The wide sidebar keeps its two-column rows with a picture in place of the icon. */
+.SidebarList > button { grid-template-columns: 52px minmax(0, 1fr); align-items: center; }
+.DesktopSettings .Thumbnail, .Sidebar .Thumbnail[data-size="row"] { border-radius: 6px; }

@@ -17,8 +17,11 @@ There are three layout classes, chosen by width (`src/ui/model.ts`):
 - **Wide** (from 1100 px): the iCloud-style workspace from ADR 0003.
 
 Sheets are native `<dialog>` elements: a bottom sheet with a grabber on a phone,
-a form sheet at regular width. Examples are a navigation stack (languages, then
-examples) instead of a 116-card grid. Settings are inset grouped rows with a
+a form sheet at regular width. Examples are a navigation stack: languages, each
+with a picture of its default example, then a gallery of that language's
+examples. People choose a diagram by how it looks, not by its name. The pictures
+are the pre-rendered corpus thumbnails; a build without them (NEOLESK_CACHE_SKIP)
+shows placeholders and requests nothing. Settings are inset grouped rows with a
 segmented control, a checkmark list and a switch. A newly opened snapshot link or
 session link opens on Preview on a phone, and a reload keeps the current tab.
 

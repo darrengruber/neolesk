@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Download, FileText, Link2, Share, Users, X } from 'lucide-react';
+import { ChevronDown, Download, Link2, Share, Users, X } from 'lucide-react';
 import CodeMirrorEditor, { type CollaborationBinding } from './editor/CodeMirrorEditor';
 import type { DiagramValidationMarker } from './editor/languages/types';
 import cheatSheets from './data/cheatSheets';
@@ -48,6 +48,7 @@ import {
     type Panel,
     type Presence,
 } from './ui/model';
+import { ExampleThumbnail } from './ui/ExampleThumbnail';
 import { LargeTitlePage, NavigationBar, panelId, TabBar, tabId } from './ui/Navigation';
 import { buildExamples } from './utils/examples';
 import { ConsentScreen, LoadingScreen } from './views/ConsentScreen';
@@ -819,7 +820,7 @@ function EditorApplication({
                         <div className="SidebarList">
                             {examples.filter((example) => example.diagramType === language).map((example) => (
                                 <button type="button" key={example.id} disabled={!sessionReady} onClick={() => selectExample(example)}>
-                                    <span className="DocumentIcon"><FileText {...iconProps} /></span>
+                                    <ExampleThumbnail example={example} size="row" />
                                     <span><strong>{example.title}</strong><small>{example.description}</small></span>
                                 </button>
                             ))}

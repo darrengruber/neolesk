@@ -5,6 +5,7 @@
  */
 import type { ExportFormat } from '../export/export';
 import type { DiagramTypeMap, ExampleRecord } from '../types';
+import { getExampleCacheFilename } from '../examples/cacheKey';
 import { filterExamples } from '../utils/examples';
 
 export type LayoutClass = 'compact' | 'regular' | 'wide';
@@ -101,6 +102,20 @@ export const groupExamples = (
         groups.set(example.diagramType, group);
     }
     return Array.from(groups.values()).sort(byName);
+};
+
+/**
+ * The pre-rendered thumbnail of an example, from the site root so that a
+ * session path (/s/<id>) does not change it. A build without the thumbnail
+ * (NEOLESK_CACHE_SKIP=1) gets null, and the view shows a placeholder instead
+ * of requesting a file that is not there.
+ */
+export const thumbnailUrl = (
+    example: ExampleRecord,
+    isAvailable: (filename: string) => boolean,
+): string | null => {
+    const filename = getExampleCacheFilename(example);
+    return isAvailable(filename) ? `/cache/${filename}` : null;
 };
 
 export interface LanguageSummary {

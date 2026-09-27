@@ -144,9 +144,20 @@ const syncExistingFiles = (entries) => {
 // Getting this split wrong in either direction is costly. Blocking on 'engine'
 // makes CI fail for reasons nobody in this repo can fix; ignoring 'source'
 // re-opens the hole this whole mechanism exists to close.
+// Thumbnails scale inside an <img> only with a viewBox; see src/utils/svgViewBox.ts.
+let ensureViewBox = null;
+const withViewBox = (svg) => {
+    ensureViewBox ??= loadTsModule(path.join(rootDir, 'src/utils/svgViewBox.ts')).ensureViewBox;
+    return ensureViewBox(svg);
+};
+
 const cacheMissingEntry = async (entry) => {
     const outputPath = path.join(cacheDir, entry.filename);
     if (fs.existsSync(outputPath)) {
+        // Repair a thumbnail cached before the viewBox fix, without a new render.
+        const cached = fs.readFileSync(outputPath, 'utf8');
+        const repaired = withViewBox(cached);
+        if (repaired !== cached) fs.writeFileSync(outputPath, repaired);
         return 'ok';
     }
 
@@ -163,7 +174,7 @@ const cacheMissingEntry = async (entry) => {
             return 'engine';
         }
 
-        fs.writeFileSync(outputPath, svg);
+        fs.writeFileSync(outputPath, withViewBox(svg));
         return 'ok';
     } catch (error) {
         console.warn(`[examples:cache] Failed to fetch ${entry.url}: ${error.message}`);
