@@ -251,8 +251,11 @@ const bpmnRenderer: RendererAdapter = {
     formats: ['svg'],
     async render({ source }) {
         const { default: NavigatedViewer } = await import('bpmn-js/lib/NavigatedViewer');
+        // Off screen but laid out: in a display:none container every shape
+        // measures 0, and saveSVG cropped the diagram to an empty 10x10 box.
         const container = document.createElement('div');
-        container.hidden = true;
+        Object.assign(container.style, { position: 'absolute', left: '-10000px', top: '0', visibility: 'hidden' });
+        container.setAttribute('aria-hidden', 'true');
         document.body.appendChild(container);
         const viewer = new NavigatedViewer({ container });
         try {
