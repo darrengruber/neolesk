@@ -156,6 +156,32 @@ export const renderPlantUmlToString = (
     }
 });
 
+/**
+ * PlantUML servers, Kroki included, accept a diagram body without an
+ * `@start...` line and wrap it in `@startuml`/`@enduml`. The browser build
+ * does not, so it rejects source that the render server draws.
+ */
+export const wrapPlantUmlSource = (source: string): string => (
+    /^\s*@start/m.test(source) ? source : `@startuml\n${source}\n@enduml`
+);
+
+const PLANTUML_UNSUPPORTED = 'Diagram not supported by this release of PlantUML';
+
+/**
+ * The MIT build answers a diagram type that it omits, such as Salt, with an
+ * explanatory SVG instead of an error. Treat that SVG as a rejection, so that
+ * ADR 0014's server fallback applies and the explanation is not shown as the
+ * diagram.
+ */
+export const assertPlantUmlSupported = (svg: string): string => {
+    if (!svg.includes(PLANTUML_UNSUPPORTED)) return svg;
+    const directive = svg.match(/following directive\s*(?:<[^>]*>\s*)*([^<]*?)\s*(?:<[^>]*>\s*)*is not recognized/i)?.[1]
+        ?.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
+    throw new Error(directive
+        ? `The PlantUML browser build does not support ${directive}. A render server can draw it.`
+        : 'The PlantUML browser build does not support this diagram. A render server can draw it.');
+};
+
 const plantUmlRenderer: RendererAdapter = {
     id: 'plantuml-browser',
     label: 'PlantUML MIT browser renderer',
@@ -167,7 +193,7 @@ const plantUmlRenderer: RendererAdapter = {
     load: async () => { await loadPlantUml(); },
     async render({ source }) {
         const { renderToString } = await loadPlantUml();
-        return renderPlantUmlToString(renderToString, source);
+        return assertPlantUmlSupported(await renderPlantUmlToString(renderToString, wrapPlantUmlSource(source)));
     },
 };
 

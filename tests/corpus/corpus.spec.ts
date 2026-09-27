@@ -1,18 +1,20 @@
 import { expect, test, type Page } from '@playwright/test';
 import examples from '../../src/examples';
 import { getExampleCacheFilename, getExampleRadical } from '../../src/examples/cacheKey';
+import { decode } from '../../src/kroki/coder';
 import { browserRendererCatalog } from '../../src/rendering/catalog';
 import { PREFERENCES_KEY } from '../../src/preferences/preferences';
 import type { ExampleDefinition } from '../../src/types';
 
-const localExamples = examples.filter((example) => browserRendererCatalog.capabilities(
+// ADR 0014: the MIT PlantUML browser build omits Salt. The browser rejects it,
+// so a Salt example can only render on the server.
+const needsServer = (example: ExampleDefinition) => /^\s*@startsalt\b/m.test(decode(example.example));
+const rendersLocally = (example: ExampleDefinition) => browserRendererCatalog.capabilities(
     example.diagramType,
     'browser',
-).local);
-const remoteExamples = examples.filter((example) => !browserRendererCatalog.capabilities(
-    example.diagramType,
-    'browser',
-).local);
+).local && !needsServer(example);
+const localExamples = examples.filter(rendersLocally);
+const remoteExamples = examples.filter((example) => !rendersLocally(example));
 
 test('the complete 116-example contract is present', () => {
     expect(examples).toHaveLength(116);
