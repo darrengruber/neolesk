@@ -1,0 +1,136 @@
+direction: down
+
+classes: {
+  state: {
+    style: {
+      fill: "#F8FAFC"
+      stroke: "#64748B"
+      stroke-width: 2
+      border-radius: 10
+    }
+  }
+  agent: {
+    style: {
+      fill: "#EEF2FF"
+      stroke: "#4F46E5"
+      stroke-width: 3
+      font-color: "#312E81"
+      border-radius: 10
+    }
+  }
+  human: {
+    style: {
+      fill: "#E0F2FE"
+      stroke: "#0284C7"
+      stroke-width: 3
+      font-color: "#0C4A6E"
+      border-radius: 10
+    }
+  }
+  result: {
+    style: {
+      fill: "#ECFDF5"
+      stroke: "#059669"
+      stroke-width: 3
+      font-color: "#064E3B"
+      border-radius: 10
+    }
+  }
+  store: {
+    shape: document
+    style: {
+      fill: "#FFF7ED"
+      stroke: "#EA580C"
+      stroke-width: 2
+      font-color: "#7C2D12"
+    }
+  }
+  code: {
+    shape: code
+    style: {
+      fill: "#0F172A"
+      stroke: "#334155"
+      font-color: "#E2E8F0"
+    }
+  }
+  note: {
+    shape: callout
+    style: {
+      fill: "#FFFBEB"
+      stroke: "#D97706"
+      font-color: "#78350F"
+    }
+  }
+}
+
+title: "Frontier-relative undo preserves later human edits" {
+  shape: text
+  style.font-size: 30
+  style.bold: true
+  near: top-center
+}
+
+timeline: "Causal history" {
+  direction: right
+  style.fill: "#F8FAFC"
+  style.stroke: "#CBD5E1"
+
+  f0: "F0 · initial\nAAAA" { class: state }
+  a1: "Agent write A1\nBBBB" { class: agent }
+  f1: "F1 · after A1\nBBBB" { class: state }
+  a2: "Agent write A2\nCCCC" { class: agent }
+  f2: "F2 · after A2\nCCCC" { class: state }
+  h: "Human edit H\nappend ' HUMAN'" { class: human }
+  f3: "F3 · current\nCCCC HUMAN" { class: state }
+
+  f0 -> a1 -> f1 -> a2 -> f2 -> h -> f3
+}
+
+recording: "What each agent transaction records" {
+  direction: right
+  style.fill: "#FFF7ED"
+  style.stroke: "#FDBA74"
+
+  prepare: "Clone current Loro snapshot\nread beforeFrontiers" { class: store }
+  mutate: "text.update(...)\ncommit origin: agent\nread afterFrontiers" { class: agent }
+  audit: "Bounded audit entry\nactor · fields · before · after\n+ fallback inverse update" { class: store }
+
+  prepare -> mutate -> audit
+}
+
+undo2: "Undo latest agent write A2" {
+  direction: right
+  style.fill: "#F0FDF4"
+  style.stroke: "#86EFAC"
+
+  current: "Start from current F3\nCCCC HUMAN" { class: human }
+  delta: "Compute causal inverse\ndiff(F2, F1, false)" { class: code }
+  apply: "Apply that delta\nto current document" { class: code }
+  result2: "Result\nBBBB HUMAN" { class: result }
+
+  current -> delta -> apply -> result2
+}
+
+undo1: "Undo next agent write A1" {
+  direction: right
+  style.fill: "#F0FDF4"
+  style.stroke: "#86EFAC"
+
+  current: "Start from merged result\nBBBB HUMAN" { class: human }
+  delta: "Compute causal inverse\ndiff(F1, F0, false)" { class: code }
+  apply: "Apply that delta\nto current document" { class: code }
+  result1: "Result\nAAAA HUMAN" { class: result }
+
+  current -> delta -> apply -> result1
+}
+
+timeline.a1 -> recording.prepare: "capture F0 → F1" { style.stroke-dash: 4 }
+timeline.a2 -> recording.prepare: "capture F1 → F2" { style.stroke-dash: 4 }
+timeline.f3 -> undo2.current: "undo request"
+undo2.result2 -> undo1.current: "next undo"
+
+insight: "CRDT-relative undo ≠ snapshot rollback\nThe inverse targets only the agent operation's causal interval. H is outside that interval, so the later human text survives both undos." { class: note }
+fallback: "Fast and compatibility paths\nIf the write fell back to a whole-text replacement (diff over 250 ms), import its prepared inverse. If an older audit entry has no frontiers, import the retained UndoManager update." { class: note }
+
+undo2.result2 -> insight: "preserves H" { style.stroke-dash: 4 }
+recording.audit -> fallback: "older persisted entries" { style.stroke-dash: 4 }

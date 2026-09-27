@@ -1,0 +1,109 @@
+direction: right
+
+classes: {
+  process: {
+    style: {
+      fill: "#F8FAFC"
+      stroke: "#64748B"
+      stroke-width: 2
+      border-radius: 10
+    }
+  }
+  loro: {
+    style: {
+      fill: "#ECFDF5"
+      stroke: "#059669"
+      stroke-width: 3
+      font-color: "#064E3B"
+      border-radius: 10
+    }
+  }
+  agent: {
+    style: {
+      fill: "#EEF2FF"
+      stroke: "#4F46E5"
+      stroke-width: 2
+      font-color: "#312E81"
+      border-radius: 10
+    }
+  }
+  note: {
+    shape: callout
+    style: {
+      fill: "#FFFBEB"
+      stroke: "#D97706"
+      font-color: "#78350F"
+    }
+  }
+}
+
+title: "Conflict-free human + agent collaboration" {
+  shape: text
+  style.font-size: 30
+  style.bold: true
+  near: top-center
+}
+
+browser: "Browser participant" {
+  style.fill: "#EFF6FF"
+  style.stroke: "#60A5FA"
+
+  editor: "CodeMirror 6\nloro-codemirror binding" { class: process }
+  replica: "Browser LoroDoc\nsource + language" { class: loro }
+  batch: "250 ms dirty batching\none in-flight write" { class: process }
+  reconnect: "Reconnect path\nimport authority, resend offline work" { class: process }
+
+  editor <-> replica: "local CRDT operations"
+  replica -> batch: "export full Loro snapshot"
+  reconnect -> replica: "merge, never replace" { style.stroke-dash: 4 }
+}
+
+transport: "Session transport" {
+  style.fill: "#F8FAFC"
+  style.stroke: "#94A3B8"
+
+  websocket: "WebSocket\npresence + loro-update + ack" { class: process }
+  fanout: "Snapshot fan-out\nactivity metadata" { class: process }
+}
+
+cell: "Authoritative session cell" {
+  style.fill: "#F0FDF4"
+  style.stroke: "#22C55E"
+
+  import: "POST /crdt\nimport human snapshot" { class: process }
+  document: "SessionDocument\nauthoritative LoroDoc" { class: loro }
+  persist: "Persisted snapshot\n+ bounded audit" {
+    shape: cylinder
+    style.fill: "#F5F3FF"
+    style.stroke: "#7C3AED"
+  }
+
+  import -> document: "CRDT import + commit\norigin: human"
+  document -> persist: "save"
+}
+
+agent_lane: "Agent participant" {
+  style.fill: "#EEF2FF"
+  style.stroke: "#818CF8"
+
+  client: "Coding agent" { shape: person; class: agent }
+  mcp: "Session MCP\nset_source / set_language" { class: agent }
+  mutate: "POST /mutate\ncandidate from current snapshot" { class: process }
+
+  client -> mcp: "tool call"
+  mcp -> mutate: "actor: agent, actorId: mcp"
+}
+
+browser.batch -> transport.websocket: "loro-update snapshot"
+transport.websocket -> cell.import
+cell.document -> transport.fanout: "after every change"
+transport.fanout -> browser.replica: "convergent snapshot"
+transport.websocket -> browser.batch: "ack / retry guidance"
+agent_lane.mutate -> cell.document: "text.update + commit\norigin: agent"
+cell.document -> agent_lane.mcp: "current shared state"
+
+convergence: "Why it converges\nEach replica imports Loro history. Local and offline operations retain causal identity, so retries and reconnects merge instead of replaying blind text patches." { class: note }
+boundary: "Shared: source, language\nNot shared: theme, zoom, scroll, split, renderer options" { class: note }
+
+cell.document -> convergence: "operation history" { style.stroke-dash: 4 }
+cell.document -> boundary: "small shared surface" { style.stroke-dash: 4 }

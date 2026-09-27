@@ -1,0 +1,74 @@
+#direction: right
+#background: #ffffff
+#font: Inter
+#fontSize: 14
+#leading: 1.3
+#padding: 14
+#spacing: 52
+#gutter: 20
+#lineWidth: 2
+#arrowSize: 1
+#bendSize: 0.3
+#edges: rounded
+#stroke: #334155
+#fill: #f8fafc
+#.title: visual=none title=bold
+#.interfaces: visual=frame fill=#f8fafc stroke=#cbd5e1 title=bold
+#.cell: visual=frame fill=#f8fafc stroke=#94a3b8 title=bold
+#.core: visual=frame fill=#f0fdf4 stroke=#22c55e title=bold
+#.localframe: visual=frame fill=#eff6ff stroke=#93c5fd title=bold
+#.shared: visual=roundrect fill=#ecfdf5 stroke=#059669 title=bold
+#.local: visual=roundrect fill=#eff6ff stroke=#2563eb title=bold
+#.runtime: visual=roundrect fill=#f8fafc stroke=#64748b title=bold
+#.store: visual=database fill=#f5f3ff stroke=#7c3aed title=bold
+#.guard: visual=rhomb fill=#fff7ed stroke=#ea580c title=bold
+#.public: visual=roundrect fill=#fffbeb stroke=#d97706 title=bold
+#.note: visual=note fill=#ecfdf5 stroke=#059669 title=bold
+
+[<title id=title>One session cell: state boundaries and safety rails]
+
+[<interfaces id=inputs>Capability-scoped interfaces|
+  [<runtime id=human>Human WebSocket;presence + Loro snapshot]
+  [<runtime id=agent>Agent HTTP MCP;transactional tools]
+]
+
+[<cell id=session_cell>Durable Object-compatible session cell|
+  [<core id=core>SessionDocument|
+    [<shared id=doc>LoroDoc;text source;text language]
+    [<shared id=audit>Bounded audit - max 64;actor / actorId / fields / at;agent before + after frontiers;fallback inverse update]
+    [<public id=history>Public history projection;causal internals redacted]
+    [doc] commit metadata -> [audit]
+    [audit] strip undo + frontiers -> [history]
+  ]
+
+  [<localframe id=participant>Outside the CRDT|
+    [<local id=view>View by participant;panel / theme / zoom / scroll]
+    [<local id=options>Renderer options by participant + language;validated engine settings]
+  ]
+
+  [<store id=undo_stack>Unified agent undo stack;document reference / view copy / options copy;reverse operation order]
+  [<store id=storage>Cell storage / RustFS;Loro snapshot + audit + participant keys]
+  [<runtime id=ephemeral>Runtime-only;WebSockets / participant bindings;in-flight render and export counters]
+  [<runtime id=lifecycle>Presence lease + idle alarm;connected sockets keep cell alive]
+
+  [core] shared snapshot + bounded audit -> [storage]
+  [participant] participant keys -> [storage]
+  [core] document operation reference, no duplicate inverse blob -> [undo_stack]
+  [undo_stack] -> [storage]
+  [ephemeral] -> [lifecycle]
+]
+
+[<interfaces id=guards>Guards before persistence or work|
+  [<guard id=bytes>Document + audit;at most 256 KiB]
+  [<guard id=writes>Human / agent;separate write rates]
+  [<guard id=participants>At most 32 participants]
+  [<guard id=operations>Render / export;rate + concurrency caps]
+  [<guard id=frames>Request + WebSocket;size + protocol limits]
+]
+
+[<note id=contract>Session contract;Collaboration is deep and shared state stays small.;Content converges, presentation stays personal,;and undo remains causally precise.]
+
+[title] -/- [inputs]
+[inputs] human CRDT history + agent transactions -> [session_cell]
+[guards] reject before mutation -> [session_cell]
+[session_cell] -- [contract]

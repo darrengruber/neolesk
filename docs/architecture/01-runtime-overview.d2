@@ -1,0 +1,122 @@
+direction: right
+
+classes: {
+  actor: {
+    shape: person
+    style: {
+      fill: "#E0F2FE"
+      stroke: "#0369A1"
+      stroke-width: 2
+      font-color: "#0C4A6E"
+    }
+  }
+  entry: {
+    style: {
+      fill: "#F8FAFC"
+      stroke: "#64748B"
+      stroke-width: 2
+      border-radius: 10
+    }
+  }
+  crdt: {
+    style: {
+      fill: "#ECFDF5"
+      stroke: "#059669"
+      stroke-width: 3
+      font-color: "#064E3B"
+      border-radius: 10
+    }
+  }
+  render: {
+    style: {
+      fill: "#FFF7ED"
+      stroke: "#EA580C"
+      stroke-width: 2
+      font-color: "#7C2D12"
+      border-radius: 10
+    }
+  }
+  durable: {
+    shape: cylinder
+    style: {
+      fill: "#F5F3FF"
+      stroke: "#7C3AED"
+      stroke-width: 2
+      font-color: "#4C1D95"
+    }
+  }
+  note: {
+    shape: callout
+    style: {
+      fill: "#FFFBEB"
+      stroke: "#D97706"
+      font-color: "#78350F"
+    }
+  }
+}
+
+title: "neolesk runtime architecture" {
+  shape: text
+  style.font-size: 30
+  style.bold: true
+  near: top-center
+}
+
+people: "People and agents" {
+  style.fill: "#F8FAFC"
+  style.stroke: "#CBD5E1"
+
+  human: "Human\nCodeMirror editor" { class: actor }
+  agent: "Coding agent\nMCP client" { class: actor }
+}
+
+edge: "Public edge" {
+  style.fill: "#EFF6FF"
+  style.stroke: "#60A5FA"
+
+  cache: "Cloudflare cache\nstatic hashed assets" { class: entry }
+  gateway: "Worker router\nHTTP + WebSocket + MCP" { class: entry }
+}
+
+origin: "Self-hosted origin" {
+  style.fill: "#F8FAFC"
+  style.stroke: "#94A3B8"
+
+  shell: "React 19 + Vite app\n29 diagram languages" { class: entry }
+
+  cell: "One live session = one cell" {
+    style.fill: "#F0FDF4"
+    style.stroke: "#22C55E"
+    style.stroke-width: 2
+
+    socket: "WebSocket transport\nfull Loro snapshots" { class: entry }
+    mcp: "Session-scoped HTTP MCP\nread / edit / render / export" { class: entry }
+    doc: "Loro shared document\nsource + language only" { class: crdt }
+    local: "Participant-local state\nview + renderer options" { class: entry }
+
+    socket -> doc: "import + merge"
+    mcp -> doc: "agent transaction"
+    doc -> socket: "broadcast convergent snapshot"
+  }
+
+  browser_render: "Browser-local renderers\nprivacy-first preview" { class: render }
+  cell_render: "Cell-safe renderers\nagent SVG diagnostics" { class: render }
+  kroki: "Private Kroki\nconsented fallback + binary export" { class: render }
+  state: "RustFS-backed\ncell state" { class: durable }
+
+  doc_boundary: "CRDT boundary\nOnly content converges. Zoom, theme, scroll, and layout options do not move another participant's screen." { class: note }
+}
+
+people.human -> edge.cache: "load app"
+edge.cache -> origin.shell: "cache miss"
+people.human -> edge.gateway: "/s/<id> page + /api/sessions/<id>/connect"
+people.agent -> edge.gateway: "capability-scoped /mcp/<id>"
+edge.gateway -> origin.cell.socket: "WebSocket"
+edge.gateway -> origin.cell.mcp: "Streamable HTTP"
+origin.cell.doc -> origin.state: "snapshot + bounded audit"
+origin.cell.local -> origin.state: "keys by participant"
+origin.shell -> origin.browser_render: "default preview"
+origin.cell.doc -> origin.cell_render: "agent render"
+origin.browser_render -> origin.kroki: "only when selected / required" { style.stroke-dash: 4 }
+origin.cell_render -> origin.kroki: "unsupported engine; PNG/JPEG/PDF export" { style.stroke-dash: 4 }
+origin.cell.doc -> origin.doc_boundary: "shared contract" { style.stroke-dash: 4 }

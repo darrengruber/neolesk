@@ -1,0 +1,66 @@
+#direction: right
+#background: #ffffff
+#font: Inter
+#fontSize: 14
+#leading: 1.3
+#padding: 14
+#spacing: 55
+#gutter: 20
+#lineWidth: 2
+#arrowSize: 1
+#bendSize: 0.3
+#edges: rounded
+#stroke: #334155
+#fill: #f8fafc
+#.title: visual=none title=bold
+#.boundary: visual=frame fill=#f8fafc stroke=#94a3b8 title=bold
+#.human: visual=actor fill=#e0f2fe stroke=#0369a1 title=bold
+#.agent: visual=actor fill=#eef2ff stroke=#4f46e5 title=bold
+#.entry: visual=roundrect fill=#f8fafc stroke=#64748b title=bold
+#.crdt: visual=roundrect fill=#ecfdf5 stroke=#059669 title=bold
+#.render: visual=roundrect fill=#fff7ed stroke=#ea580c title=bold
+#.store: visual=database fill=#f5f3ff stroke=#7c3aed title=bold
+#.note: visual=note fill=#fffbeb stroke=#d97706 title=bold
+
+[<title id=title>neolesk runtime architecture]
+
+[<boundary id=people>People and agents|
+  [<human id=human>Human;CodeMirror editor]
+  [<agent id=agent>Coding agent;MCP client]
+]
+
+[<boundary id=edge>Public edge|
+  [<entry id=cache>Cloudflare cache;static hashed assets]
+  [<entry id=gateway>Worker router;HTTP + WebSocket + MCP]
+]
+
+[<boundary id=origin>Self-hosted origin|
+  [<entry id=shell>React 19 + Vite app;29 diagram languages]
+
+  [<boundary id=cell>One live session = one cell|
+    [<entry id=socket>WebSocket transport;full Loro snapshots]
+    [<entry id=mcp>Session-scoped HTTP MCP;read / edit / render / export]
+    [<crdt id=doc>Loro shared document;source + language only]
+    [<entry id=local>Participant-local state;view + renderer options]
+    [socket] import + merge -> [doc]
+    [mcp] agent transaction -> [doc]
+    [doc] convergent snapshot -> [socket]
+  ]
+
+  [<render id=browser_render>Browser-local renderers;privacy-first preview]
+  [<render id=cell_render>Cell-safe renderers;agent SVG diagnostics]
+  [<render id=kroki>Private Kroki;consented fallback + binary export]
+  [<store id=state>RustFS-backed;cell state]
+  [<note id=boundary_note>CRDT boundary;Only content converges.;Zoom, theme, scroll, and layout options;never move another participant's screen.]
+
+  [shell] default preview -> [browser_render]
+  [cell] agent rendering -> [cell_render]
+  [cell] snapshot + audit + participant keys -> [state]
+  [browser_render] selected or required --> [kroki]
+  [cell_render] unsupported engine, PNG/JPEG/PDF export --> [kroki]
+  [cell] -- [boundary_note]
+]
+
+[title] -/- [people]
+[people] app load + live session + MCP -> [edge]
+[edge] cached assets + WebSocket + Streamable HTTP -> [origin]
