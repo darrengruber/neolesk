@@ -1,5 +1,6 @@
 import { RenderingError, type RemoteRenderer } from '../rendering/rendering';
 import { createKrokiEndpoint, readResponseBytes, withRenderDeadline } from '../rendering/remote';
+import type { LocalExporter } from './localExport';
 
 export type ExportFormat = 'svg' | 'png' | 'jpeg' | 'pdf';
 
@@ -126,6 +127,7 @@ export const exportDiagram = async ({
     source,
     remote,
     remoteExport,
+    local,
 }: {
     format: ExportFormat;
     svg: string;
@@ -133,15 +135,34 @@ export const exportDiagram = async ({
     source: string;
     remote: RemoteRenderer | null;
     remoteExport: RemoteExport;
+    /** Makes PNG, JPEG and PDF on this device; the server is only the fallback (ADR 0021). */
+    local?: LocalExporter;
 }): Promise<Blob> => {
     if (format === 'svg') {
         return new Blob([svg], { type: 'image/svg+xml' });
+    }
+    let localReason: string | null = null;
+    if (local) {
+        const prepared = await local.prepare({ svg, language, source });
+        if ('svg' in prepared) {
+            try {
+                return await local.export(prepared.svg, format);
+            } catch (error) {
+                // A canvas the browser taints anyway, or a picture too large
+                // to encode: the server can still make it.
+                localReason = error instanceof Error ? error.message : String(error);
+            }
+        } else {
+            localReason = prepared.reason;
+        }
     }
     if (!remote) {
         throw new RenderingError(
             'REMOTE_CONSENT_REQUIRED',
             language,
-            `${format.toUpperCase()} export needs a consented render server`,
+            localReason
+                ? `${format.toUpperCase()} export of this diagram needs a render server, because ${localReason}`
+                : `${format.toUpperCase()} export needs a consented render server`,
         );
     }
     const serverFormats = remote.capabilities[language]?.formats;

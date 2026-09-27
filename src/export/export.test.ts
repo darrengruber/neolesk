@@ -7,6 +7,14 @@ import {
 } from './export';
 import { createKrokiRemoteRenderer } from '../rendering/remote';
 
+// jsdom's Blob has no text(); read it the way a page does.
+const blobText = (blob: Blob) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => resolve(String(reader.result));
+    reader.readAsText(blob);
+});
+
 describe('diagram export', () => {
     it('creates SVG entirely from the rendered browser result', async () => {
         const remoteExport = vi.fn();
@@ -110,6 +118,69 @@ describe('diagram export', () => {
         await expect(exportManaged({
             format: 'png', language: 'graphviz', source: 'digraph {}', serverUrl: '',
         })).rejects.toThrow(/^Session creation rate limit exceeded$/);
+    });
+
+    describe('on this device first', () => {
+        const server = createKrokiRemoteRenderer({ id: 'neolesk', label: 'neolesk', url: 'https://example.test/render/' });
+        const localExporter = (prepared: { svg: string } | { reason: string }, exportImpl?: () => Promise<Blob>) => ({
+            prepare: vi.fn(async () => prepared),
+            export: vi.fn(exportImpl ?? (async () => new Blob(['local'], { type: 'image/png' }))),
+        });
+
+        it.each(['png', 'jpeg', 'pdf'] as const)('makes %s locally and never calls the server, even when it has consent', async (format) => {
+            const local = localExporter({ svg: '<svg id="drawn"/>' });
+            const remoteExport = vi.fn();
+            const blob = await exportDiagram({
+                format, svg: '<svg/>', language: 'graphviz', source: 'digraph {}', remote: server, remoteExport, local,
+            });
+            expect(await blobText(blob)).toBe('local');
+            expect(local.prepare).toHaveBeenCalledWith({ svg: '<svg/>', language: 'graphviz', source: 'digraph {}' });
+            expect(local.export).toHaveBeenCalledWith('<svg id="drawn"/>', format);
+            expect(remoteExport).not.toHaveBeenCalled();
+        });
+
+        it('makes a format locally that the server cannot make for the language', async () => {
+            const local = localExporter({ svg: '<svg/>' });
+            await expect(exportDiagram({
+                format: 'pdf', svg: '<svg/>', language: 'mermaid', source: 'graph TD', remote: server, remoteExport: vi.fn(), local,
+            })).resolves.toBeInstanceOf(Blob);
+        });
+
+        it('needs no consent for a local export', async () => {
+            const local = localExporter({ svg: '<svg/>' });
+            await expect(exportDiagram({
+                format: 'png', svg: '<svg/>', language: 'graphviz', source: 'digraph {}', remote: null, remoteExport: vi.fn(), local,
+            })).resolves.toBeInstanceOf(Blob);
+        });
+
+        it('uses the consented server when this device cannot draw the diagram', async () => {
+            const local = localExporter({ reason: 'it uses HTML labels' });
+            const remoteExport = vi.fn(async () => new Blob(['server'], { type: 'image/png' }));
+            const blob = await exportDiagram({
+                format: 'png', svg: '<svg/>', language: 'graphviz', source: 'digraph {}', remote: server, remoteExport, local,
+            });
+            expect(await blobText(blob)).toBe('server');
+            expect(local.export).not.toHaveBeenCalled();
+        });
+
+        it('uses the consented server when the canvas refuses the drawing', async () => {
+            const local = localExporter({ svg: '<svg/>' }, async () => { throw new DOMException('Tainted canvas', 'SecurityError'); });
+            const remoteExport = vi.fn(async () => new Blob(['server'], { type: 'image/png' }));
+            const blob = await exportDiagram({
+                format: 'png', svg: '<svg/>', language: 'graphviz', source: 'digraph {}', remote: server, remoteExport, local,
+            });
+            expect(await blobText(blob)).toBe('server');
+        });
+
+        it('says why a render server is needed when there is no consent', async () => {
+            const local = localExporter({ reason: 'it uses HTML labels' });
+            await expect(exportDiagram({
+                format: 'png', svg: '<svg/>', language: 'mermaid', source: 'journey', remote: null, remoteExport: vi.fn(), local,
+            })).rejects.toMatchObject({
+                code: 'REMOTE_CONSENT_REQUIRED',
+                message: 'PNG export of this diagram needs a render server, because it uses HTML labels',
+            });
+        });
     });
 
     it('bounds a direct remote binary export response', async () => {

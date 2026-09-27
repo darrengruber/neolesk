@@ -13,6 +13,9 @@ import {
     settle,
     test,
 } from './fixtures';
+import { readFileSync } from 'node:fs';
+import type { Page } from '@playwright/test';
+import type { LayoutClass } from '../../src/ui/model';
 import { PREFERENCES_KEY } from '../../src/preferences/preferences';
 
 const SESSION_ID = 'c'.repeat(64);
@@ -131,14 +134,109 @@ test.describe('editing', () => {
         if (layout === 'compact') await openTab(page, 'Preview');
         await expect(renderedDiagram(page).first()).toBeAttached();
         const { sheet } = await openShareSheet(page, layout);
-        // Without a render server only SVG is offered, and the sheet says why.
-        await expect(sheet.getByRole('button', { name: /^PNG/ })).toBeDisabled();
-        await expect(sheet.getByText('Needs a render server')).toHaveCount(3);
+        // GraphViz draws on this device, so every format is offered without a render server.
+        await expect(sheet.getByRole('button', { name: /^PNG/ })).toBeEnabled();
+        await expect(sheet.getByText('Every format is made on this device. Nothing leaves it.')).toBeVisible();
         const downloadPromise = page.waitForEvent('download');
         await sheet.getByRole('button', { name: /^SVG/ }).click();
         const download = await downloadPromise;
         expect(download.suggestedFilename()).toBe('diagram.svg');
         await expect(page.getByRole('status').getByText('SVG exported')).toBeVisible();
+    });
+
+    test.describe('export on this device', () => {
+        const signatures = {
+            png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+            jpeg: [0xff, 0xd8, 0xff],
+            pdf: [...Buffer.from('%PDF-1.4\n')],
+        } as const;
+
+        test.beforeEach(async ({ page }) => {
+            // A download, not the system share sheet, so the test can read the file.
+            await page.addInitScript(() => {
+                Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => false });
+            });
+        });
+
+        const exportFile = async (page: Page, layout: LayoutClass, format: 'PNG' | 'JPEG' | 'PDF') => {
+            const { sheet } = await openShareSheet(page, layout);
+            const downloadPromise = page.waitForEvent('download');
+            await sheet.getByRole('button', { name: new RegExp(`^${format}`) }).click();
+            const download = await downloadPromise;
+            expect(download.suggestedFilename()).toBe(`diagram.${format.toLowerCase()}`);
+            await expect(page.getByRole('status').getByText(`${format} exported`)).toBeVisible();
+            return readFileSync((await download.path())!);
+        };
+
+        /** Pixels that are neither white nor transparent: the drawing itself. */
+        const inkedPixels = (page: Page, png: Buffer) => page.evaluate(async (base64) => {
+            const image = new Image();
+            image.src = `data:image/png;base64,${base64}`;
+            await image.decode();
+            const canvas = Object.assign(document.createElement('canvas'), { width: image.width, height: image.height });
+            const context = canvas.getContext('2d')!;
+            context.drawImage(image, 0, 0);
+            const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+            let inked = 0;
+            for (let at = 0; at < data.length; at += 4) {
+                if (data[at + 3] > 128 && (data[at] < 200 || data[at + 1] < 200 || data[at + 2] < 200)) inked += 1;
+            }
+            return { inked, width: image.width, height: image.height };
+        }, png.toString('base64'));
+
+        test('PNG, JPEG and PDF of a GraphViz diagram need no render server', async ({ page, layout }) => {
+            const network: string[] = [];
+            page.on('request', (request) => {
+                const path = new URL(request.url()).pathname;
+                if (path.startsWith('/render/') || path.startsWith('/api/')) network.push(path);
+            });
+            await page.goto('/');
+            await chooseLanguage(page, 'GraphViz');
+            if (layout === 'compact') await openTab(page, 'Preview');
+            await expect(renderedDiagram(page).first()).toBeAttached();
+
+            for (const format of ['PNG', 'JPEG', 'PDF'] as const) {
+                const file = await exportFile(page, layout, format);
+                const signature = signatures[format.toLowerCase() as keyof typeof signatures];
+                expect([...file.subarray(0, signature.length)]).toEqual([...signature]);
+            }
+            const png = await exportFile(page, layout, 'PNG');
+            const picture = await inkedPixels(page, png);
+            expect(picture.inked).toBeGreaterThan(500);
+            // Twice the CSS size, so it stays sharp on a high-density screen.
+            // WebKit reports an odd naturalWidth for SVG images, so read the size the SVG declares.
+            const declared = await renderedDiagram(page).first().evaluate(async (image: HTMLImageElement) => {
+                const svg = new DOMParser().parseFromString(await (await fetch(image.src)).text(), 'image/svg+xml').documentElement;
+                const [, value, unit] = svg.getAttribute('width')!.match(/^([\d.]+)([a-z]*)$/)!;
+                return Number(value) * ({ '': 1, px: 1, pt: 4 / 3 } as Record<string, number>)[unit];
+            });
+            expect(Math.abs(picture.width - declared * 2)).toBeLessThanOrEqual(2);
+            expect(network).toEqual([]);
+        });
+
+        test('a Mermaid PNG is drawn on this device with its labels', async ({ page, layout }) => {
+            await page.goto('/');
+            await chooseLanguage(page, 'Mermaid');
+            if (layout === 'compact') await openTab(page, 'Preview');
+            await expect(renderedDiagram(page).first()).toBeAttached();
+            const { sheet } = await openShareSheet(page, layout);
+            await expect(sheet.getByText('Every format is made on this device. Nothing leaves it.')).toBeVisible();
+            await sheet.getByRole('button', { name: 'Done' }).click();
+            const picture = await inkedPixels(page, await exportFile(page, layout, 'PNG'));
+            expect(picture.inked).toBeGreaterThan(1000);
+        });
+
+        test('a Mermaid type that keeps HTML labels says it needs a render server', async ({ page, layout }) => {
+            await page.goto('/');
+            await chooseLanguage(page, 'Mermaid');
+            if (layout === 'compact') await openTab(page, 'Code');
+            await replaceSource(page, 'journey\n  title Export\n  section Try\n    Draw: 5: Me\n');
+            if (layout === 'compact') await openTab(page, 'Preview');
+            await expect(renderedDiagram(page).first()).toBeAttached();
+            const { sheet } = await openShareSheet(page, layout);
+            await sheet.getByRole('button', { name: /^PNG/ }).click();
+            await expect(page.getByRole('status').getByText('PNG export of this diagram needs a render server, because it uses HTML labels')).toBeVisible();
+        });
     });
 
     test('examples open from the list for the current language', async ({ page, layout }) => {

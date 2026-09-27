@@ -187,4 +187,13 @@ describe('wording', () => {
         expect(exportFormatNote('svg', true, { name: 'D2', formats: ['svg'] })).toBeNull();
         expect(exportFormatNote('png', false, { name: 'D2', formats: ['svg'] })).toBe('Needs a render server');
     });
+
+    it('offers every export format when this device can make it', () => {
+        const local = { name: 'D2', formats: ['svg'] };
+        for (const format of ['png', 'jpeg', 'pdf'] as const) {
+            expect(exportFormatNote(format, false, local, true)).toBeNull();
+            expect(exportFormatNote(format, true, local, true)).toBeNull();
+        }
+        expect(exportFormatNote('pdf', false, local, false)).toBe('Needs a render server');
+    });
 });

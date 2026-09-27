@@ -27,6 +27,7 @@ export function ShareSheet({
     hasRenderServer,
     language,
     hasDiagram,
+    madeOnDevice = false,
     onExport,
     onPrint,
 }: {
@@ -40,6 +41,8 @@ export function ShareSheet({
     /** The diagram language's name and the formats the render server can make for it. */
     language: { name: string; formats: readonly string[] };
     hasDiagram: boolean;
+    /** This device can draw the diagram, so it makes PNG, JPEG and PDF itself (ADR 0021). */
+    madeOnDevice?: boolean;
     onExport: (format: ExportFormat) => void;
     onPrint: () => void;
 }) {
@@ -99,12 +102,16 @@ export function ShareSheet({
 
             <Group
                 header="Export"
-                footer={hasDiagram
-                    ? 'SVG is made on this device. The other formats are made by the render server.'
-                    : 'Export is available once the diagram renders.'}
+                footer={!hasDiagram
+                    ? 'Export is available once the diagram renders.'
+                    : madeOnDevice
+                        ? 'Every format is made on this device. Nothing leaves it.'
+                        : hasRenderServer
+                            ? 'SVG is made on this device. This diagram has HTML labels or linked files, so the render server makes the other formats.'
+                            : 'SVG is made on this device. The other formats need a render server for this diagram.'}
             >
                 {formats.map((format) => {
-                    const note = exportFormatNote(format, hasRenderServer, language);
+                    const note = exportFormatNote(format, hasRenderServer, language, madeOnDevice);
                     return (
                         <RowButton
                             key={format}

@@ -1,3 +1,6 @@
+---
+status: superseded by ADR-0021 in part
+---
 # Consent is a first-run choice, and export splits by format
 
 ADR 0001 makes a remote render something the user agrees to, per render server,
@@ -11,6 +14,9 @@ Export splits on the same line. SVG is already in the browser's memory, so
 downloading it is a Blob and stays local. PNG, JPEG and PDF happen in the cell,
 where the `foreignObject` canvas-tainting problem that breaks client-side export
 for Mermaid and PlantUML simply does not exist.
+
+ADR 0021 supersedes the export half of this decision: PNG, JPEG and PDF now
+draw on the device first, and the cell or render server is the fallback.
 
 ## Consequences
 

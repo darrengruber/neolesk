@@ -213,9 +213,28 @@ describe('neolesk editor shell', () => {
         await waitFor(() => expect(print).toHaveBeenCalledOnce());
     });
 
-    it('offers only the export formats that the render server can make for the language', async () => {
+    it('offers every export format when this device can draw the diagram, with no render server', async () => {
         Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
-        rendered.current = { svgText: '<svg/>', blobUrl: 'blob:diagram', dimensions: { width: 300, height: 300 } };
+        rendered.current = { svgText: '<svg xmlns="http://www.w3.org/2000/svg"/>', blobUrl: 'blob:diagram', dimensions: { width: 300, height: 300 } };
+        render(<App />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Render locally only' }));
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Share and export' }));
+        const sheet = screen.getByRole('dialog', { name: 'Share and Export' });
+        for (const format of ['SVG', 'PNG', 'JPEG', 'PDF']) {
+            expect(within(sheet).getByRole('button', { name: new RegExp(`^${format}`) })).toBeEnabled();
+        }
+        expect(within(sheet).getByText('Every format is made on this device. Nothing leaves it.')).toBeInTheDocument();
+    });
+
+    it('offers only the export formats that the render server can make when this device cannot draw the diagram', async () => {
+        Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+        // HTML labels taint a canvas, so the render server makes the other formats.
+        rendered.current = {
+            svgText: '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject/></svg>',
+            blobUrl: 'blob:diagram',
+            dimensions: { width: 300, height: 300 },
+        };
         window.localStorage.setItem(PREFERENCES_KEY, JSON.stringify({
             appearance: 'light',
             editorWrapping: true,

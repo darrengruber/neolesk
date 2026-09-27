@@ -185,15 +185,18 @@ export const hostOf = (url: string): string => {
 
 /**
  * Why a file export row is disabled, or null when it is available. SVG comes
- * from the preview. The render server makes only the formats in the
- * language's metadata (`getDiagramFiletypes`) and answers any other with HTTP 400.
+ * from the preview, and this device makes PNG, JPEG and PDF from it when it
+ * can draw it (ADR 0021). Otherwise the render server makes only the formats
+ * in the language's metadata (`getDiagramFiletypes`) and answers any other
+ * with HTTP 400.
  */
 export const exportFormatNote = (
     format: ExportFormat,
     hasRenderServer: boolean,
     language: { name: string; formats: readonly string[] } = { name: '', formats: [format] },
+    madeOnDevice = false,
 ): string | null => {
-    if (format === 'svg') return null;
+    if (format === 'svg' || madeOnDevice) return null;
     if (!hasRenderServer) return 'Needs a render server';
     return language.formats.includes(format) ? null : `Not available for ${language.name}`;
 };

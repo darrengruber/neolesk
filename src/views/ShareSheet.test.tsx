@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { getDiagramFiletypes } from '../kroki/metadata';
 import { ShareSheet } from './ShareSheet';
 
-const renderSheet = (language: string, name: string, hasRenderServer = true) => render(
+const renderSheet = (language: string, name: string, hasRenderServer = true, madeOnDevice = false) => render(
     <ShareSheet
         open
         onClose={vi.fn()}
@@ -23,6 +23,7 @@ const renderSheet = (language: string, name: string, hasRenderServer = true) => 
         hasRenderServer={hasRenderServer}
         language={{ name, formats: getDiagramFiletypes(language) }}
         hasDiagram
+        madeOnDevice={madeOnDevice}
         onExport={vi.fn()}
         onPrint={vi.fn()}
     />,
@@ -63,5 +64,18 @@ describe('Share and Export sheet', () => {
         renderSheet('graphviz', 'GraphViz', false);
         expect(offered()).toEqual(['SVG']);
         expect(within(screen.getByRole('dialog', { hidden: true })).getAllByText('Needs a render server')).toHaveLength(3);
+    });
+
+    it('offers every format made on this device, with no server and for any language', () => {
+        renderSheet('d2', 'D2', false, true);
+        expect(offered()).toEqual(['SVG', 'PNG', 'JPEG', 'PDF']);
+        expect(screen.getByText('Every format is made on this device. Nothing leaves it.')).toBeInTheDocument();
+    });
+
+    it('says the render server makes the formats this device cannot draw', () => {
+        renderSheet('mermaid', 'Mermaid', true, false);
+        expect(screen.getByText('SVG is made on this device. This diagram has HTML labels or linked files, so the render server makes the other formats.')).toBeInTheDocument();
+        renderSheet('graphviz', 'GraphViz', false, false);
+        expect(screen.getByText('SVG is made on this device. The other formats need a render server for this diagram.')).toBeInTheDocument();
     });
 });

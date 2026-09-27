@@ -10,6 +10,7 @@ import {
     exportDiagram,
     type ExportFormat,
 } from './export/export';
+import { createBrowserLocalExporter, mayExportOnDevice } from './export/localExport';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { getBrowserRenderCapabilities, useDiagramRender } from './hooks/useDiagramRender';
 import { useVisualViewport } from './hooks/useVisualViewport';
@@ -112,6 +113,8 @@ const getSystemAppearance = (): 'light' | 'dark' => (
 );
 
 const isAbort = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
+// One exporter for the page: it keeps Mermaid's export renderer warm between exports.
+const localExporter = createBrowserLocalExporter();
 
 function EditorApplication({
     preferences,
@@ -461,6 +464,11 @@ function EditorApplication({
         return true;
     };
 
+    const madeOnDevice = useMemo(
+        () => mayExportOnDevice(renderState.svgText, language),
+        [renderState.svgText, language],
+    );
+
     const download = async (format: ExportFormat) => {
         if (!renderState.svgText) return;
         try {
@@ -485,6 +493,7 @@ function EditorApplication({
                 source,
                 remote,
                 remoteExport,
+                local: localExporter,
             });
             if (await saveFile(blob, `diagram.${format}`)) announce(`${format.toUpperCase()} exported`, true);
         } catch (error) {
@@ -647,6 +656,7 @@ function EditorApplication({
                 hasRenderServer={Boolean(remote)}
                 language={{ name: languageName, formats: getDiagramFiletypes(language) }}
                 hasDiagram={Boolean(renderState.svgText)}
+                madeOnDevice={madeOnDevice}
                 onExport={download}
                 onPrint={printDiagram}
             />
