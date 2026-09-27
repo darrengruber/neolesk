@@ -136,7 +136,7 @@ test.describe('editing', () => {
         const { sheet } = await openShareSheet(page, layout);
         // GraphViz draws on this device, so every format is offered without a render server.
         await expect(sheet.getByRole('button', { name: /^PNG/ })).toBeEnabled();
-        await expect(sheet.getByText('Every format is made on this device. Nothing leaves it.')).toBeVisible();
+        await expect(sheet.getByText('Every format is made on this device. Nothing leaves it. Print… makes a vector PDF.')).toBeVisible();
         const downloadPromise = page.waitForEvent('download');
         await sheet.getByRole('button', { name: /^SVG/ }).click();
         const download = await downloadPromise;
@@ -164,7 +164,7 @@ test.describe('editing', () => {
             await sheet.getByRole('button', { name: new RegExp(`^${format}`) }).click();
             const download = await downloadPromise;
             expect(download.suggestedFilename()).toBe(`diagram.${format.toLowerCase()}`);
-            await expect(page.getByRole('status').getByText(`${format} exported`)).toBeVisible();
+            await expect(page.getByRole('status').getByText(`${format} exported on this device`)).toBeVisible();
             return readFileSync((await download.path())!);
         };
 
@@ -220,22 +220,24 @@ test.describe('editing', () => {
             if (layout === 'compact') await openTab(page, 'Preview');
             await expect(renderedDiagram(page).first()).toBeAttached();
             const { sheet } = await openShareSheet(page, layout);
-            await expect(sheet.getByText('Every format is made on this device. Nothing leaves it.')).toBeVisible();
+            await expect(sheet.getByText('Every format is made on this device. Nothing leaves it. Print… makes a vector PDF.')).toBeVisible();
             await sheet.getByRole('button', { name: 'Done' }).click();
             const picture = await inkedPixels(page, await exportFile(page, layout, 'PNG'));
             expect(picture.inked).toBeGreaterThan(1000);
         });
 
-        test('a Mermaid type that keeps HTML labels says it needs a render server', async ({ page, layout }) => {
+        test('a Mermaid type that keeps HTML labels is not offered as a device export', async ({ page, layout }) => {
             await page.goto('/');
             await chooseLanguage(page, 'Mermaid');
             if (layout === 'compact') await openTab(page, 'Code');
             await replaceSource(page, 'journey\n  title Export\n  section Try\n    Draw: 5: Me\n');
             if (layout === 'compact') await openTab(page, 'Preview');
             await expect(renderedDiagram(page).first()).toBeAttached();
+            // The sheet asks the exporter when it opens, so it does not offer what the device cannot draw.
             const { sheet } = await openShareSheet(page, layout);
-            await sheet.getByRole('button', { name: /^PNG/ }).click();
-            await expect(page.getByRole('status').getByText('PNG export of this diagram needs a render server, because it uses HTML labels')).toBeVisible();
+            await expect(sheet.getByText('SVG is made on this device. The other formats need a render server for this diagram.')).toBeVisible();
+            await expect(sheet.getByRole('button', { name: /^PNG/ })).toBeDisabled();
+            await expect(sheet.getByText('Needs a render server')).toHaveCount(3);
         });
     });
 

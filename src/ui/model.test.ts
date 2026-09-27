@@ -191,9 +191,11 @@ describe('wording', () => {
     it('offers every export format when this device can make it', () => {
         const local = { name: 'D2', formats: ['svg'] };
         for (const format of ['png', 'jpeg', 'pdf'] as const) {
-            expect(exportFormatNote(format, false, local, true)).toBeNull();
-            expect(exportFormatNote(format, true, local, true)).toBeNull();
+            expect(exportFormatNote(format, false, local, 'yes')).toBeNull();
+            expect(exportFormatNote(format, true, local, 'yes')).toBeNull();
+            expect(exportFormatNote(format, true, local, 'checking')).toBe('Checking…');
         }
-        expect(exportFormatNote('pdf', false, local, false)).toBe('Needs a render server');
+        expect(exportFormatNote('svg', false, local, 'checking')).toBeNull();
+        expect(exportFormatNote('pdf', false, local, 'no')).toBe('Needs a render server');
     });
 });

@@ -13,6 +13,12 @@ export interface RemoteExportInput {
 
 export type RemoteExport = (input: RemoteExportInput) => Promise<Blob>;
 
+/** The file, and where it was made: the status line says which (CONTEXT.md, render provenance). */
+export interface ExportResult {
+    blob: Blob;
+    madeOn: 'device' | 'server';
+}
+
 export const createRemoteExportAdapter = (
     fetchImpl: typeof fetch = fetch,
     limits: { timeoutMs?: number; maxResponseBytes?: number } = {},
@@ -137,20 +143,20 @@ export const exportDiagram = async ({
     remoteExport: RemoteExport;
     /** Makes PNG, JPEG and PDF on this device; the server is only the fallback (ADR 0021). */
     local?: LocalExporter;
-}): Promise<Blob> => {
+}): Promise<ExportResult> => {
     if (format === 'svg') {
-        return new Blob([svg], { type: 'image/svg+xml' });
+        return { blob: new Blob([svg], { type: 'image/svg+xml' }), madeOn: 'device' };
     }
     let localReason: string | null = null;
     if (local) {
         const prepared = await local.prepare({ svg, language, source });
         if ('svg' in prepared) {
             try {
-                return await local.export(prepared.svg, format);
-            } catch (error) {
+                return { blob: await local.export(prepared.svg, format), madeOn: 'device' };
+            } catch {
                 // A canvas the browser taints anyway, or a picture too large
                 // to encode: the server can still make it.
-                localReason = error instanceof Error ? error.message : String(error);
+                localReason = 'this browser could not draw it';
             }
         } else {
             localReason = prepared.reason;
@@ -173,10 +179,13 @@ export const exportDiagram = async ({
             `${format.toUpperCase()} export is not available for this diagram language`,
         );
     }
-    return remoteExport({
-        format,
-        language,
-        source,
-        serverUrl: remote.url,
-    });
+    return {
+        blob: await remoteExport({
+            format,
+            language,
+            source,
+            serverUrl: remote.url,
+        }),
+        madeOn: 'server',
+    };
 };

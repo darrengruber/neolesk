@@ -3,7 +3,7 @@ import {
     buildImagePdf,
     createBrowserLocalExporter,
     deflate,
-    mayExportOnDevice,
+    deviceExportHint,
     rasterBlockers,
     rasterScale,
     svgPixelSize,
@@ -34,6 +34,17 @@ describe('what stops this device from drawing an SVG onto a canvas', () => {
         expect(rasterBlockers(svg('<style>@font-face{src:url(https://fonts.example/a.woff2)}</style>'))).toEqual(['it links images or fonts from another site']);
     });
 
+    it('does not count links: a canvas draws a diagram whose shapes link elsewhere', () => {
+        // Graphviz URL=, PlantUML links and Mermaid click all write <a href>.
+        expect(rasterBlockers(svg('<a href="https://example.test/"><text>a</text></a>'))).toEqual([]);
+        expect(rasterBlockers(svg('<a xlink:href="https://example.test/"><text>a</text></a>'))).toEqual([]);
+    });
+
+    it('names a paint or filter from another site', () => {
+        expect(rasterBlockers(svg('<rect fill="url(https://example.test/p.svg#g)"/>'))).toEqual(['it links images or fonts from another site']);
+        expect(rasterBlockers(svg('<rect fill="url(#local)"/>'))).toEqual([]);
+    });
+
     it('refuses SVG that is not valid XML', () => {
         expect(rasterBlockers('<svg><text>&nbsp;</text></svg>')).toEqual(['its SVG is not valid XML']);
     });
@@ -62,10 +73,11 @@ describe('the size of a diagram in CSS pixels', () => {
         expect(root.getAttribute('viewBox')).toBe('0 0 72 36');
     });
 
-    it('adds a viewBox when it pins the size, so the drawing scales and is not cropped', () => {
-        const sized = withPixelSize(svg('<g/>', 'width="72pt" height="36pt"'), { width: 96, height: 48 });
+    it('adds a viewBox in CSS pixels when it pins the size, so the drawing scales and is not cropped', () => {
+        // Without a viewBox one user unit is one CSS pixel: a 72pt-wide SVG draws 96 units across.
+        const sized = withPixelSize(svg('<rect width="96" height="48"/>', 'width="72pt" height="36pt"'), { width: 96, height: 48 });
         const root = new DOMParser().parseFromString(sized, 'image/svg+xml').documentElement;
-        expect(root.getAttribute('viewBox')).toBe('0 0 72 36');
+        expect(root.getAttribute('viewBox')).toBe('0 0 96 48');
     });
 });
 
@@ -157,15 +169,32 @@ describe('the browser exporter', () => {
     });
 });
 
-describe('whether the Share sheet offers device export', () => {
-    it('offers it for an SVG this device can draw, and for Mermaid, which draws plain labels for export', () => {
-        expect(mayExportOnDevice(svg('<text>a</text>'), 'graphviz')).toBe(true);
-        expect(mayExportOnDevice(svg('<foreignObject/>'), 'mermaid')).toBe(true);
+describe('what the Share sheet can tell from the SVG alone', () => {
+    it('says yes for an SVG this device can draw', () => {
+        expect(deviceExportHint(svg('<text>a</text>'), 'graphviz')).toBe('yes');
     });
 
-    it('does not offer it when HTML labels or linked files stop the canvas', () => {
-        expect(mayExportOnDevice(svg('<foreignObject/>'), 'd2')).toBe(false);
-        expect(mayExportOnDevice(svg('<image href="https://example.test/a.png"/>'), 'mermaid')).toBe(false);
-        expect(mayExportOnDevice(null, 'graphviz')).toBe(false);
+    it('asks the exporter for Mermaid with HTML labels, which must be drawn again to know', () => {
+        expect(deviceExportHint(svg('<foreignObject/>'), 'mermaid')).toBe('check');
+    });
+
+    it('says no when HTML labels or linked files stop the canvas for good', () => {
+        expect(deviceExportHint(svg('<foreignObject/>'), 'd2')).toBe('no');
+        expect(deviceExportHint(svg('<image href="https://example.test/a.png"/>'), 'mermaid')).toBe('no');
+        expect(deviceExportHint(null, 'graphviz')).toBe('no');
+    });
+});
+
+describe('the Mermaid export renderer', () => {
+    it('tries again after a failed load instead of keeping the failure', async () => {
+        vi.resetModules();
+        const load = vi.fn()
+            .mockRejectedValueOnce(new Error('Failed to fetch dynamically imported module'))
+            .mockResolvedValue({ render: async () => '<svg/>' });
+        const { renderPlainLabelsWith } = await import('../engines/mermaid');
+        const render = renderPlainLabelsWith(load);
+        await expect(render('graph TD')).rejects.toThrow('Failed to fetch');
+        await expect(render('graph TD')).resolves.toBe('<svg/>');
+        expect(load).toHaveBeenCalledTimes(2);
     });
 });

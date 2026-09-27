@@ -10,7 +10,7 @@ import {
     exportDiagram,
     type ExportFormat,
 } from './export/export';
-import { createBrowserLocalExporter, mayExportOnDevice } from './export/localExport';
+import { createBrowserLocalExporter, deviceExportHint } from './export/localExport';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { getBrowserRenderCapabilities, useDiagramRender } from './hooks/useDiagramRender';
 import { useVisualViewport } from './hooks/useVisualViewport';
@@ -47,6 +47,7 @@ import {
     layoutForWidth,
     presenceText,
     tabsForLayout,
+    type DeviceExport,
     type Panel,
     type Presence,
 } from './ui/model';
@@ -464,19 +465,33 @@ function EditorApplication({
         return true;
     };
 
-    const madeOnDevice = useMemo(
-        () => mayExportOnDevice(renderState.svgText, language),
+    // The SVG alone answers for every diagram but Mermaid with HTML labels, which
+    // the exporter draws again when the sheet opens; the sheet claims nothing meanwhile.
+    const exportHint = useMemo(
+        () => deviceExportHint(renderState.svgText, language),
         [renderState.svgText, language],
     );
+    const [deviceAnswer, setDeviceAnswer] = useState<{ svg: string; drawn: boolean } | null>(null);
+    useEffect(() => {
+        const svg = renderState.svgText;
+        if (!shareOpen || !svg || exportHint !== 'check') return undefined;
+        let current = true;
+        localExporter.prepare({ svg, language, source: previewSource })
+            .then((prepared) => { if (current) setDeviceAnswer({ svg, drawn: 'svg' in prepared }); })
+            .catch(() => { if (current) setDeviceAnswer({ svg, drawn: false }); });
+        return () => { current = false; };
+    }, [shareOpen, renderState.svgText, language, previewSource, exportHint]);
+    const deviceExport: DeviceExport = exportHint !== 'check'
+        ? exportHint
+        : deviceAnswer?.svg === renderState.svgText
+            ? (deviceAnswer.drawn ? 'yes' : 'no')
+            : 'checking';
 
     const download = async (format: ExportFormat) => {
         if (!renderState.svgText) return;
         try {
-            if (sessionId && (!sessionBackendUrl || !sessionParticipantId)) {
-                throw new Error('The live session is still connecting');
-            }
             const rendererId = remote?.id === 'kroki-io' ? 'kroki-io' : 'neolesk';
-            const remoteExport = sessionId && sessionBackendUrl && sessionParticipantId && remote
+            const serverExport = sessionId && sessionBackendUrl && sessionParticipantId && remote
                 ? createSessionExportAdapter({
                     backendUrl: sessionBackendUrl,
                     sessionId,
@@ -486,16 +501,24 @@ function EditorApplication({
                 : sessionBackendUrl && remote
                     ? createManagedCellExportAdapter({ backendUrl: sessionBackendUrl, rendererId })
                     : createRemoteExportAdapter();
-            const blob = await exportDiagram({
+            const { blob, madeOn } = await exportDiagram({
                 format,
                 svg: renderState.svgText,
                 language,
-                source,
+                // Export what the preview shows, which can trail the editor.
+                source: previewSource,
                 remote,
-                remoteExport,
+                // Only the server path waits for the live session: a device export does not.
+                remoteExport: (input) => {
+                    if (sessionId && (!sessionBackendUrl || !sessionParticipantId)) {
+                        return Promise.reject(new Error('The live session is still connecting'));
+                    }
+                    return serverExport(input);
+                },
                 local: localExporter,
             });
-            if (await saveFile(blob, `diagram.${format}`)) announce(`${format.toUpperCase()} exported`, true);
+            const where = madeOn === 'device' ? 'on this device' : 'by the render server';
+            if (await saveFile(blob, `diagram.${format}`)) announce(`${format.toUpperCase()} exported ${where}`, true);
         } catch (error) {
             announce(error instanceof Error ? error.message : String(error));
         }
@@ -656,7 +679,7 @@ function EditorApplication({
                 hasRenderServer={Boolean(remote)}
                 language={{ name: languageName, formats: getDiagramFiletypes(language) }}
                 hasDiagram={Boolean(renderState.svgText)}
-                madeOnDevice={madeOnDevice}
+                deviceExport={deviceExport}
                 onExport={download}
                 onPrint={printDiagram}
             />

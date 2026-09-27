@@ -3,7 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { getDiagramFiletypes } from '../kroki/metadata';
 import { ShareSheet } from './ShareSheet';
 
-const renderSheet = (language: string, name: string, hasRenderServer = true, madeOnDevice = false) => render(
+const renderSheet = (
+    language: string,
+    name: string,
+    hasRenderServer = true,
+    deviceExport: 'yes' | 'no' | 'checking' = 'no',
+) => render(
     <ShareSheet
         open
         onClose={vi.fn()}
@@ -23,7 +28,7 @@ const renderSheet = (language: string, name: string, hasRenderServer = true, mad
         hasRenderServer={hasRenderServer}
         language={{ name, formats: getDiagramFiletypes(language) }}
         hasDiagram
-        madeOnDevice={madeOnDevice}
+        deviceExport={deviceExport}
         onExport={vi.fn()}
         onPrint={vi.fn()}
     />,
@@ -67,15 +72,23 @@ describe('Share and Export sheet', () => {
     });
 
     it('offers every format made on this device, with no server and for any language', () => {
-        renderSheet('d2', 'D2', false, true);
+        renderSheet('d2', 'D2', false, 'yes');
         expect(offered()).toEqual(['SVG', 'PNG', 'JPEG', 'PDF']);
-        expect(screen.getByText('Every format is made on this device. Nothing leaves it.')).toBeInTheDocument();
+        expect(screen.getByText('Every format is made on this device. Nothing leaves it. Print… makes a vector PDF.')).toBeInTheDocument();
     });
 
     it('says the render server makes the formats this device cannot draw', () => {
-        renderSheet('mermaid', 'Mermaid', true, false);
+        renderSheet('mermaid', 'Mermaid', true, 'no');
         expect(screen.getByText('SVG is made on this device. This diagram has HTML labels or linked files, so the render server makes the other formats.')).toBeInTheDocument();
-        renderSheet('graphviz', 'GraphViz', false, false);
+        renderSheet('graphviz', 'GraphViz', false, 'no');
         expect(screen.getByText('SVG is made on this device. The other formats need a render server for this diagram.')).toBeInTheDocument();
+    });
+
+    it('claims nothing while it checks whether this device can draw the diagram', () => {
+        renderSheet('mermaid', 'Mermaid', false, 'checking');
+        expect(offered()).toEqual(['SVG']);
+        const sheet = screen.getByRole('dialog', { hidden: true });
+        expect(within(sheet).getAllByText('Checking…')).toHaveLength(3);
+        expect(within(sheet).getByText('Checking whether this device can make the other formats…')).toBeInTheDocument();
     });
 });

@@ -224,7 +224,7 @@ describe('neolesk editor shell', () => {
         for (const format of ['SVG', 'PNG', 'JPEG', 'PDF']) {
             expect(within(sheet).getByRole('button', { name: new RegExp(`^${format}`) })).toBeEnabled();
         }
-        expect(within(sheet).getByText('Every format is made on this device. Nothing leaves it.')).toBeInTheDocument();
+        expect(within(sheet).getByText('Every format is made on this device. Nothing leaves it. Print… makes a vector PDF.')).toBeInTheDocument();
     });
 
     it('offers only the export formats that the render server can make when this device cannot draw the diagram', async () => {

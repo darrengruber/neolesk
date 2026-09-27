@@ -27,11 +27,22 @@ only when it cannot:
 - **PDF is a one-page file we write ourselves:** the diagram drawn at three times
   its CSS size (216 dots per inch), stored losslessly with FlateDecode from the
   browser's `CompressionStream`, on a page of the diagram's size in points. It is
-  a picture, not vector drawing. No PDF library returns to the bundle.
+  a picture, not vector drawing. No PDF library returns to the bundle. The plan
+  was the browser's print dialog, which makes a vector PDF, but it cannot hand
+  back a file; so the PDF row writes the picture, and Print… stays the vector
+  path. The Share sheet says so.
 - **The server is the fallback, and only with consent.** A diagram the device
-  cannot draw goes to the session cell or the render server as before. Without
-  consent the export says why: "PNG export of this diagram needs a render
-  server, because it uses HTML labels".
+  cannot draw goes to the session cell or the render server as before. A live
+  session that is still connecting delays only that fallback. Without consent
+  the export says why: "PNG export of this diagram needs a render server,
+  because it uses HTML labels".
+- **Provenance is shown, not inferred** (CONTEXT.md). When the Share sheet opens
+  it asks the exporter, which may draw Mermaid again, so it never offers as
+  local what will go to the server. The status line says "PNG exported on this
+  device" or "… by the render server".
+- **Links do not count.** `<a href>` (Graphviz `URL=`, PlantUML links, Mermaid
+  `click`) does not stop a canvas; images, `<use>` of other files, and paints,
+  filters or fonts from another site do.
 
 ## Considered and not chosen
 
@@ -47,7 +58,15 @@ only when it cannot:
 
 - PNG, JPEG and PDF work with no render server for every diagram the device can
   draw, including formats the server does not make for that language (a D2 PNG).
-- A local PDF is a high-resolution picture; the server's PDF, where the language
-  has one, was vector. Local wins, as for every other format.
+- A local PDF is a high-resolution picture. With consent, a Graphviz or
+  PlantUML PDF used to be the server's vector PDF; it is now the picture, because
+  local wins as for every other format. Print… gives a vector PDF.
+- `tests/e2e/export-corpus.spec.ts` exports every example of the 14 languages
+  this device renders, on the iPhone and the desktop, and names each example
+  that does not export locally. A change in either direction fails it.
+- Measuring the corpus found two local renderers that drew nothing useful: the
+  Mermaid Gantt chart was 1px wide (it lays itself out to its 1px render
+  container), and bpmn-js cropped to an empty box (its container was
+  `display: none`). Both previews were broken too; both are fixed.
 - The Share sheet says where the file is made: "Every format is made on this
   device. Nothing leaves it." or which formats the server makes and why.

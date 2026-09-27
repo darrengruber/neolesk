@@ -190,13 +190,17 @@ export const hostOf = (url: string): string => {
  * in the language's metadata (`getDiagramFiletypes`) and answers any other
  * with HTTP 400.
  */
+/** Whether this device makes PNG, JPEG and PDF for the diagram shown (ADR 0021). */
+export type DeviceExport = 'yes' | 'no' | 'checking';
+
 export const exportFormatNote = (
     format: ExportFormat,
     hasRenderServer: boolean,
     language: { name: string; formats: readonly string[] } = { name: '', formats: [format] },
-    madeOnDevice = false,
+    deviceExport: DeviceExport = 'no',
 ): string | null => {
-    if (format === 'svg' || madeOnDevice) return null;
+    if (format === 'svg' || deviceExport === 'yes') return null;
+    if (deviceExport === 'checking') return 'Checking…';
     if (!hasRenderServer) return 'Needs a render server';
     return language.formats.includes(format) ? null : `Not available for ${language.name}`;
 };

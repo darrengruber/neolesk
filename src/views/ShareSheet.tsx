@@ -1,7 +1,7 @@
 import { Bot, Copy, FileDown, Link2, Printer, Share, UserRound, Users } from 'lucide-react';
 import type { ExportFormat } from '../export/export';
 import { Group, RowButton, iconProps } from '../ui/controls';
-import { exportFormatNote, presenceText, type Presence } from '../ui/model';
+import { exportFormatNote, presenceText, type DeviceExport, type Presence } from '../ui/model';
 import { Sheet } from '../ui/Sheet';
 
 const formats: ExportFormat[] = ['svg', 'png', 'jpeg', 'pdf'];
@@ -27,7 +27,7 @@ export function ShareSheet({
     hasRenderServer,
     language,
     hasDiagram,
-    madeOnDevice = false,
+    deviceExport = 'no',
     onExport,
     onPrint,
 }: {
@@ -41,8 +41,8 @@ export function ShareSheet({
     /** The diagram language's name and the formats the render server can make for it. */
     language: { name: string; formats: readonly string[] };
     hasDiagram: boolean;
-    /** This device can draw the diagram, so it makes PNG, JPEG and PDF itself (ADR 0021). */
-    madeOnDevice?: boolean;
+    /** Whether this device makes PNG, JPEG and PDF itself, or is still finding out (ADR 0021). */
+    deviceExport?: DeviceExport;
     onExport: (format: ExportFormat) => void;
     onPrint: () => void;
 }) {
@@ -104,14 +104,16 @@ export function ShareSheet({
                 header="Export"
                 footer={!hasDiagram
                     ? 'Export is available once the diagram renders.'
-                    : madeOnDevice
-                        ? 'Every format is made on this device. Nothing leaves it.'
+                    : deviceExport === 'checking'
+                        ? 'Checking whether this device can make the other formats…'
+                        : deviceExport === 'yes'
+                        ? 'Every format is made on this device. Nothing leaves it. Print… makes a vector PDF.'
                         : hasRenderServer
                             ? 'SVG is made on this device. This diagram has HTML labels or linked files, so the render server makes the other formats.'
                             : 'SVG is made on this device. The other formats need a render server for this diagram.'}
             >
                 {formats.map((format) => {
-                    const note = exportFormatNote(format, hasRenderServer, language, madeOnDevice);
+                    const note = exportFormatNote(format, hasRenderServer, language, deviceExport);
                     return (
                         <RowButton
                             key={format}

@@ -120,18 +120,28 @@ export async function load() {
     });
 }
 
-let exportRenderer: ReturnType<typeof load> | null = null;
-
 /**
  * The same diagram with labels as SVG text instead of HTML. A canvas cannot
  * export HTML labels (ADR 0021). mermaid.initialize resets the whole config on
- * each render, so the preview keeps its HTML labels.
+ * each render, so the preview keeps its HTML labels. A failed load is not
+ * kept, so a later export can try again.
  */
-export async function renderPlainLabels(source: string): Promise<string> {
-    exportRenderer ||= load();
-    return (await exportRenderer).render({
-        source,
-        format: 'svg',
-        options: { 'html-labels': 'false', 'flowchart_html-labels': 'false' },
-    });
-}
+export const renderPlainLabelsWith = (loadRenderer: () => Promise<{ render: ReturnType<typeof createRenderer>['render'] }>) => {
+    let renderer: ReturnType<typeof loadRenderer> | null = null;
+    return async (source: string): Promise<string> => {
+        const loading = renderer ?? loadRenderer();
+        renderer = loading;
+        try {
+            return await (await loading).render({
+                source,
+                format: 'svg',
+                options: { 'html-labels': 'false', 'flowchart_html-labels': 'false' },
+            });
+        } catch (error) {
+            if (renderer === loading) renderer = null;
+            throw error;
+        }
+    };
+};
+
+export const renderPlainLabels = renderPlainLabelsWith(load);

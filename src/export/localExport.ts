@@ -26,13 +26,18 @@ export interface PixelSize {
     height: number;
 }
 
-const HTML_LABELS = 'it uses HTML labels';
-const EXTERNAL = 'it links images or fonts from another site';
-const INVALID = 'its SVG is not valid XML';
+/** What stops a canvas from exporting an SVG. */
+export type RasterBlocker = 'html-labels' | 'external' | 'invalid';
+
+export const blockerReason: Record<RasterBlocker, string> = {
+    'html-labels': 'it uses HTML labels',
+    external: 'it links images or fonts from another site',
+    invalid: 'its SVG is not valid XML',
+};
 
 const XLINK = 'http://www.w3.org/1999/xlink';
-const isRemoteUrl = (value: string) => /^\s*(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(value) && !/^\s*data:/i.test(value);
-const cssLinksRemote = (css: string) => (
+const isRemoteUrl = (value: string) => /^\s*(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(value);
+const linksRemote = (css: string) => (
     /@import\b/i.test(css)
     || Array.from(css.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)).some((match) => isRemoteUrl(match[2]))
 );
@@ -44,20 +49,32 @@ const parse = (svg: string): Element | null => {
     return root;
 };
 
+const blockersOf = (root: Element): RasterBlocker[] => {
+    const blockers: RasterBlocker[] = [];
+    if (root.getElementsByTagNameNS('*', 'foreignObject').length > 0) blockers.push('html-labels');
+    const external = Array.from(root.querySelectorAll('*')).some((element) => {
+        // A link (<a href>) does not stop a canvas; an image, a <use> of
+        // another file, or a paint, filter or font from another site does.
+        if (element.localName !== 'a') {
+            const href = element.getAttribute('href') ?? element.getAttributeNS(XLINK, 'href') ?? '';
+            if (isRemoteUrl(href)) return true;
+        }
+        if (element.localName === 'style' && linksRemote(element.textContent ?? '')) return true;
+        return Array.from(element.attributes).some((attribute) => linksRemote(attribute.value));
+    });
+    if (external) blockers.push('external');
+    return blockers;
+};
+
 export const rasterBlockers = (svg: string): string[] => {
     const root = parse(svg);
-    if (!root) return [INVALID];
-    const reasons: string[] = [];
-    if (root.getElementsByTagNameNS('*', 'foreignObject').length > 0) reasons.push(HTML_LABELS);
-    const links = Array.from(root.querySelectorAll('*')).some((element) => {
-        const href = element.getAttribute('href') ?? element.getAttributeNS(XLINK, 'href') ?? '';
-        if (href && isRemoteUrl(href)) return true;
-        const style = element.getAttribute('style') ?? '';
-        return (element.localName === 'style' && cssLinksRemote(element.textContent ?? '')) || cssLinksRemote(style);
-    });
-    if (links) reasons.push(EXTERNAL);
-    return reasons;
+    return (root ? blockersOf(root) : ['invalid' as const]).map((blocker) => blockerReason[blocker]);
 };
+
+/** Mermaid draws its labels as SVG text for export, so HTML labels alone do not stop it. */
+const drawnAgainForExport = (blockers: RasterBlocker[], language: string) => (
+    language === 'mermaid' && blockers.length > 0 && blockers.every((blocker) => blocker === 'html-labels')
+);
 
 const CSS_PIXELS: Record<string, number> = {
     '': 1, px: 1, pt: 4 / 3, pc: 16, in: 96, cm: 96 / 2.54, mm: 96 / 25.4, q: 96 / 101.6,
@@ -76,10 +93,7 @@ const viewBoxOf = (root: Element): number[] | null => {
     return values?.length === 4 && values.every(Number.isFinite) && values[2] > 0 && values[3] > 0 ? values : null;
 };
 
-/** The diagram's size in CSS pixels, as the preview draws it. */
-export const svgPixelSize = (svg: string): PixelSize | null => {
-    const root = parse(svg);
-    if (!root) return null;
+const pixelSizeOf = (root: Element): PixelSize | null => {
     const width = lengthInPixels(root.getAttribute('width'));
     const height = lengthInPixels(root.getAttribute('height'));
     if (width && height) return { width, height };
@@ -87,26 +101,33 @@ export const svgPixelSize = (svg: string): PixelSize | null => {
     return viewBox ? { width: viewBox[2], height: viewBox[3] } : null;
 };
 
+/** The diagram's size in CSS pixels, as the preview draws it. */
+export const svgPixelSize = (svg: string): PixelSize | null => {
+    const root = parse(svg);
+    return root ? pixelSizeOf(root) : null;
+};
+
 const round = (value: number) => String(Math.round(value * 1000) / 1000);
 
 /**
- * Pin the root to a pixel size. Without a viewBox the drawing would be cropped
- * at the new size instead of scaled, so the old size becomes the viewBox.
+ * Pin the root to a pixel size. Without a viewBox one user unit is one CSS
+ * pixel, so the drawing's own size in pixels becomes the viewBox; the drawing
+ * then scales with the new size instead of being cropped.
  */
-export const withPixelSize = (svg: string, size: PixelSize): string => {
-    const root = parse(svg);
-    if (!root) return svg;
-    if (!viewBoxOf(root)) {
-        const width = Number.parseFloat(root.getAttribute('width') ?? '') || size.width;
-        const height = Number.parseFloat(root.getAttribute('height') ?? '') || size.height;
-        root.setAttribute('viewBox', `0 0 ${round(width)} ${round(height)}`);
-    }
+const pinPixelSize = (root: Element, size: PixelSize): string => {
+    if (!viewBoxOf(root)) root.setAttribute('viewBox', `0 0 ${round(size.width)} ${round(size.height)}`);
     root.setAttribute('width', round(size.width));
     root.setAttribute('height', round(size.height));
     return new XMLSerializer().serializeToString(root);
 };
 
-// Safari refuses a canvas above 16,777,216 pixels; Chromium above 32,767 on a side.
+export const withPixelSize = (svg: string, size: PixelSize): string => {
+    const root = parse(svg);
+    return root ? pinPixelSize(root, size) : svg;
+};
+
+// Safari refuses a canvas above 16,777,216 pixels. Chromium allows 32,767 on a
+// side; 16,384 keeps a very long diagram inside what older WebKit allows.
 const MAX_PIXELS = 16_777_216;
 const MAX_SIDE = 16_384;
 
@@ -120,11 +141,11 @@ export const rasterScale = (size: PixelSize, desired: number): number => Math.mi
     (MAX_SIDE / size.height) * MARGIN,
 );
 
-export const deflate = async (bytes: Uint8Array): Promise<Uint8Array> => {
+export const deflate = async (bytes: Uint8Array<ArrayBuffer>): Promise<Uint8Array> => {
     // "deflate" is the zlib format, which is exactly PDF's FlateDecode.
     const stream = new ReadableStream<BufferSource>({
         start(controller) {
-            controller.enqueue(Uint8Array.from(bytes));
+            controller.enqueue(bytes);
             controller.close();
         },
     }).pipeThrough(new CompressionStream('deflate'));
@@ -209,8 +230,10 @@ const loadImage = async (svg: string): Promise<HTMLImageElement> => {
 };
 
 const drawSvg = async (svg: string, scale: number, background: string | null) => {
-    const size = svgPixelSize(svg) ?? { width: 800, height: 600 };
-    const image = await loadImage(withPixelSize(svg, size));
+    const root = parse(svg);
+    if (!root) throw new Error(blockerReason.invalid);
+    const size = pixelSizeOf(root) ?? { width: 800, height: 600 };
+    const image = await loadImage(pinPixelSize(root, size));
     const factor = rasterScale(size, scale);
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.floor(size.width * factor));
@@ -225,6 +248,12 @@ const drawSvg = async (svg: string, scale: number, background: string | null) =>
     return { canvas, context, size };
 };
 
+// A canvas holds its pixels until it is resized; iOS counts them against the page.
+const release = (canvas: HTMLCanvasElement) => {
+    canvas.width = 0;
+    canvas.height = 0;
+};
+
 const canvasBlob = (canvas: HTMLCanvasElement, type: string, quality?: number) => new Promise<Blob>((resolve, reject) => {
     // A tainted canvas throws a SecurityError here.
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('The browser could not encode the image'))), type, quality);
@@ -232,47 +261,56 @@ const canvasBlob = (canvas: HTMLCanvasElement, type: string, quality?: number) =
 
 // PNG and JPEG at twice the CSS size stay sharp on high-density screens; the
 // PDF picture at three times prints at 216 dots per inch.
-const PNG_SCALE = 2;
+const RASTER_SCALE = 2;
 const PDF_SCALE = 3;
 
 const exportRaster = async (svg: string, format: RasterFormat): Promise<Blob> => {
-    if (format === 'png') {
-        const { canvas } = await drawSvg(svg, PNG_SCALE, null);
-        return canvasBlob(canvas, 'image/png');
-    }
-    if (format === 'jpeg') {
-        const { canvas } = await drawSvg(svg, PNG_SCALE, '#ffffff');
-        return canvasBlob(canvas, 'image/jpeg', 0.92);
+    if (format !== 'pdf') {
+        const { canvas } = await drawSvg(svg, RASTER_SCALE, format === 'jpeg' ? '#ffffff' : null);
+        try {
+            return await (format === 'png' ? canvasBlob(canvas, 'image/png') : canvasBlob(canvas, 'image/jpeg', 0.92));
+        } finally {
+            release(canvas);
+        }
     }
     const { canvas, context, size } = await drawSvg(svg, PDF_SCALE, '#ffffff');
-    // getImageData throws the same SecurityError as toBlob on a tainted canvas.
-    const rgba = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    const rgb = new Uint8Array(canvas.width * canvas.height * 3);
-    for (let source = 0, target = 0; source < rgba.length; source += 4, target += 3) {
-        rgb[target] = rgba[source];
-        rgb[target + 1] = rgba[source + 1];
-        rgb[target + 2] = rgba[source + 2];
+    const pixelWidth = canvas.width;
+    const pixelHeight = canvas.height;
+    let rgb: Uint8Array<ArrayBuffer>;
+    try {
+        // getImageData throws the same SecurityError as toBlob on a tainted canvas.
+        const rgba = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        rgb = new Uint8Array(canvas.width * canvas.height * 3);
+        for (let source = 0, target = 0; source < rgba.length; source += 4, target += 3) {
+            rgb[target] = rgba[source];
+            rgb[target + 1] = rgba[source + 1];
+            rgb[target + 2] = rgba[source + 2];
+        }
+    } finally {
+        release(canvas);
     }
     const pdf = await buildImagePdf({
         // 96 CSS pixels are one inch, which is 72 points.
         pageWidth: size.width * 0.75,
         pageHeight: size.height * 0.75,
-        pixelWidth: canvas.width,
-        pixelHeight: canvas.height,
+        pixelWidth,
+        pixelHeight,
         rgb: await deflate(rgb),
     });
-    return new Blob([Uint8Array.from(pdf)], { type: 'application/pdf' });
+    return new Blob([pdf as Uint8Array<ArrayBuffer>], { type: 'application/pdf' });
 };
 
 /**
- * Whether the Share sheet offers PNG, JPEG and PDF from this device. Mermaid
- * counts because it draws plain labels for export; the rare Mermaid type that
- * keeps HTML labels falls back to the render server when the person exports.
+ * What the Share sheet can tell from the SVG alone. Mermaid with HTML labels
+ * must be drawn again before anyone knows (one of its types keeps HTML
+ * labels), so the sheet asks the exporter and claims nothing meanwhile.
  */
-export const mayExportOnDevice = (svg: string | null, language: string): boolean => {
-    if (!svg) return false;
-    const reasons = rasterBlockers(svg);
-    return reasons.length === 0 || (language === 'mermaid' && reasons.every((reason) => reason === HTML_LABELS));
+export const deviceExportHint = (svg: string | null, language: string): 'yes' | 'no' | 'check' => {
+    const root = svg ? parse(svg) : null;
+    if (!root) return 'no';
+    const blockers = blockersOf(root);
+    if (blockers.length === 0) return 'yes';
+    return drawnAgainForExport(blockers, language) ? 'check' : 'no';
 };
 
 const renderMermaidPlainLabels = async (source: string): Promise<string> => (
@@ -282,16 +320,30 @@ const renderMermaidPlainLabels = async (source: string): Promise<string> => (
 export const createBrowserLocalExporter = (dependencies: {
     renderMermaidPlainLabels?: (source: string) => Promise<string>;
 } = {}): LocalExporter => {
-    const drawMermaid = dependencies.renderMermaidPlainLabels ?? renderMermaidPlainLabels;
+    const renderPlain = dependencies.renderMermaidPlainLabels ?? renderMermaidPlainLabels;
+    // The Share sheet asks when it opens and the export asks again: draw once.
+    let last: { key: string; result: Promise<{ svg: string } | { reason: string }> } | null = null;
+    const prepare = async ({ svg, language, source }: { svg: string; language: string; source: string }) => {
+        const root = parse(svg);
+        let blockers: RasterBlocker[] = root ? blockersOf(root) : ['invalid'];
+        let candidate = svg;
+        if (drawnAgainForExport(blockers, language)) {
+            candidate = xmlSafeSvg(await renderPlain(source));
+            const plain = parse(candidate);
+            blockers = plain ? blockersOf(plain) : ['invalid'];
+        }
+        return blockers.length === 0 ? { svg: candidate } : { reason: blockerReason[blockers[0]] };
+    };
     return {
-        async prepare({ svg, language, source }) {
-            let candidate = svg;
-            let reasons = rasterBlockers(candidate);
-            if (language === 'mermaid' && reasons.includes(HTML_LABELS)) {
-                candidate = xmlSafeSvg(await drawMermaid(source));
-                reasons = rasterBlockers(candidate);
+        prepare(input) {
+            const key = JSON.stringify([input.svg, input.language, input.source]);
+            if (last?.key !== key) {
+                const result = prepare(input);
+                last = { key, result };
+                // A failed draw must not stay cached.
+                result.catch(() => { if (last?.result === result) last = null; });
             }
-            return reasons.length === 0 ? { svg: candidate } : { reason: reasons[0] };
+            return last.result;
         },
         export: exportRaster,
     };

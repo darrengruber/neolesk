@@ -18,7 +18,7 @@ const blobText = (blob: Blob) => new Promise<string>((resolve, reject) => {
 describe('diagram export', () => {
     it('creates SVG entirely from the rendered browser result', async () => {
         const remoteExport = vi.fn();
-        const result = await exportDiagram({
+        const { blob: result, madeOn } = await exportDiagram({
             format: 'svg',
             svg: '<svg><text>private</text></svg>',
             language: 'mermaid',
@@ -35,6 +35,7 @@ describe('diagram export', () => {
         });
         expect(text).toBe('<svg><text>private</text></svg>');
         expect(result.type).toBe('image/svg+xml');
+        expect(madeOn).toBe('device');
         expect(remoteExport).not.toHaveBeenCalled();
     });
 
@@ -48,7 +49,7 @@ describe('diagram export', () => {
             id: 'neolesk', label: "neolesk's renderer", url: 'https://example.test/render/',
         });
 
-        const result = await exportDiagram({
+        const { blob: result, madeOn } = await exportDiagram({
             format,
             svg: '<svg />',
             language: 'graphviz',
@@ -58,6 +59,7 @@ describe('diagram export', () => {
         });
 
         expect(result.type).toBe(mimeType);
+        expect(madeOn).toBe('server');
         expect(remoteExport).toHaveBeenCalledWith({
             format,
             language: 'graphviz',
@@ -130,10 +132,11 @@ describe('diagram export', () => {
         it.each(['png', 'jpeg', 'pdf'] as const)('makes %s locally and never calls the server, even when it has consent', async (format) => {
             const local = localExporter({ svg: '<svg id="drawn"/>' });
             const remoteExport = vi.fn();
-            const blob = await exportDiagram({
+            const { blob, madeOn } = await exportDiagram({
                 format, svg: '<svg/>', language: 'graphviz', source: 'digraph {}', remote: server, remoteExport, local,
             });
             expect(await blobText(blob)).toBe('local');
+            expect(madeOn).toBe('device');
             expect(local.prepare).toHaveBeenCalledWith({ svg: '<svg/>', language: 'graphviz', source: 'digraph {}' });
             expect(local.export).toHaveBeenCalledWith('<svg id="drawn"/>', format);
             expect(remoteExport).not.toHaveBeenCalled();
@@ -143,33 +146,44 @@ describe('diagram export', () => {
             const local = localExporter({ svg: '<svg/>' });
             await expect(exportDiagram({
                 format: 'pdf', svg: '<svg/>', language: 'mermaid', source: 'graph TD', remote: server, remoteExport: vi.fn(), local,
-            })).resolves.toBeInstanceOf(Blob);
+            })).resolves.toMatchObject({ madeOn: 'device' });
         });
 
         it('needs no consent for a local export', async () => {
             const local = localExporter({ svg: '<svg/>' });
             await expect(exportDiagram({
                 format: 'png', svg: '<svg/>', language: 'graphviz', source: 'digraph {}', remote: null, remoteExport: vi.fn(), local,
-            })).resolves.toBeInstanceOf(Blob);
+            })).resolves.toMatchObject({ madeOn: 'device' });
         });
 
         it('uses the consented server when this device cannot draw the diagram', async () => {
             const local = localExporter({ reason: 'it uses HTML labels' });
             const remoteExport = vi.fn(async () => new Blob(['server'], { type: 'image/png' }));
-            const blob = await exportDiagram({
+            const { blob, madeOn } = await exportDiagram({
                 format: 'png', svg: '<svg/>', language: 'graphviz', source: 'digraph {}', remote: server, remoteExport, local,
             });
             expect(await blobText(blob)).toBe('server');
+            expect(madeOn).toBe('server');
             expect(local.export).not.toHaveBeenCalled();
         });
 
         it('uses the consented server when the canvas refuses the drawing', async () => {
             const local = localExporter({ svg: '<svg/>' }, async () => { throw new DOMException('Tainted canvas', 'SecurityError'); });
             const remoteExport = vi.fn(async () => new Blob(['server'], { type: 'image/png' }));
-            const blob = await exportDiagram({
+            const { blob, madeOn } = await exportDiagram({
                 format: 'png', svg: '<svg/>', language: 'graphviz', source: 'digraph {}', remote: server, remoteExport, local,
             });
             expect(await blobText(blob)).toBe('server');
+            expect(madeOn).toBe('server');
+        });
+
+        it('gives a plain reason, not the browser message, when the canvas fails without consent', async () => {
+            const local = localExporter({ svg: '<svg/>' }, async () => { throw new DOMException('The source image cannot be decoded.', 'EncodingError'); });
+            await expect(exportDiagram({
+                format: 'jpeg', svg: '<svg/>', language: 'graphviz', source: 'digraph {}', remote: null, remoteExport: vi.fn(), local,
+            })).rejects.toMatchObject({
+                message: 'JPEG export of this diagram needs a render server, because this browser could not draw it',
+            });
         });
 
         it('says why a render server is needed when there is no consent', async () => {
