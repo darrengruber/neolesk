@@ -76,6 +76,8 @@ try {
             ].join('\n'),
         },
         {
+            // The MIT build cannot include the C4 library. It must hand the source to the
+            // render server (unreachable here) instead of reporting its error image as a render.
             name: 'c4plantuml-catalog-default',
             language: 'c4plantuml',
             source: [
@@ -87,22 +89,56 @@ try {
                 'Rel(customer, banking_system, "Uses")',
                 '@enduml',
             ].join('\n'),
+            expectFallback: /cannot include C4_Context\.puml/,
+        },
+        {
+            // A stdlib include used to leave the TeaVM thread waiting forever.
+            name: 'c4plantuml-stdlib-include',
+            language: 'c4plantuml',
+            source: '@startuml\n!include <C4/C4_Context>\nPerson(customer, "Customer")\n@enduml',
+            expectFallback: /line 2/,
+        },
+        { name: 'plantuml-after-include', language: 'plantuml', source: '@startuml\nBob -> Alice\n@enduml' },
+        {
+            // Salt is not in the MIT build, which draws a "not supported" picture instead.
+            name: 'plantuml-salt',
+            language: 'plantuml',
+            source: '@startsalt\n{\n  [OK] | [Cancel]\n}\n@endsalt',
+            expectFallback: /does not support @startsalt/,
         },
         { name: 'graphviz', language: 'graphviz', source: 'digraph { a -> b }' },
         { name: 'd2-dagre', language: 'd2', source: 'cluster: {\n  a\n}\ncluster.a -> b: labelled edge' },
+        {
+            name: 'd2-sketch',
+            language: 'd2',
+            source: 'a -> b\nc: {shape: circle}',
+            options: { layout: 'dagre', sketch: 'true' },
+        },
         { name: 'pikchr', language: 'pikchr', source: 'box "hello"' },
+        { name: 'pikchr-invalid', language: 'pikchr', source: 'box "unterminated', expectLocalError: /unrecognized token/ },
         { name: 'svgbob', language: 'svgbob', source: '+---+\n| A |\n+---+' },
     ];
-    for (const { name, language, source } of probes) {
+    for (const [index, { name, language, source, options, expectFallback, expectLocalError }] of probes.entries()) {
         const created = await fetch(`${origin}/api/sessions`, {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            // One documentation-range client per probe keeps the probes under the
+            // per-client session creation limit (10 each minute).
+            headers: { 'content-type': 'application/json', 'cf-connecting-ip': `192.0.2.${index + 1}` },
             body: JSON.stringify({ language, source }),
             signal: AbortSignal.timeout(45_000),
         });
         if (!created.ok) throw new Error(`Session cell returned HTTP ${created.status}: ${await created.text()}`);
         const session = await created.json();
         if (!/^[0-9a-f]{64}$/i.test(String(session.id))) throw new Error('Session cell returned an invalid identifier');
+        if (options) {
+            const set = await fetch(`${origin}/api/sessions/${session.id}/renderer-options/agent`, {
+                method: 'PUT',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(options),
+            });
+            if (!set.ok) throw new Error(`${name} renderer options returned HTTP ${set.status}: ${await set.text()}`);
+        }
+        const startedAt = Date.now();
         const rendered = await fetch(`${origin}/api/sessions/${session.id}/render`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
@@ -110,13 +146,44 @@ try {
             signal: AbortSignal.timeout(45_000),
         });
         const body = await rendered.text();
+        if (expectFallback || expectLocalError) {
+            // No render server is reachable here, so a structured 422 is the correct outcome.
+            const result = rendered.status === 422 ? JSON.parse(body) : null;
+            const first = result?.diagnostics?.[0];
+            const expected = expectFallback || expectLocalError;
+            if (!first || first.kind !== 'fallback' || !expected.test(first.message)
+                || (expectLocalError && result.code !== 'LOCAL_RENDER_FAILED')
+                || Date.now() - startedAt > 20_000) {
+                throw new Error(`${name} did not fail with a structured diagnostic: HTTP ${rendered.status} ${body.slice(0, 500)}`);
+            }
+            process.stdout.write(`Worker reported ${name} with a structured diagnostic.\n`);
+            continue;
+        }
         if (!rendered.ok) throw new Error(`${language} Worker render returned HTTP ${rendered.status}: ${body}`);
         const result = JSON.parse(body);
         if (result.provenance?.kind !== 'local' || !String(result.data).includes('<svg')) {
             throw new Error(`${language} did not render locally inside workerd: ${body.slice(0, 500)}`);
         }
+        // A renderer can answer with a picture of its own error. That is not a render.
+        const errorPicture = String(result.data).match(/Diagram not supported|Syntax Error\?|cannot include|ERROR:/);
+        if (errorPicture) throw new Error(`${name} rendered an error picture ("${errorPicture[0]}") inside workerd`);
         process.stdout.write(`Worker rendered ${name} locally.\n`);
     }
+
+    // The configured render server is unreachable here. The proxy must answer, not crash.
+    const proxied = await fetch(`${origin}/render/mermaid/svg`, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain' },
+        body: 'graph TD\n  A --> B',
+        signal: AbortSignal.timeout(45_000),
+    });
+    const proxiedBody = await proxied.text();
+    if (proxied.status !== 502 || JSON.parse(proxiedBody).error !== 'Render server is unreachable') {
+        throw new Error(`Unreachable render server returned HTTP ${proxied.status}: ${proxiedBody.slice(0, 300)}`);
+    }
+    const after = await fetch(`${origin}/config.json`, { signal: AbortSignal.timeout(10_000) });
+    if (!after.ok) throw new Error(`Worker stopped answering after an unreachable render server (HTTP ${after.status})`);
+    process.stdout.write('Worker answered an unreachable render server with a structured 502.\n');
 } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n${output}\n`);
     process.exitCode = 1;
