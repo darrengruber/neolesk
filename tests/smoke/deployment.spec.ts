@@ -25,3 +25,20 @@ test('a first visit renders a diagram and survives reloads', async ({ page, layo
     }
     await saveScreenshot(page, `smoke-${testInfo.project.name}`);
 });
+
+// The example gallery shows real pictures on a deployment, not placeholders.
+test('the example gallery shows a picture of each example', async ({ page, layout }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Render locally only' }).click();
+    if (layout === 'wide') {
+        const pictures = page.getByRole('complementary', { name: 'Reference' }).locator('.Thumbnail img');
+        await expect(pictures.first()).toBeVisible();
+        await expect.poll(() => pictures.evaluateAll((images: HTMLImageElement[]) => images.every((image) => image.complete && image.naturalWidth > 0))).toBe(true);
+        return;
+    }
+    await openTab(page, 'Examples');
+    await page.getByRole('region', { name: 'All Languages' }).getByRole('button', { name: /^GraphViz/ }).click();
+    const pictures = page.locator('.ExampleTile .Thumbnail img');
+    await expect(pictures).toHaveCount(5);
+    await expect.poll(() => pictures.evaluateAll((images: HTMLImageElement[]) => images.every((image) => image.complete && image.naturalWidth > 0))).toBe(true);
+});
