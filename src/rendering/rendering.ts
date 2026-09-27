@@ -242,7 +242,10 @@ export const createRenderingModule = ({
                 options = catalog.validateOptions(request.language, environment, requestedOptions);
             }
 
+            // The local renderer to fall back to if the server fails while it warms up.
+            let warmingRenderer: RendererAdapter | null = null;
             if (localRenderer && localRenderer.remoteWhileLoading && request.remote && !loaded.has(localRenderer)) {
+                warmingRenderer = localRenderer;
                 void ensureLoaded(localRenderer).catch(() => {
                     // The remote result remains valid. A later local attempt can retry the warm-up.
                 });
@@ -315,6 +318,34 @@ export const createRenderingModule = ({
             } catch (error) {
                 const diagnostic = diagnosticFrom(request.remote.id, error);
                 diagnostic.kind = 'render';
+                // The server was only a shortcut while the local runtime downloaded.
+                // When it fails, wait for the device instead of showing an error.
+                // A server failure is not a problem in the source, so a local
+                // success carries no diagnostic (the editor would mark line 1).
+                if (warmingRenderer) {
+                    try {
+                        await ensureLoaded(warmingRenderer);
+                        const localOptions = catalog.validateOptions(request.language, environment, requestedOptions);
+                        const data = await warmingRenderer.render({
+                            language: request.language,
+                            source: request.source,
+                            format: request.format,
+                            options: localOptions,
+                        });
+                        return {
+                            data,
+                            diagnostics,
+                            provenance: {
+                                kind: 'local',
+                                rendererId: warmingRenderer.id,
+                                rendererLabel: warmingRenderer.label,
+                                options: localOptions,
+                            },
+                        };
+                    } catch (localError) {
+                        diagnostics.push(diagnosticFrom(warmingRenderer.id, localError));
+                    }
+                }
                 throw new RenderingError(
                     'REMOTE_RENDER_FAILED',
                     request.language,

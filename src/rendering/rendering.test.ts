@@ -170,6 +170,35 @@ describe('rendering module', () => {
         });
     });
 
+    // Regression: the Pages preview could not reach the render server (CORS),
+    // and D2 stayed broken although it can render on the device.
+    it('falls back to the warming local renderer when the server fails', async () => {
+        const renderer = localRenderer({
+            remoteWhileLoading: true,
+            load: vi.fn(async () => undefined),
+        });
+        const remoteRender = vi.fn(async () => { throw new TypeError('Failed to fetch'); });
+        const module = createRenderingModule({
+            catalog: createRendererCatalog([renderer]),
+            environment: 'browser',
+            remoteRender,
+        });
+
+        await expect(module.render({
+            language: 'plantuml',
+            source: '@startuml\nAlice -> Bob\n@enduml',
+            format: 'svg',
+            remote: createKrokiRemoteRenderer({
+                id: 'neolesk', label: "neolesk's renderer", url: 'https://example.test/render/',
+            }),
+        })).resolves.toMatchObject({
+            provenance: { kind: 'local', rendererId: 'plantuml-browser' },
+            diagnostics: [],
+        });
+        expect(remoteRender).toHaveBeenCalledOnce();
+        expect(renderer.render).toHaveBeenCalledOnce();
+    });
+
     it('exposes capabilities without loading a renderer', () => {
         const load = vi.fn();
         const renderer = localRenderer({
