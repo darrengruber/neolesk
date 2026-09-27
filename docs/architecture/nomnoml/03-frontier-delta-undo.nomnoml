@@ -1,0 +1,64 @@
+#direction: down
+#background: #ffffff
+#font: Inter
+#fontSize: 15
+#leading: 1.3
+#padding: 16
+#spacing: 48
+#gutter: 24
+#lineWidth: 2
+#arrowSize: 1
+#bendSize: 0.25
+#edges: rounded
+#stroke: #334155
+#fill: #f8fafc
+#.title: visual=none title=bold
+#.state: visual=roundrect fill=#f8fafc stroke=#64748b title=bold
+#.agent: visual=roundrect fill=#eef2ff stroke=#4f46e5 title=bold
+#.human: visual=roundrect fill=#e0f2fe stroke=#0284c7 title=bold
+#.delta: visual=roundrect fill=#f1f5f9 stroke=#0f172a title=bold body=center
+#.result: visual=roundrect fill=#ecfdf5 stroke=#059669 title=bold
+#.audit: visual=note fill=#fff7ed stroke=#ea580c title=bold
+#.insight: visual=note fill=#fffbeb stroke=#d97706 title=bold
+
+[<title id=title>Frontier-relative undo preserves later human edits]
+
+[<state id=f0>F0 - initial;AAAA]
+[<agent id=a1>Agent write A1;replace with BBBB]
+[<state id=f1>F1 - after A1;BBBB]
+[<agent id=a2>Agent write A2;replace with CCCC]
+[<state id=f2>F2 - after A2;CCCC]
+[<human id=h>Human edit H;append HUMAN]
+[<state id=f3>F3 - current;CCCC HUMAN]
+
+[<audit id=record1>Audit A1;before F0;after F1;fallback inverse update]
+[<audit id=record2>Audit A2;before F1;after F2;fallback inverse update]
+
+[<human id=current2>Undo A2 starts from current F3;CCCC HUMAN]
+[<delta id=delta2>Compute causal inverse;diff F2 to F1 with false;apply delta to current document]
+[<result id=result2>Result after undo A2;BBBB HUMAN]
+
+[<human id=current1>Undo A1 starts from merged result;BBBB HUMAN]
+[<delta id=delta1>Compute causal inverse;diff F1 to F0 with false;apply delta to current document]
+[<result id=result1>Result after undo A1;AAAA HUMAN]
+
+[<insight id=insight>CRDT-relative undo is not snapshot rollback.;The inverse targets only the agent operation's causal interval.;H sits outside that interval, so the human text survives both undos.]
+[<insight id=fallback>Compatibility path;If an older audit entry has no frontiers,;import its retained UndoManager update instead.]
+
+[title] -/- [f0]
+[f0] -> [a1]
+[a1] -> [f1]
+[f1] -> [a2]
+[a2] -> [f2]
+[f2] -> [h]
+[h] -> [f3]
+[a1] capture F0 to F1 -- [record1]
+[a2] capture F1 to F2 -- [record2]
+[f3] undo request -> [current2]
+[current2] -> [delta2]
+[delta2] -> [result2]
+[result2] next undo -> [current1]
+[current1] -> [delta1]
+[delta1] -> [result1]
+[result2] preserves H -- [insight]
+[record2] older entries -- [fallback]

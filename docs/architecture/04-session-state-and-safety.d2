@@ -1,0 +1,136 @@
+direction: right
+
+classes: {
+  shared: {
+    style: {
+      fill: "#ECFDF5"
+      stroke: "#059669"
+      stroke-width: 3
+      font-color: "#064E3B"
+      border-radius: 10
+    }
+  }
+  local: {
+    style: {
+      fill: "#EFF6FF"
+      stroke: "#2563EB"
+      stroke-width: 2
+      font-color: "#1E3A8A"
+      border-radius: 10
+    }
+  }
+  persisted: {
+    shape: cylinder
+    style: {
+      fill: "#F5F3FF"
+      stroke: "#7C3AED"
+      stroke-width: 2
+      font-color: "#4C1D95"
+    }
+  }
+  runtime: {
+    style: {
+      fill: "#F8FAFC"
+      stroke: "#64748B"
+      stroke-width: 2
+      border-radius: 10
+    }
+  }
+  guard: {
+    shape: hexagon
+    style: {
+      fill: "#FFF7ED"
+      stroke: "#EA580C"
+      stroke-width: 2
+      font-color: "#7C2D12"
+    }
+  }
+  public: {
+    style: {
+      fill: "#FFFBEB"
+      stroke: "#D97706"
+      stroke-width: 2
+      font-color: "#78350F"
+      border-radius: 10
+    }
+  }
+}
+
+title: "One session cell: state boundaries and safety rails" {
+  shape: text
+  style.font-size: 30
+  style.bold: true
+  near: top-center
+}
+
+inputs: "Capability-scoped interfaces" {
+  style.fill: "#F8FAFC"
+  style.stroke: "#CBD5E1"
+
+  human: "Human WebSocket\npresence + Loro snapshot" { class: runtime }
+  agent: "Agent HTTP MCP\ntransactional tools" { class: runtime }
+}
+
+cell: "Durable Object-compatible session cell" {
+  style.fill: "#F8FAFC"
+  style.stroke: "#94A3B8"
+  style.stroke-width: 2
+
+  core: "SessionDocument" {
+    style.fill: "#F0FDF4"
+    style.stroke: "#22C55E"
+
+    doc: "LoroDoc\ntext: source\ntext: language" { class: shared }
+    audit: "Bounded audit · max 64\nactor / actorId / fields / at\nagent before + after frontiers\nfallback inverse update" { class: shared }
+    public_history: "Public history projection\ncausal internals redacted" { class: public }
+
+    doc -> audit: "commit metadata"
+    audit -> public_history: "strip undo + frontiers"
+  }
+
+  participant: "Outside the CRDT" {
+    style.fill: "#EFF6FF"
+    style.stroke: "#93C5FD"
+
+    view: "view:<participant>\npanel · theme · zoom · scroll" { class: local }
+    options: "renderer-options:<participant>:<language>\nvalidated engine settings" { class: local }
+  }
+
+  undo_stack: "Unified agent undo stack\ndocument reference | view copy | options copy\nreverse operation order" { class: persisted }
+  storage: "Cell storage / RustFS\nLoro snapshot + audit + participant keys" { class: persisted }
+  ephemeral: "Runtime-only\nWebSockets · participant bindings\nin-flight render/export counters" { class: runtime }
+  lifecycle: "Presence lease + idle alarm\nconnected sockets keep cell alive" { class: runtime }
+
+  core.doc -> storage: "persist snapshot"
+  core.audit -> storage: "persist bounded audit"
+  participant.view -> storage
+  participant.options -> storage
+  core.audit -> undo_stack: "document op reference\n(no duplicate inverse blob)"
+  undo_stack -> storage
+  ephemeral -> lifecycle
+}
+
+guards: "Guards before persistence or work" {
+  style.fill: "#FFF7ED"
+  style.stroke: "#FDBA74"
+
+  bytes: "Document + audit\n≤ 256 KiB" { class: guard }
+  writes: "Human / agent\nseparate write rates" { class: guard }
+  participants: "≤ 32 participants" { class: guard }
+  operations: "Render / export\nrate + concurrency caps" { class: guard }
+  frames: "Request + WebSocket\nsize / protocol limits" { class: guard }
+}
+
+inputs.human -> cell.core.doc: "import conflict-free history"
+inputs.agent -> cell.core.doc: "candidate transaction"
+inputs.agent -> cell.participant: "agent-local view/options"
+guards -> cell: "reject before mutation" { style.stroke-width: 3 }
+
+boundary: "The design keeps collaboration deep and the shared state small:\ncontent converges, presentation stays personal, and undo remains causally precise." {
+  shape: callout
+  style.fill: "#ECFDF5"
+  style.stroke: "#059669"
+  style.font-color: "#064E3B"
+}
+
+cell -> boundary: "session contract" { style.stroke-dash: 4 }

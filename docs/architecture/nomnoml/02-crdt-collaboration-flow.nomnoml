@@ -1,0 +1,70 @@
+#direction: right
+#background: #ffffff
+#font: Inter
+#fontSize: 14
+#leading: 1.3
+#padding: 14
+#spacing: 55
+#gutter: 20
+#lineWidth: 2
+#arrowSize: 1
+#bendSize: 0.3
+#edges: rounded
+#stroke: #334155
+#fill: #f8fafc
+#.title: visual=none title=bold
+#.browser: visual=frame fill=#eff6ff stroke=#60a5fa title=bold
+#.transport: visual=frame fill=#f8fafc stroke=#94a3b8 title=bold
+#.cell: visual=frame fill=#f0fdf4 stroke=#22c55e title=bold
+#.agentframe: visual=frame fill=#eef2ff stroke=#818cf8 title=bold
+#.process: visual=roundrect fill=#f8fafc stroke=#64748b title=bold
+#.loro: visual=roundrect fill=#ecfdf5 stroke=#059669 title=bold
+#.agent: visual=actor fill=#eef2ff stroke=#4f46e5 title=bold
+#.agentprocess: visual=roundrect fill=#eef2ff stroke=#4f46e5 title=bold
+#.store: visual=database fill=#f5f3ff stroke=#7c3aed title=bold
+#.note: visual=note fill=#fffbeb stroke=#d97706 title=bold
+
+[<title id=title>Conflict-free human + agent collaboration]
+
+[<browser id=browser>Browser participant|
+  [<process id=editor>CodeMirror 6;loro-codemirror binding]
+  [<loro id=replica>Browser LoroDoc;source + language]
+  [<process id=batch>250 ms dirty batching;one in-flight write]
+  [<process id=reconnect>Reconnect path;import authority;resend offline work]
+  [editor] local CRDT operations -> [replica]
+  [replica] full Loro snapshot -> [batch]
+  [reconnect] merge, never replace --> [replica]
+]
+
+[<transport id=transport>Session transport|
+  [<process id=websocket>WebSocket;presence + loro-update + ack]
+  [<process id=fanout>Snapshot fan-out;activity metadata]
+]
+
+[<cell id=authority>Authoritative session cell|
+  [<process id=import>POST /crdt;import human snapshot]
+  [<loro id=document>SessionDocument;authoritative LoroDoc]
+  [<store id=persist>Persisted snapshot;+ bounded audit]
+  [import] CRDT import + commit, origin human -> [document]
+  [document] save -> [persist]
+]
+
+[<agentframe id=agent_lane>Agent participant|
+  [<agent id=client>Coding agent]
+  [<agentprocess id=agent_mcp>Session MCP;set_source / set_language]
+  [<process id=mutate>POST /mutate;candidate from current snapshot]
+  [client] tool call -> [agent_mcp]
+  [agent_mcp] actor agent, actorId mcp -> [mutate]
+]
+
+[<note id=convergence>Why it converges;Each replica imports Loro history.;Local and offline operations retain causal identity.;Retries and reconnects merge rather than replay blind text patches.]
+[<note id=shared_boundary>Shared: source and language;Not shared: theme, zoom, scroll, split, renderer options]
+
+[title] -/- [browser]
+[browser] loro-update snapshot -> [transport]
+[transport] POST /crdt + ack -> [authority]
+[authority] convergent snapshot + activity --> [browser]
+[agent_lane] MCP mutation -> [authority]
+[authority] current shared state --> [agent_lane]
+[authority] -- [convergence]
+[authority] -- [shared_boundary]
