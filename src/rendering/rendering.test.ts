@@ -17,6 +17,36 @@ const localRenderer = (overrides: Partial<RendererAdapter> = {}): RendererAdapte
 });
 
 describe('rendering module', () => {
+    it('returns SVG that parses as XML when the renderer writes HTML entities', async () => {
+        // Mermaid, local or on Kroki, writes a non-breaking space as &nbsp;,
+        // which XML does not define: an <img> or an SVG file then fails to load.
+        const html = '<svg xmlns="http://www.w3.org/2000/svg"><text>After the fix&nbsp;</text></svg>';
+        const renderer = localRenderer({ render: vi.fn(async () => html) });
+        const local = createRenderingModule({
+            catalog: createRendererCatalog([renderer]),
+            environment: 'browser',
+            remoteRender: vi.fn(),
+        });
+        const remote = createRenderingModule({
+            catalog: createRendererCatalog([]),
+            environment: 'browser',
+            remoteRender: vi.fn(async () => html),
+        });
+        const server = createKrokiRemoteRenderer({
+            id: 'neolesk',
+            label: "neolesk's renderer",
+            url: 'https://diagrams.darrengruber.com/render/',
+        });
+
+        const fromDevice = await local.render({ language: 'plantuml', source: 'x', format: 'svg', remote: null });
+        const fromServer = await remote.render({ language: 'mermaid', source: 'x', format: 'svg', remote: server });
+
+        for (const { data } of [fromDevice, fromServer]) {
+            expect(data).toContain('After the fix&#160;');
+            expect(new DOMParser().parseFromString(data, 'image/svg+xml').querySelector('parsererror')).toBeNull();
+        }
+    });
+
     it('resolves a diagram language to its renderer and reports local provenance', async () => {
         const renderer = localRenderer();
         const module = createRenderingModule({

@@ -1,3 +1,5 @@
+import { xmlSafeSvg } from '../utils/svgXml';
+
 export type RenderEnvironment = 'browser' | 'worker';
 
 export interface RenderRequest {
@@ -259,7 +261,7 @@ export const createRenderingModule = ({
                         options,
                     });
                     return {
-                        data,
+                        data: request.format === 'svg' ? xmlSafeSvg(data) : data,
                         diagnostics,
                         provenance: {
                             kind: 'local',
@@ -305,7 +307,7 @@ export const createRenderingModule = ({
                     serverUrl: request.remote.transportUrl || request.remote.url,
                 });
                 return {
-                    data,
+                    data: request.format === 'svg' ? xmlSafeSvg(data) : data,
                     diagnostics,
                     provenance: {
                         kind: 'remote',
@@ -333,7 +335,7 @@ export const createRenderingModule = ({
                             options: localOptions,
                         });
                         return {
-                            data,
+                            data: request.format === 'svg' ? xmlSafeSvg(data) : data,
                             diagnostics,
                             provenance: {
                                 kind: 'local',
