@@ -92,11 +92,21 @@ export const chooseLanguage = async (page: Page, name: string) => {
     await expect(languageButton(page)).toHaveAccessibleName(`Diagram language: ${name}`);
 };
 
+/**
+ * The modifier that CodeMirror binds to Mod on this page. CodeMirror reads
+ * the emulated device, not the host: an iPhone or iPad is an Apple platform,
+ * so Mod is Meta even on a Linux runner. There, Playwright's ControlOrMeta
+ * sends Control, and Control+A only moves the cursor to the line start.
+ */
+const modKey = async (page: Page) => (await page.evaluate(() => (
+    /Mac/.test(navigator.platform) || /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
+)) ? 'Meta' : 'Control');
+
 /** Replace the editor contents the way a person would: select all, then type. */
 export const replaceSource = async (page: Page, text: string) => {
     const source = editorSource(page);
     await source.click();
-    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press(`${await modKey(page)}+a`);
     await page.keyboard.press('Backspace');
     if (text) await page.keyboard.insertText(text);
 };
