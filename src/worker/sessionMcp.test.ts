@@ -257,6 +257,23 @@ describe('session-scoped HTTP MCP', () => {
         }));
     });
 
+    it('reports the public render server for an SVG export, as render does', async () => {
+        const handler = createSessionMcpHandler({
+            sessionId: 'session', cell, snapshotBaseUrl: 'https://diagrams.example/',
+        });
+
+        const exported = await rpc(handler.fetch, 'tools/call', {
+            name: 'export', arguments: { format: 'svg' },
+        });
+
+        expect(exported.result.structuredContent).toEqual(expect.objectContaining({
+            format: 'svg', mimeType: 'image/svg+xml', data: '<svg/>',
+        }));
+        expect(renderDiagram).toHaveBeenCalledWith(expect.objectContaining({
+            renderServerUrl: 'https://diagrams.example/render/',
+        }));
+    });
+
     it('returns one bounded binary representation for MCP exports', async () => {
         const bytes = new Uint8Array([1, 2, 3]);
         const exportCell = {

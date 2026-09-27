@@ -279,8 +279,11 @@ const executeTool = async (
         const format = requiredString(args.format, 'format');
         if (!['svg', 'png', 'jpeg', 'pdf'].includes(format)) throw new Error('Unsupported export format');
         if (format === 'svg') {
+            const init = postJson({ participantId: 'agent', format });
+            const headers = new Headers(init.headers);
+            headers.set('x-neolesk-public-origin', new URL(dependencies.snapshotBaseUrl).origin);
             const response = await dependencies.cell.fetch(new Request(
-                'https://session.internal/render', postJson({ participantId: 'agent', format }),
+                'https://session.internal/render', { ...init, headers },
             ));
             const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` })) as Record<string, unknown>;
             return textResult({ format, mimeType: 'image/svg+xml', ...result }, !response.ok);
