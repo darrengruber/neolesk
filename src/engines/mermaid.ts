@@ -7,7 +7,10 @@ const defaultMermaidConfig: MermaidConfig = {
     class: { useMaxWidth: false },
     er: { useMaxWidth: false },
     flowchart: { useMaxWidth: false },
-    gantt: { useMaxWidth: false },
+    // Gantt lays itself out to its container, and the render container is
+    // 1px wide, so without a width every bar had a negative width. 584 is the
+    // width Kroki gives the same chart, so local and server renders agree.
+    gantt: { useMaxWidth: false, useWidth: 584 },
     git: { useMaxWidth: false },
     journey: { useMaxWidth: false },
     sequence: { useMaxWidth: false },
