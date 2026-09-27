@@ -137,6 +137,8 @@ function EditorApplication({
     const [presence, setPresence] = useState<Presence>('offline');
     const [agentPresence, setAgentPresence] = useState<Presence>('offline');
     const [agentActivity, setAgentActivity] = useState<string | null>(null);
+    // Who changed the shared source last. While it is the agent, show only valid diagrams.
+    const [lastEditor, setLastEditor] = useState<'agent' | 'human'>('human');
     const previewRef = useRef<HTMLElement | null>(null);
     const [view, setView] = useState<ParticipantViewModel>(() => ({
         panel: initialPanel(),
@@ -169,17 +171,18 @@ function EditorApplication({
     const capabilities = useMemo(() => getBrowserRenderCapabilities(language), [language]);
     const sessionReady = !sessionId || Boolean(collaboration);
     const emptySource = previewSource.trim() === '';
+    const agentDrawing = Boolean(sessionId) && lastEditor === 'agent';
 
     const announce = (text: string, transient = false) => setStatus({ text, transient });
 
-    const remoteMarkers = useMemo<DiagramValidationMarker[]>(() => renderState.diagnostics.map((diagnostic) => ({
+    const remoteMarkers = useMemo<DiagramValidationMarker[]>(() => (agentDrawing ? [] : renderState.diagnostics).map((diagnostic) => ({
         message: diagnostic.message,
         startLineNumber: diagnostic.line || 1,
         startColumn: diagnostic.column || 1,
         endLineNumber: diagnostic.line || 1,
         endColumn: (diagnostic.column || 1) + 1,
         severity: diagnostic.kind === 'render' ? 'error' : 'warning',
-    })), [renderState.diagnostics]);
+    })), [agentDrawing, renderState.diagnostics]);
 
     const provenanceLabel = renderState.provenance?.kind === 'remote'
         ? renderState.provenance.rendererLabel
@@ -259,6 +262,7 @@ function EditorApplication({
                     else setPresence(event.state);
                 },
                 onActivity: (activity) => {
+                    setLastEditor(activity.actor === 'agent' ? 'agent' : 'human');
                     if (activity.actor !== 'agent') return;
                     setAgentActivity(activity.fields.length > 0
                         ? `Agent changed ${activity.fields.join(' and ')}`
@@ -362,6 +366,7 @@ function EditorApplication({
     };
 
     const replaceDocument = (nextLanguage: string, nextSource: string, message: string) => {
+        setLastEditor('human');
         collaboration?.replaceDocument?.({ language: nextLanguage, source: nextSource }, message);
         if (collaboration && !collaboration.replaceDocument) {
             announce('The live session is still connecting');
@@ -502,6 +507,10 @@ function EditorApplication({
         <section
             className="EditorPanel"
             aria-label="Code editor"
+            // The editor's change event also fires for remote edits; only real input marks the person as the editor.
+            onKeyDown={() => setLastEditor('human')}
+            onPaste={() => setLastEditor('human')}
+            onBeforeInput={() => setLastEditor('human')}
             onFocus={() => setEditorFocused(true)}
             onBlur={(event) => {
                 if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setEditorFocused(false);
@@ -534,6 +543,7 @@ function EditorApplication({
             onScrollChange={(position) => setView((current) => ({ ...current, ...position }))}
             onAllowRemote={allowRemote}
             renderServerHost={hostOf(renderUrl)}
+            agentDrawing={agentDrawing}
         />
     );
 

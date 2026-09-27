@@ -55,6 +55,7 @@ export function PreviewCanvas({
     onScrollChange,
     onAllowRemote,
     renderServerHost,
+    agentDrawing = false,
 }: {
     layout: LayoutClass;
     previewRef: RefObject<HTMLElement | null>;
@@ -66,6 +67,11 @@ export function PreviewCanvas({
     onAllowRemote: () => void;
     /** Consent is for a specific render server, so the button names it. */
     renderServerHost: string;
+    /**
+     * The latest change came from an agent in a live session. Its intermediate
+     * source may not render yet; show only valid diagrams until it does.
+     */
+    agentDrawing?: boolean;
 }) {
     const pointers = useRef(new Map<number, { x: number; y: number }>());
     const pinch = useRef<Pinch | null>(null);
@@ -89,7 +95,10 @@ export function PreviewCanvas({
         }
     };
 
-    const showImage = Boolean(renderState.blobUrl) && !emptySource && !(renderState.error && !renderState.loading);
+    const failed = Boolean(renderState.error) && !renderState.loading;
+    // While the agent draws, a failed intermediate render keeps the last valid diagram.
+    const holdingForAgent = agentDrawing && failed;
+    const showImage = Boolean(renderState.blobUrl) && !emptySource && (!failed || holdingForAgent);
 
     return (
         <section
@@ -157,10 +166,16 @@ export function PreviewCanvas({
                         : { transform: `scale(${zoom})` }}
                 />
             )}
-            {!emptySource && !renderState.loading && renderState.error && (
+            {holdingForAgent && !emptySource && !renderState.blobUrl && (
+                <div className="PreviewState"><Spinner label="Agent is still drawing" /></div>
+            )}
+            {holdingForAgent && !emptySource && renderState.blobUrl && (
+                <div className="AgentDrawing" role="status">Agent is still drawing</div>
+            )}
+            {!emptySource && failed && !holdingForAgent && (
                 <div className="PreviewError" role="alert">
                     <strong>{renderState.consentRequired ? 'Remote Rendering Is Off' : 'Can’t Render This Diagram'}</strong>
-                    <p>{renderState.error.message}</p>
+                    <p>{renderState.error?.message}</p>
                     {renderState.consentRequired && (
                         <button type="button" onClick={onAllowRemote}>Allow Rendering at {renderServerHost}</button>
                     )}

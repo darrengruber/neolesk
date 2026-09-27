@@ -1451,3 +1451,39 @@ svg { flex: none; }
 /* The wide sidebar keeps its two-column rows with a picture in place of the icon. */
 .SidebarList > button { grid-template-columns: 52px minmax(0, 1fr); align-items: center; }
 .DesktopSettings .Thumbnail, .Sidebar .Thumbnail[data-size="row"] { border-radius: 6px; }
+
+/* ---- The agent is still drawing ---------------------------------------- */
+
+.AgentDrawing {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    z-index: 4;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border: .5px solid var(--separator);
+    border-radius: 16px;
+    background: var(--bar-material);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .10);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    color: var(--label);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    transform: translateX(-50%);
+}
+.AgentDrawing::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--tint);
+    animation: agent-drawing 1.2s ease-in-out infinite;
+}
+@keyframes agent-drawing { 50% { opacity: .3; } }
+.App[data-layout="compact"] .AgentDrawing { top: calc(env(safe-area-inset-top) + 56px); font-size: var(--t-footnote); }
+.App[data-layout="regular"] .AgentDrawing { top: 48px; }
+@media (prefers-reduced-motion: reduce) { .AgentDrawing::before { animation: none; } }
