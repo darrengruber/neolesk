@@ -11,6 +11,15 @@
  * lives on the server. After the reload the builds match, so it cannot loop.
  */
 
+// What an old tab meets when an engine chunk is gone: the host's HTML in place
+// of a script, a failed lazy import, or an engine whose worker never started.
+const MISSING_CODE = /MIME type|dynamically imported module|Importing a module script failed|undefined is not an object|Cannot read properties of undefined/i;
+
+/** Only these errors can be cured by loading the deployed build. */
+export const looksLikeMissingCode = (error: unknown): boolean => (
+    MISSING_CODE.test(error instanceof Error ? error.message : String(error))
+);
+
 const ENTRY_SCRIPT = /<script\b(?=[^>]*\btype=["']module["'])[^>]*\bsrc=["']([^"']+)["']/i;
 
 export const entryScriptOf = (html: string): string | null => ENTRY_SCRIPT.exec(html)?.[1] ?? null;
@@ -44,8 +53,20 @@ export const newBuildAvailable = async ({
 
 let checking: Promise<boolean> | null = null;
 
+// A page that is leaving aborts its in-flight chunk loads, and Vite reports each
+// as a preload error. Those are not a sign of a new build, and a request started
+// now would only be cancelled.
+let unloading = false;
+if (typeof window !== 'undefined') {
+    const markUnloading = () => { unloading = true; };
+    window.addEventListener('beforeunload', markUnloading);
+    window.addEventListener('pagehide', markUnloading);
+    window.addEventListener('pageshow', () => { unloading = false; });
+}
+
 /** Reload into the deployed build if this tab is older. Returns whether it reloads. */
 export const reloadIfNewBuild = (): Promise<boolean> => {
+    if (unloading) return Promise.resolve(false);
     checking ??= newBuildAvailable().then((available) => {
         if (available) window.location.reload();
         checking = null;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { entryScriptOf, newBuildAvailable } from './appVersion';
+import { entryScriptOf, looksLikeMissingCode, newBuildAvailable } from './appVersion';
 
 const page = (entry: string) => `<!DOCTYPE html><html><head>
     <script type="module" crossorigin src="${entry}"></script>
@@ -37,5 +37,26 @@ describe('newBuildAvailable', () => {
         const fetchImpl = vi.fn();
         await expect(newBuildAvailable({ fetchImpl, running: () => null })).resolves.toBe(false);
         expect(fetchImpl).not.toHaveBeenCalled();
+    });
+});
+
+describe('looksLikeMissingCode', () => {
+    it('recognises the errors an old tab meets after a deploy', () => {
+        for (const message of [
+            "'text/html' is not a valid JavaScript MIME type.",
+            'Failed to fetch dynamically imported module: https://example.test/assets/mermaid-A.js',
+            'Importing a module script failed.',
+            'error loading dynamically imported module',
+            "undefined is not an object (evaluating 'd2.compile')",
+            "Cannot read properties of undefined (reading 'compile')",
+        ]) expect(looksLikeMissingCode(new Error(message)), message).toBe(true);
+    });
+
+    it('ignores ordinary diagram errors, which a reload cannot fix', () => {
+        for (const message of [
+            "syntax error in line 1 near '}'",
+            'plantuml needs a render server, but none has consent',
+            'syntax error (line 3)',
+        ]) expect(looksLikeMissingCode(new Error(message)), message).toBe(false);
     });
 });

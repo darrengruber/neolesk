@@ -8,7 +8,7 @@ import {
     type RenderDiagnostic,
     type RenderProvenance,
 } from '../rendering/rendering';
-import { reloadIfNewBuild } from '../utils/appVersion';
+import { looksLikeMissingCode, reloadIfNewBuild } from '../utils/appVersion';
 import { createSvgBlobUrl, getDimensions } from '../utils/svgExport';
 
 const browserRendering = createRenderingModule({
@@ -95,7 +95,7 @@ export const useDiagramRender = ({
             if (generationRef.current !== generation) return;
             // A tab from before a deploy cannot load renamed engine chunks; reload
             // into the deployed build instead of showing that error.
-            void reloadIfNewBuild();
+            if (looksLikeMissingCode(error)) void reloadIfNewBuild();
             const renderingError = error instanceof RenderingError ? error : null;
             setState((current) => ({
                 ...current,
