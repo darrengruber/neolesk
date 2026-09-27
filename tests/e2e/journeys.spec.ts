@@ -116,6 +116,31 @@ test.describe('editing', () => {
         await expect(page.getByRole('status').getByText('SVG exported')).toBeVisible();
     });
 
+    test('an export downloads the file when the system share sheet refuses it', async ({ page, layout }) => {
+        test.skip(layout === 'wide', 'The wide layout always downloads.');
+        // Sharing needs a recent tap; after a slow export the browser refuses with NotAllowedError.
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => true });
+            Object.defineProperty(navigator, 'share', {
+                configurable: true,
+                value: async () => { throw new DOMException('Needs a user gesture', 'NotAllowedError'); },
+            });
+        });
+        await page.goto('/');
+        await chooseLanguage(page, 'GraphViz');
+        if (layout === 'compact') await openTab(page, 'Preview');
+        await expect(renderedDiagram(page).first()).toBeAttached();
+        const { sheet } = await openShareSheet(page, layout);
+        // Without a render server only SVG is offered, and the sheet says why.
+        await expect(sheet.getByRole('button', { name: /^PNG/ })).toBeDisabled();
+        await expect(sheet.getByText('Needs a render server')).toHaveCount(3);
+        const downloadPromise = page.waitForEvent('download');
+        await sheet.getByRole('button', { name: /^SVG/ }).click();
+        const download = await downloadPromise;
+        expect(download.suggestedFilename()).toBe('diagram.svg');
+        await expect(page.getByRole('status').getByText('SVG exported')).toBeVisible();
+    });
+
     test('examples open from the list for the current language', async ({ page, layout }) => {
         await page.goto('/');
         if (layout === 'wide') {
