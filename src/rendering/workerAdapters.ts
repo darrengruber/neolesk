@@ -34,6 +34,35 @@ const graphvizRenderer: RendererAdapter = {
     },
 };
 
+/**
+ * PlantUML servers, Kroki included, wrap a diagram body without an `@start...` line in
+ * `@startuml`/`@enduml`. The MIT build does not. This mirrors the browser adapter helper.
+ */
+const wrapPlantUmlSource = (source: string): string => (
+    /^\s*@start/m.test(source) ? source : `@startuml\n${source}\n@enduml`
+);
+
+const PLANTUML_UNSUPPORTED = 'Diagram not supported by this release of PlantUML';
+
+/** PlantUML reports source errors as an error diagram, not through its failure callback. */
+const plantUmlErrorFromSvg = (svg: string, lineOffset = 0): Error | null => {
+    // The MIT build omits some diagram types, such as Salt, and draws an explanation instead.
+    if (svg.includes(PLANTUML_UNSUPPORTED)) {
+        const directive = svg.match(/following directive\s*(?:<[^>]*>\s*)*([^<]*?)\s*(?:<[^>]*>\s*)*is not recognized/i)?.[1]
+            ?.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
+        return new Error(directive
+            ? `The PlantUML MIT build does not support ${directive}. A render server can draw it.`
+            : 'The PlantUML MIT build does not support this diagram. A render server can draw it.');
+    }
+    const origin = svg.match(/>\[From [^<]*?\(line (\d+)\)\s*\]<\/text>/);
+    if (!origin) return null;
+    const messages = Array.from(svg.matchAll(/<text\b[^>]*\bfill="#FF0000"[^>]*>([^<]*)<\/text>/g))
+        .map((match) => match[1].trim())
+        .filter(Boolean);
+    if (messages.length === 0) return null;
+    return new Error(`${messages.join(' ')} (line ${Math.max(1, Number(origin[1]) - lineOffset)})`);
+};
+
 type PlantUmlRender = (
     source: string[],
     success: (svg: string) => void,
@@ -48,20 +77,31 @@ const plantUmlRenderer: RendererAdapter = {
     formats: ['svg'],
     remoteOnError: true,
     async render({ source }) {
+        // A render that never calls back leaves the single TeaVM thread busy, so later
+        // renders would each wait for the full timeout. Fail fast and let Kroki take over.
+        if (plantUmlStalled) throw new Error('PlantUML runtime stalled after an earlier render timed out');
         const { installWorkerPlantUmlPlatform, loadWorkerViz } = await import('./workerRuntimes');
         await loadWorkerViz();
         installWorkerPlantUmlPlatform();
         const { renderToString } = await import('@plantuml/core');
-        return new Promise<string>((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('PlantUML render timed out')), 30_000);
+        const wrapped = wrapPlantUmlSource(source);
+        const svg = await new Promise<string>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                plantUmlStalled = true;
+                reject(new Error('PlantUML render timed out'));
+            }, 30_000);
             (renderToString as PlantUmlRender)(
-                source.split(/\r?\n/),
-                (svg) => { clearTimeout(timeout); resolve(svg); },
+                wrapped.split(/\r?\n/),
+                (output) => { clearTimeout(timeout); resolve(output); },
                 (message) => { clearTimeout(timeout); reject(new Error(message)); },
             );
         });
+        const sourceError = plantUmlErrorFromSvg(svg, wrapped === source ? 0 : 1);
+        if (sourceError) throw sourceError;
+        return svg;
     },
 };
+let plantUmlStalled = false;
 
 const d2Renderer: RendererAdapter = {
     id: 'd2-worker',
@@ -104,7 +144,19 @@ const pikchrRenderer: RendererAdapter = {
     environments: ['worker'],
     languages: ['pikchr'],
     formats: ['svg'],
-    render: async ({ source }) => (await import('./workerRuntimes')).renderWorkerPikchr(source),
+    async render({ source }) {
+        const output = await (await import('./workerRuntimes')).renderWorkerPikchr(source);
+        // Pikchr returns an HTML error block instead of SVG when the source is invalid.
+        if (!/^\s*<svg\b/i.test(output)) {
+            const text = output.replace(/<[^>]*>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+            const markers = Array.from(text.matchAll(/\/\*\s*(\d+)\s*\*\//g));
+            const line = markers[markers.length - 1]?.[1];
+            const message = text.match(/ERROR:\s*(.+)/)?.[1]?.trim() || 'Pikchr could not render the source';
+            throw new Error(line ? `${message} (line ${line})` : message);
+        }
+        return output;
+    },
 };
 
 const svgbobRenderer: RendererAdapter = {

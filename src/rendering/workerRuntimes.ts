@@ -120,7 +120,15 @@ export const installWorkerPlantUmlPlatform = (): void => {
             return new SvgNode(tag);
         },
         createElementNS(_namespace: string, tag: string) { return new SvgNode(tag); },
-        head: { appendChild() {} },
+        head: {
+            // PlantUML loads stdlib packages (such as <C4/C4_Context>) by appending a script
+            // element and waiting for onload or onerror. A cell loads no scripts, so fail it
+            // at once; otherwise the TeaVM thread waits forever and stalls later renders.
+            appendChild(node: unknown) {
+                const script = node as { tag?: string; onerror?: (() => void) | null };
+                if (script.tag === 'script') queueMicrotask(() => script.onerror?.());
+            },
+        },
         body,
     };
     workerGlobals.window = workerGlobals;
