@@ -15,6 +15,7 @@ import { getBrowserRenderCapabilities, useDiagramRender } from './hooks/useDiagr
 import { useVisualViewport } from './hooks/useVisualViewport';
 import { useWindowWidth } from './hooks/useWindowWidth';
 import { decode } from './kroki/coder';
+import { getDiagramFiletypes } from './kroki/metadata';
 import {
     consentServerForChoice,
     getConsentedRemoteRenderer,
@@ -634,6 +635,7 @@ function EditorApplication({
                     onCopySessionLink: () => copyText(sessionUrl(), 'Session link copied'),
                 }}
                 hasRenderServer={Boolean(remote)}
+                language={{ name: languageName, formats: getDiagramFiletypes(language) }}
                 hasDiagram={Boolean(renderState.svgText)}
                 onExport={download}
                 onPrint={printDiagram}

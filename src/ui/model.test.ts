@@ -182,5 +182,9 @@ describe('wording', () => {
         expect(exportFormatNote('svg', false)).toBeNull();
         expect(exportFormatNote('png', false)).toBe('Needs a render server');
         expect(exportFormatNote('pdf', true)).toBeNull();
+        expect(exportFormatNote('pdf', true, { name: 'Mermaid', formats: ['svg', 'png'] })).toBe('Not available for Mermaid');
+        expect(exportFormatNote('png', true, { name: 'Mermaid', formats: ['svg', 'png'] })).toBeNull();
+        expect(exportFormatNote('svg', true, { name: 'D2', formats: ['svg'] })).toBeNull();
+        expect(exportFormatNote('png', false, { name: 'D2', formats: ['svg'] })).toBe('Needs a render server');
     });
 });

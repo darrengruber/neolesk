@@ -27,7 +27,7 @@ export const diagramMetadata: Record<string, { language?: string; filetypes: str
     vegalite: { language: 'json', filetypes: ['svg', 'png', 'pdf'] },
     wavedrom: { language: 'json', filetypes: ['svg'] },
     wireviz: { language: 'yaml', filetypes: ['svg', 'png'] },
-    diagramsnet: { language: 'xml', filetypes: ['svg'] },
+    diagramsnet: { language: 'xml', filetypes: ['svg', 'png'] },
 };
 
 export const defaultFiletype = 'svg';

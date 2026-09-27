@@ -43,7 +43,7 @@ describe('diagram export', () => {
         const result = await exportDiagram({
             format,
             svg: '<svg />',
-            language: 'mermaid',
+            language: 'graphviz',
             source: 'diagram source',
             remote,
             remoteExport,
@@ -52,7 +52,7 @@ describe('diagram export', () => {
         expect(result.type).toBe(mimeType);
         expect(remoteExport).toHaveBeenCalledWith({
             format,
-            language: 'mermaid',
+            language: 'graphviz',
             serverUrl: 'https://example.test/render/',
             source: 'diagram source',
         });
@@ -67,6 +67,49 @@ describe('diagram export', () => {
             remote: null,
             remoteExport: vi.fn(),
         })).rejects.toMatchObject({ code: 'REMOTE_CONSENT_REQUIRED' });
+    });
+
+    it.each([
+        ['d2', 'png'],
+        ['mermaid', 'pdf'],
+        ['plantuml', 'jpeg'],
+    ] as const)('does not ask the server for a %s %s export that it cannot make', async (language, format) => {
+        const remoteExport = vi.fn();
+        await expect(exportDiagram({
+            format,
+            svg: '<svg />',
+            language,
+            source: 'diagram source',
+            remote: createKrokiRemoteRenderer({ id: 'neolesk', label: 'neolesk', url: 'https://example.test/render/' }),
+            remoteExport,
+        })).rejects.toThrow(`${format.toUpperCase()} export is not available for this diagram language`);
+        expect(remoteExport).not.toHaveBeenCalled();
+    });
+
+    it('shows the message of a JSON error from the export cell, not the JSON', async () => {
+        const exportSession = createSessionExportAdapter({
+            backendUrl: 'https://diagrams.example/',
+            sessionId: 'a'.repeat(64),
+            participantId: 'browser-stable',
+            rendererId: 'neolesk',
+            fetchImpl: async () => new Response(JSON.stringify({ error: 'Session export rate limit exceeded' }), {
+                status: 429, headers: { 'content-type': 'application/json' },
+            }),
+        });
+        await expect(exportSession({
+            format: 'png', language: 'graphviz', source: 'ignored', serverUrl: '',
+        })).rejects.toThrow(/^Session export rate limit exceeded$/);
+
+        const exportManaged = createManagedCellExportAdapter({
+            backendUrl: 'https://diagrams.example/',
+            rendererId: 'neolesk',
+            fetchImpl: async () => new Response(JSON.stringify({ error: 'Session creation rate limit exceeded' }), {
+                status: 429, headers: { 'content-type': 'application/json' },
+            }),
+        });
+        await expect(exportManaged({
+            format: 'png', language: 'graphviz', source: 'digraph {}', serverUrl: '',
+        })).rejects.toThrow(/^Session creation rate limit exceeded$/);
     });
 
     it('bounds a direct remote binary export response', async () => {

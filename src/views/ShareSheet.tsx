@@ -25,6 +25,7 @@ export function ShareSheet({
     onShareSnapshot,
     session,
     hasRenderServer,
+    language,
     hasDiagram,
     onExport,
     onPrint,
@@ -36,6 +37,8 @@ export function ShareSheet({
     onShareSnapshot: () => void;
     session: ShareSheetSession;
     hasRenderServer: boolean;
+    /** The diagram language's name and the formats the render server can make for it. */
+    language: { name: string; formats: readonly string[] };
     hasDiagram: boolean;
     onExport: (format: ExportFormat) => void;
     onPrint: () => void;
@@ -101,7 +104,7 @@ export function ShareSheet({
                     : 'Export is available once the diagram renders.'}
             >
                 {formats.map((format) => {
-                    const note = exportFormatNote(format, hasRenderServer);
+                    const note = exportFormatNote(format, hasRenderServer, language);
                     return (
                         <RowButton
                             key={format}

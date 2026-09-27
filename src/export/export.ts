@@ -41,6 +41,18 @@ export const createRemoteExportAdapter = (
     });
 };
 
+/** The cell answers errors as JSON `{ "error": "..." }`; show the message, not the JSON. */
+const failureMessage = async (response: Response, fallback: string): Promise<string> => {
+    const text = (await response.text()).trim();
+    try {
+        const parsed = JSON.parse(text) as { error?: unknown };
+        if (typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error.trim();
+    } catch {
+        // Not JSON: a proxy or the render server answered in plain text.
+    }
+    return text || fallback;
+};
+
 export const createSessionExportAdapter = ({
     backendUrl,
     sessionId,
@@ -63,7 +75,7 @@ export const createSessionExportAdapter = ({
         },
     );
     if (!response.ok) {
-        throw new Error((await response.text()).trim() || `Session export failed with HTTP ${response.status}`);
+        throw new Error(await failureMessage(response, `Session export failed with HTTP ${response.status}`));
     }
     return response.blob();
 };
@@ -84,7 +96,7 @@ export const createManagedCellExportAdapter = ({
         body: JSON.stringify({ language, source }),
     });
     if (!created.ok) {
-        throw new Error((await created.text()).trim() || `Could not create export cell (HTTP ${created.status})`);
+        throw new Error(await failureMessage(created, `Could not create export cell (HTTP ${created.status})`));
     }
     const session = await created.json() as { id?: unknown };
     if (typeof session.id !== 'string' || !/^[0-9a-f]{64}$/i.test(session.id)) {
@@ -130,6 +142,14 @@ export const exportDiagram = async ({
             'REMOTE_CONSENT_REQUIRED',
             language,
             `${format.toUpperCase()} export needs a consented render server`,
+        );
+    }
+    const serverFormats = remote.capabilities[language]?.formats;
+    if (serverFormats && !serverFormats.includes(format)) {
+        throw new RenderingError(
+            'REMOTE_RENDER_FAILED',
+            language,
+            `${format.toUpperCase()} export is not available for this diagram language`,
         );
     }
     return remoteExport({
